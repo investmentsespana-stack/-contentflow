@@ -1,0 +1,41 @@
+name: panel-qa-v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/**'
+      - 'playwright.config.ts'
+      - 'package.json'
+      - '.github/workflows/panel-qa.yml'
+
+jobs:
+  browser-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Run ${{ matrix.browser }} QA
+        env:
+          CONTENTFLOW_BASE_URL: https://contentflow-ai-tan.vercel.app
+        run: npx playwright test --project=${{ matrix.browser }}
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: panel-qa-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
