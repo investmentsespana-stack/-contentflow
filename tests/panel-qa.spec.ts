@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 
+// Runtime evidence test for panel_qa_v1_browser.
 test('panel_qa_v1_browser: production loads without fatal browser errors', async ({ page }) => {
   const fatal: string[] = [];
   page.on('pageerror', err => fatal.push(`pageerror: ${err.message}`));
