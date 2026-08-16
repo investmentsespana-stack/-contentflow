@@ -6,8 +6,8 @@ Build a durable, autonomous multi-agent orchestration core that separates determ
 ## Primary-source architectures reviewed
 
 ### Temporal
-Adopted principles: durable execution, replayable history, idempotency, failure isolation, resumable workflows, and explicit retry policy with bounded backoff rather than blind immediate retry.
-ContentFlow mapping: `director_cycle_runs`, `director_state_transition_ledger`, `idempotency_key`, heartbeat/lease recovery, serialized Director cycle, `contentflow_retry_policies`, `contentflow_retry_state`, retry classification, exponential backoff, cooldown and open-circuit states.
+Adopted principles: durable execution, replayable history, idempotency, failure isolation, resumable workflows, explicit retry policy with bounded backoff, and fencing so stale owners cannot commit after losing ownership.
+ContentFlow mapping: `director_cycle_runs`, `director_state_transition_ledger`, `idempotency_key`, serialized Director cycle, retry classification/backoff, and fenced runner leases.
 
 ### LangGraph
 Adopted principles: long-running stateful orchestration, durable execution, checkpointing, human-in-the-loop, memory, and traceability.
@@ -25,87 +25,54 @@ ContentFlow mapping: `trace_id`, `span_id`, `director_trace_spans`, runtime even
 Adopted principles: explicit handoffs, guardrails, sessions/history, tracing, agents-as-tools, human-in-the-loop, and guardrails at operational boundaries instead of only first input/final output.
 ContentFlow mapping: Director remains authority; Builder/Judge/RARA are delegated roles; runtime event ledger + trace/span IDs; input/output/tool/deploy review boundaries; HELP path.
 
-### AutoGen lessons / Microsoft migration path
-Adopted principles: layered responsibilities, event-driven runtime, benchmarking/evals; avoid treating prototyping UI/orchestration as production runtime.
-ContentFlow mapping: Director Core separated from agent layer, canary gate, persistent benchmark/quality metrics.
-
 ## ContentFlow V2 invariants
 1. One active task -> one active builder run -> one worker owner.
-2. Every active run has heartbeat and valid lease.
-3. Backlog, builder run, and worker queue must agree after every Director cycle.
-4. A task with an active `claimed`, `running`, or `review_required` run is not dispatchable.
-5. RARA is support-only and cannot abort Director control flow.
-6. Director cycles are serialized by advisory lock.
-7. Every new cycle and builder run carries `workflow_version` and `trace_id`.
-8. State transitions are written to an append-only transition ledger.
-9. Production parallelism is bounded before dispatch by Nexo lane capacity.
-10. Scale-up is gated by recent clean cycles and failure rate.
-11. Transient failures use bounded retry/backoff; non-transient quality/evidence failures require repair or strategy change.
-12. Dispatcher cannot bypass `next_eligible_at` or an open retry circuit.
-13. Only the latest absolute run of a non-completed task can create retry state.
-14. Every builder run has a correlated span with status and timing metadata; raw sensitive prompt/output data is not stored in span attributes by default.
+2. Every active run has a valid fenced lease with `lease_token`, `lease_generation`, `runner_instance_id`, heartbeat and expiry.
+3. Only the current lease owner may renew execution ownership.
+4. A revoked or stale owner can never finalize or mutate backlog after losing ownership.
+5. Backlog, builder run, worker queue and dispatch state must agree after every Director cycle.
+6. A task with an active `claimed`, `running`, or `review_required` run is not dispatchable.
+7. RARA is support-only and cannot abort Director control flow.
+8. Director cycles are serialized by advisory lock.
+9. Every new cycle and builder run carries workflow and trace identity.
+10. State transitions are written to append-only ledgers.
+11. Production parallelism is bounded before dispatch by Nexo lane capacity.
+12. Scale-up is gated by recent clean cycles and failure rate.
+13. Transient failures use bounded retry/backoff; non-transient quality/evidence failures require repair or strategy change.
+14. Dispatcher cannot bypass cooldown or an open retry circuit.
+15. New production runs must use `control_protocol=fenced-v2`; legacy writers cannot create an active run.
+16. Completion is push-finalized by the execution owner; polling collectors are legacy-drain only.
 
-## Retry classification
-Transient / automatically retryable:
-- `capacity`: Nexo lane saturation; exponential backoff, model may rotate.
-- `judge`: Judge unavailable/unparseable; preserve builder result and retry review path.
-- `provider`: provider failure; bounded retry and model rotation.
-- `timeout`: bounded exponential backoff.
-- `state_recovery`: orphan/lease/stale recovery; short cooldown before fresh claim.
+## Fenced single-writer execution protocol
+The production path is now:
 
-Non-transient / no blind retry:
-- `quality_review`
-- `quality_gate`
-- `acceptance_evidence`
-- `unknown`
+`Director Core -> internal_builder_dispatch -> dispatch executor V2 -> runner V2 -> contentflow_finalize_run_v2`
 
-These open a circuit and hold the task for Director/RARA diagnosis or a changed strategy.
+Ownership semantics:
+- `audit_builder_claim()` creates the active run with a unique lease token.
+- `internal_builder_dispatch()` assigns worker/reviewer and dispatches only through the V2 executor.
+- `contentflow-builder-agent-runner-v2` registers a unique runner instance and renews the fenced lease every 30 seconds while executing.
+- `contentflow_builder_heartbeat_v2()` rejects the wrong token, a different runner instance, revoked ownership, or inactive runs.
+- `contentflow_recover_orphan_claims()` revokes an expired fenced lease and increments the generation before requeue.
+- `contentflow_finalize_run_v2()` atomically finalizes run/backlog/worker/dispatch only when the caller still owns the current lease.
+- Late responses from an old owner become `superseded` and cannot mutate current task state.
+- `contentflow-ranked-loop`, `contentflow-builder-worker`, and `contentflow-builder-sprint-dispatch` are retired from the production write path.
+- Database guard `contentflow_guard_active_run_protocol()` rejects new active runs that do not use `fenced-v2`.
 
-## Implemented V2 components
-- `director_workflow_versions`
-- `director-core-v2` active version
-- `workflow_version` + `trace_id` on Director cycles, builder runs, runtime events
-- `director_state_transition_ledger`
-- transition triggers for backlog, builder runs, and workers
-- `contentflow_recommended_parallelism()`
-- `director_canary_policy`
-- `contentflow_director_core_cycle_auto()`
-- `contentflow-auto-loop` v25 with bounded planner wait and asynchronous RARA support
-- `contentflow_retry_policies`
-- `contentflow_retry_state`
-- `contentflow_classify_run_error()`
-- `contentflow_apply_retry_policy()`
-- `contentflow_reconcile_retry_policies()`
-- dispatcher enforcement for cooldown/open circuits
-- `director_trace_spans`
-- builder `span_id` + runtime-event span propagation
-- `contentflow_trace_health` view
-
-## Scale policy
-Bootstrap/degraded: 3 new Production workers maximum per canary decision.
-Stable: up to 6 concurrent Production workers, bounded by live Nexo `production_max`.
-Promotion requires clean Director cycles and acceptable recent builder failure rate.
-
-## Validation target
-Before increasing autonomy or adding features, require repeated cycles with:
-- 0 active state mismatches
-- 0 orphan claims
-- 0 duplicate active ownership
-- 0 Director aborts caused by support services
-- valid trace IDs, span IDs and workflow versions
-- bounded retry behavior with no immediate retry storms
-- real completed backlog growth, not only administrative events
-
-## Latest validation
-A post-hardening Director Core V2 validation completed with:
-- `dispatched=3`
-- `workers_running=6`
-- `production_max=6`
-- `capacity_respected=true`
-- `active_state_mismatches=0`
-- `warnings=[]`
-
-An initial historical retry reconciliation was intentionally corrected after validation showed it could classify superseded failures. The retry reconciler now only acts when the failed/deferred run is the latest absolute run for a non-completed task, and obsolete retry state is removed.
+## Validation
+A clean canary run (`builder_run_id=2037`) demonstrated the full protocol:
+- active run created with `control_protocol=fenced-v2`
+- unique lease token present
+- heartbeat sequence advanced from 1 to 2 during execution
+- stable `runner_instance_id`
+- executor push-finalized the run without RARA or collector intervention
+- dispatch moved to `collected`
+- HTTP status 200
+- final state `review_required`
+- quality score 100
+- lease revoked at finalization
+- active state mismatches = 0
+- pending dispatches older than the fenced lease window = 0
 
 ## Architectural rule
-Do not add another orchestrator path. New capabilities must plug into Director Core as deterministic stages, support services, middleware-style cross-cutting policy, or delegated agents. RARA supports the Director; it does not replace it.
+Do not add another orchestrator or writer path. New capabilities must plug into Director Core as deterministic stages, support services, middleware-style policy, or delegated agents. RARA supports the Director; it does not replace it. Any active execution outside the fenced single-writer protocol is invalid by design.
