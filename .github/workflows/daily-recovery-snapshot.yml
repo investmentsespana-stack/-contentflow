@@ -1,0 +1,78 @@
+name: Daily ContentFlow Recovery Snapshot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 7 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify backup secret
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.SUPABASE_DB_URL }}" ]; then
+            echo "SUPABASE_DB_URL secret is required for automated recovery snapshots."
+            exit 1
+          fi
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create dated recovery snapshot
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          DAY=$(date -u +%Y-%m-%d)
+          DIR="backups/${DAY}"
+          mkdir -p "$DIR"
+
+          # Reproducible schema/code-oriented backup. No ownership/ACL noise.
+          pg_dump "$SUPABASE_DB_URL" \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            --file "$DIR/schema.sql"
+
+          # Runtime-control data needed to reconstruct Director state without
+          # committing arbitrary application/user content or secrets.
+          pg_dump "$SUPABASE_DB_URL" \
+            --data-only \
+            --column-inserts \
+            --no-owner \
+            --no-privileges \
+            --table=public.director_control_policy \
+            --table=public.director_operating_rules \
+            --table=public.director_repair_recipes \
+            --table=public.director_workflow_versions \
+            --table=public.director_canary_policy \
+            --table=public.contentflow_retry_policies \
+            --table=public.contentflow_capacity_phases \
+            --table=public.contentflow_capacity_state \
+            --table=public.contentflow_lane_models \
+            --file "$DIR/runtime-control-data.sql"
+
+          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"schema_plus_nonsecret_runtime_control","restore_order":["schema.sql","runtime-control-data.sql"]}\n' "$(date -u +%FT%TZ)" > "$DIR/manifest.json"
+
+      - name: Commit snapshot
+        shell: bash
+        run: |
+          git config user.name "contentflow-backup-bot"
+          git config user.email "contentflow-backup-bot@users.noreply.github.com"
+          git add backups/
+          if git diff --cached --quiet; then
+            echo "No recovery changes to commit."
+            exit 0
+          fi
+          git commit -m "backup: daily ContentFlow recovery snapshot $(date -u +%Y-%m-%d)"
+          git push
