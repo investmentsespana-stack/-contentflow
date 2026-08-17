@@ -1,0 +1,78 @@
+{
+  "contract": {
+    "schemaName": "standard-director-contract",
+    "apiVersion": "v1",
+    "contractVersion": "1.0.0",
+    "mode": "observe-only"
+  },
+  "metadata": {
+    "directorId": "opc-director",
+    "projectId": "opc",
+    "projectType": "autonomous-business",
+    "environment": "sandbox",
+    "generation": 1,
+    "owner": "Rubén España"
+  },
+  "spec": {
+    "lifecycleState": "bootstrap",
+    "autonomyLevel": "bounded-autonomous",
+    "capacity": {
+      "concurrencyLimit": 0
+    },
+    "objectives": [
+      "prove independent Director boundary",
+      "implement deterministic business workflow skeleton",
+      "pass SDC-v1 conformance before external integrations"
+    ]
+  },
+  "status": {
+    "phase": "bootstrap",
+    "health": "Healthy",
+    "observedGeneration": 1,
+    "lastObservedAt": null
+  },
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "False",
+      "reason": "BootstrapNotExecutable",
+      "message": "OPC is opened but not yet enabled for external execution.",
+      "severity": "info",
+      "lastTransitionTime": null,
+      "observedGeneration": 1
+    },
+    {
+      "type": "Isolated",
+      "status": "True",
+      "reason": "IndependentProjectBoundary",
+      "message": "OPC has no direct ContentFlow state or memory access.",
+      "severity": "info",
+      "lastTransitionTime": null,
+      "observedGeneration": 1
+    }
+  ],
+  "capabilities": {
+    "supportedTaskClasses": [
+      "lead-management",
+      "qualification",
+      "sales",
+      "crm",
+      "customer-support",
+      "business-operations"
+    ],
+    "acceptedCommands": []
+  },
+  "security": {
+    "projectBoundary": "opc",
+    "allowedScopes": ["observe"],
+    "crossProjectAccess": false
+  },
+  "observability": {
+    "traceable": true,
+    "evidenceBacked": true
+  },
+  "compatibility": {
+    "minMasterContractVersion": "1.0.0",
+    "maxMasterContractVersion": "1.x"
+  }
+}
