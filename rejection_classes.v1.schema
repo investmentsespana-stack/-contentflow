@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contentflow.ai/schemas/rejection_classes.v1.schema",
+  "title": "ContentFlow Rejection Class v1",
+  "description": "Canonical mutually-exclusive machine-readable rejection classes for the ContentFlow input boundary.",
+  "type": "string",
+  "enum": [
+    "format_violation",
+    "missing_required_field",
+    "secret_exposure",
+    "unwarranted_assumption",
+    "contradictory_content",
+    "temporal_anomaly",
+    "cardinality_violation",
+    "domain_constraint"
+  ],
+  "x-contentflow-version": "1.0.0",
+  "x-decision-order": [
+    "format_violation",
+    "missing_required_field",
+    "secret_exposure",
+    "unwarranted_assumption",
+    "contradictory_content",
+    "temporal_anomaly",
+    "cardinality_violation",
+    "domain_constraint"
+  ],
+  "x-rejection-classes": {
+    "format_violation": {
+      "definition": "The input cannot be interpreted according to the declared wire format or structural type rules.",
+      "discriminant_rule": "Apply first when JSON syntax, root/container shape, scalar type, UUID/timestamp encoding, or another declared format grammar is invalid."
+    },
+    "missing_required_field": {
+      "definition": "The input is structurally parseable but one or more contract-required fields are absent or null when null is forbidden.",
+      "discriminant_rule": "Apply only after format validation succeeds and before semantic/security checks."
+    },
+    "secret_exposure": {
+      "definition": "The input contains secret material or prohibited sensitive credential patterns in a location where such material is not permitted.",
+      "discriminant_rule": "Apply after required-field validation when deterministic secret/credential detectors match."
+    },
+    "unwarranted_assumption": {
+      "definition": "The input asserts a fact or trusted state that is not guaranteed by the declared contract or verified evidence.",
+      "discriminant_rule": "Apply when the contract does not authorize the asserted assumption and prior format/required-field/secret checks passed."
+    },
+    "contradictory_content": {
+      "definition": "Two or more provided values are logically incompatible under an explicit ContentFlow invariant.",
+      "discriminant_rule": "Apply when a documented cross-field invariant is violated and no earlier class applies."
+    },
+    "temporal_anomaly": {
+      "definition": "Timestamp or interval values are individually well-formed but violate an explicit temporal ordering rule.",
+      "discriminant_rule": "Apply to temporal ordering violations after general contradiction checks and only when timestamps are syntactically valid."
+    },
+    "cardinality_violation": {
+      "definition": "A collection is structurally valid but violates an explicit minimum, maximum, or uniqueness cardinality constraint.",
+      "discriminant_rule": "Apply to collection-count constraints after format validation and before the domain fallback."
+    },
+    "domain_constraint": {
+      "definition": "The input violates an explicit business/domain rule not covered by any earlier rejection class.",
+      "discriminant_rule": "Fallback class; apply only after all preceding discriminants have been evaluated and rejected."
+    }
+  },
+  "x-mutual-exclusivity": "Classification MUST evaluate x-decision-order from first to last and assign exactly the first matching class. A rejected input therefore receives one and only one class."
+}
