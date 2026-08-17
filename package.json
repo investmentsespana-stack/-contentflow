@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:sdc": "node --test tests/sdc-conformance.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0"
