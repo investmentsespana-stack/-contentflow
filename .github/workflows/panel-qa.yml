@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'tests/**'
+      - 'src/**'
+      - 'docs/architecture/**'
       - 'playwright.config.ts'
       - 'package.json'
       - '.github/workflows/panel-qa.yml'
@@ -22,8 +24,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          
+
       - run: npm install
+      - name: Static typecheck approval crypto contract
+        run: npm run typecheck:approval-crypto
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Run ${{ matrix.browser }} QA
         env:
