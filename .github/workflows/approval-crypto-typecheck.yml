@@ -1,0 +1,24 @@
+name: Approval crypto typecheck
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/platform/approval-crypto-validator.ts'
+      - 'docs/architecture/adr-approval-crypto-validation.md'
+      - 'package.json'
+      - '.github/workflows/approval-crypto-typecheck.yml'
+  workflow_dispatch:
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned TypeScript
+        run: npm install --no-save typescript@6.0.3
+      - name: Run approval crypto static typecheck
+        run: npm run typecheck:approval-crypto
