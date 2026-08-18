@@ -23,7 +23,11 @@ ContentFlow experimental and OPC must prove deterministic recovery behavior befo
 - stale fencing tokens are rejected;
 - unknown failures never enter blind retry;
 - failure produces a deterministic recovery policy;
-- promotionEligible is false when any required scenario fails.
+- `promotionEligible` is false when any required scenario fails.
+
+## Promotion rule
+
+A green deterministic certification is necessary but not sufficient for Stable promotion. Runtime fault injection must also pass in an isolated Supabase development branch or equivalent sandbox. Production fault injection is prohibited.
 
 ## Safety boundary
 
