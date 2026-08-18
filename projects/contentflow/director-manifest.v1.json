@@ -1,0 +1,65 @@
+{
+  "contract": {
+    "schemaName": "standard-director-contract",
+    "apiVersion": "v1",
+    "contractVersion": "1.0.0",
+    "mode": "observe-only"
+  },
+  "metadata": {
+    "directorId": "contentflow-director",
+    "projectId": "contentflow",
+    "projectType": "software-orchestration",
+    "environment": "experimental",
+    "generation": 1
+  },
+  "spec": {
+    "lifecycleState": "running",
+    "autonomyLevel": "bounded-autonomous",
+    "capacity": { "concurrencyLimit": 2 },
+    "objectives": [
+      "preserve single authoritative Director",
+      "prove deterministic recovery before promotion to stable",
+      "require evidence-backed completion"
+    ]
+  },
+  "status": {
+    "phase": "running",
+    "health": "Unknown",
+    "observedGeneration": 1,
+    "lastObservedAt": "2026-08-18T20:55:00Z"
+  },
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "Unknown",
+      "reason": "RuntimeProbeRequired",
+      "message": "Static manifest does not claim runtime readiness.",
+      "severity": "warning",
+      "lastTransitionTime": "2026-08-18T20:55:00Z",
+      "observedGeneration": 1
+    }
+  ],
+  "capabilities": {
+    "supportedTaskClasses": ["software-build", "qa-review", "runtime-recovery"],
+    "acceptedCommands": []
+  },
+  "security": {
+    "projectBoundary": "contentflow",
+    "allowedScopes": ["observe"],
+    "crossProjectAccess": false
+  },
+  "observability": {
+    "traceable": true,
+    "evidenceBacked": true
+  },
+  "recovery": {
+    "failurePolicyProfile": "director-recovery-v1",
+    "leaseFencingRequired": true,
+    "evidenceRequiredForCompletion": true,
+    "checkpointStrategy": "last-safe-state"
+  },
+  "compatibility": {
+    "minMasterContractVersion": "1.0.0",
+    "maxMasterContractVersion": "1.x"
+  }
+}
