@@ -2,12 +2,24 @@ name: panel-qa-v1
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tests/**'
+      - 'src/**'
+      - 'projects/**'
+      - 'docs/architecture/**'
+      - 'supabase/functions/**'
+      - 'playwright.config.ts'
+      - 'package.json'
+      - '.github/workflows/panel-qa.yml'
   push:
     branches: [main]
     paths:
       - 'tests/**'
       - 'src/**'
+      - 'projects/**'
       - 'docs/architecture/**'
+      - 'supabase/functions/**'
       - 'playwright.config.ts'
       - 'package.json'
       - '.github/workflows/panel-qa.yml'
@@ -28,6 +40,8 @@ jobs:
       - run: npm install
       - name: Static typecheck approval crypto contract
         run: npm run typecheck:approval-crypto
+      - name: Validate shared Director foundation
+        run: npm run test:director-foundation
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Run ${{ matrix.browser }} QA
         env:
