@@ -7,6 +7,7 @@ on:
       - 'tests/**'
       - 'src/**'
       - 'projects/**'
+      - 'experiments/**'
       - 'docs/architecture/**'
       - 'supabase/functions/**'
       - 'playwright.config.ts'
@@ -18,6 +19,7 @@ on:
       - 'tests/**'
       - 'src/**'
       - 'projects/**'
+      - 'experiments/**'
       - 'docs/architecture/**'
       - 'supabase/functions/**'
       - 'playwright.config.ts'
@@ -39,6 +41,13 @@ jobs:
         run: npm run test:director-foundation
       - name: Certify runtime recovery policies
         run: npm run test:runtime-recovery
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install LangGraph pilot dependencies
+        run: pip install -r experiments/langgraph-runtime-pilot/requirements.txt
+      - name: Certify LangGraph adapter-only checkpoint/resume pilot
+        run: pytest -q experiments/langgraph-runtime-pilot/test_pilot.py
 
   browser-matrix:
     needs: director-certification
