@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { validateObserveContract } from "../src/director-contract/conformance.mjs";
 import { classifyFailure, recoveryDecision } from "../src/director-contract/recovery-policy.mjs";
 import { validateExecutionEnvelope, canAcceptWorkerResult } from "../src/director-contract/execution-safety.mjs";
+import { validateRuntimeCandidate, runtimeEligibleForSandbox } from "../src/director-contract/runtime-adapter-policy.mjs";
 
 async function readJson(path) {
   return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
@@ -58,4 +59,36 @@ test("high-risk external effect requires bound approval and evidence", () => {
 test("stale worker result is rejected by fencing token", () => {
   assert.equal(canAcceptWorkerResult({ expectedFencingToken: 8, resultFencingToken: 7 }), false);
   assert.equal(canAcceptWorkerResult({ expectedFencingToken: 8, resultFencingToken: 8 }), true);
+});
+
+test("external runtimes remain adapters and cannot replace project Director authority", async () => {
+  const matrix = await readJson("../projects/shared/runtime-adoption-matrix.v1.json");
+  for (const candidate of matrix.candidates) {
+    assert.deepEqual(validateRuntimeCandidate(candidate).errors, []);
+    assert.equal(runtimeEligibleForSandbox(candidate), true);
+  }
+});
+
+test("runtime adapter fails closed if it can bypass fencing or project authority", () => {
+  const unsafe = {
+    id: "unsafe-runtime",
+    mode: "adapter-only",
+    status: "candidate",
+    capabilities: { durableExecution: true, checkpointing: true, observability: true },
+    boundary: {
+      authoritativeDirector: "external-runtime",
+      protectedStateWriter: "external-runtime",
+      executionSafetyBypass: false,
+      recoveryPolicyBypass: false,
+      fencingBypass: true,
+      evidenceBypass: false,
+      crossProjectAccess: false,
+      selfPromotion: false
+    }
+  };
+  const result = validateRuntimeCandidate(unsafe);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes("DIRECTOR_AUTHORITY_MUST_REMAIN_LOCAL"));
+  assert.ok(result.errors.includes("PROTECTED_STATE_WRITER_MUST_REMAIN_LOCAL"));
+  assert.ok(result.errors.includes("FENCING_BYPASS_FORBIDDEN"));
 });
