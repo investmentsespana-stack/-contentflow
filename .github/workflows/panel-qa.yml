@@ -39,6 +39,8 @@ jobs:
         run: npm run typecheck:approval-crypto
       - name: Validate shared Director foundation
         run: npm run test:director-foundation
+      - name: Certify Director portability across ContentFlow and OPC
+        run: npm run test:director-portability
       - name: Certify runtime recovery policies
         run: npm run test:runtime-recovery
       - name: Certify event-driven reconciliation and RARA autonomous repair
