@@ -41,6 +41,8 @@ jobs:
         run: npm run test:director-foundation
       - name: Certify runtime recovery policies
         run: npm run test:runtime-recovery
+      - name: Certify event-driven reconciliation and RARA autonomous repair
+        run: npm run test:event-reconciliation-rara
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
