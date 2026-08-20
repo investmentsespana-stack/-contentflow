@@ -10,6 +10,7 @@ on:
       - 'experiments/**'
       - 'docs/architecture/**'
       - 'supabase/functions/**'
+      - 'certification-evidence/**'
       - 'playwright.config.ts'
       - 'package.json'
       - '.github/workflows/panel-qa.yml'
@@ -46,6 +47,20 @@ jobs:
         run: npm run test:sustained-autonomy
       - name: Certify combined failure recovery
         run: npm run test:combined-failures
+      - name: Certify resilience-cell isolation, retry budgets and fallback
+        run: npm run test:resilience-cells
+      - name: Certify restore drill and measured sandbox autonomy evidence
+        run: npm run test:recovery-evidence
+      - name: Upload resilience and recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resilience-recovery-evidence
+          path: |
+            certification-evidence/restore-drill-2026-08-20.json
+            certification-evidence/autonomy-sandbox-2026-08-20.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Certify Stable receipt gating semantics
         run: npm run test:stable-certification-receipt
       - name: Certify isolated OPC synthetic load recovery and backpressure
