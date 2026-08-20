@@ -11,6 +11,7 @@
     "test:event-reconciliation-rara": "node --test tests/event-reconciliation-rara.test.mjs",
     "test:sustained-autonomy": "node --test tests/sustained-autonomy.test.mjs",
     "test:combined-failures": "node --test tests/combined-failures.test.mjs",
+    "test:resilience-cells": "node --test tests/resilience-cell.test.mjs",
     "test:opc-synthetic-load": "node --test tests/opc-synthetic-load.test.mjs",
     "test:opc-provider-canary-safety": "node --test tests/opc-provider-canary-safety.test.mjs",
     "test:stable-certification-receipt": "node --test tests/stable-certification-receipt.test.mjs",
