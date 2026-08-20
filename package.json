@@ -12,6 +12,7 @@
     "test:sustained-autonomy": "node --test tests/sustained-autonomy.test.mjs",
     "test:combined-failures": "node --test tests/combined-failures.test.mjs",
     "test:opc-synthetic-load": "node --test tests/opc-synthetic-load.test.mjs",
+    "test:opc-provider-canary-safety": "node --test tests/opc-provider-canary-safety.test.mjs",
     "test:stable-certification-receipt": "node --test tests/stable-certification-receipt.test.mjs",
     "typecheck:approval-crypto": "tsc --noEmit --strict --target ES2022 --module Node16 --moduleResolution Node16 src/platform/approval-crypto-validator.ts"
   },
