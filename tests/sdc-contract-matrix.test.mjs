@@ -6,17 +6,10 @@ import { validatePortableDirectorPair } from "../src/director-contract/portabili
 const load = (name) => JSON.parse(fs.readFileSync(new URL(`../projects/${name}/director-manifest.v1.json`, import.meta.url)));
 const projects = [load("contentflow"), load("opc")];
 
-const required = [
-  ["spec.autonomyMode", "bounded-autonomous"],
-  ["recovery.leaseFencingRequired", true],
-  ["security.crossProjectAccess", false],
-];
-const get = (obj, path) => path.split(".").reduce((v, k) => v?.[k], obj);
-
 test("SDC contract matrix preserves minimum invariants for every registered Director", () => {
   for (const manifest of projects) {
-    for (const [path, expected] of required) assert.equal(get(manifest, path), expected, `${manifest.metadata.projectId}:${path}`);
-    assert.ok(manifest.recovery.lastSafeState || manifest.recovery.lastSafeStateRequired || manifest.recovery.resumeFromLastSafeState, `${manifest.metadata.projectId}:last-safe-state`);
+    const result = validatePortableDirectorPair(manifest, manifest.metadata.projectId === "contentflow" ? projects[1] : projects[0]);
+    assert.equal(result.portable, true, result.errors.join("\n"));
   }
 });
 
