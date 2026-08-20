@@ -6,6 +6,7 @@
     "test:e2e": "playwright test",
     "test:director-foundation": "node --test tests/director-foundation.test.mjs",
     "test:runtime-recovery": "node --test tests/runtime-recovery-certification.test.mjs",
+    "test:event-reconciliation-rara": "node --test tests/event-reconciliation-rara.test.mjs",
     "typecheck:approval-crypto": "tsc --noEmit --strict --target ES2022 --module Node16 --moduleResolution Node16 src/platform/approval-crypto-validator.ts"
   },
   "devDependencies": {
