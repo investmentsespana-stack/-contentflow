@@ -1,0 +1,16 @@
+{
+  "profile": "contentflow-sustained-autonomy-sandbox-v1",
+  "verified_at_utc": "2026-08-20T23:21:00Z",
+  "sandbox_project_ref": "fbdowkcojgszqfrkgwis",
+  "production_mutated": false,
+  "total_tasks": 100,
+  "incidents": 50,
+  "autonomous_recoveries": 50,
+  "human_interventions": 0,
+  "rerouted": 50,
+  "autonomy_rate": 1.0,
+  "completion_rate": 1.0,
+  "failure_domain_avoidance": true,
+  "status": "PASS",
+  "interpretation": "All injected known-failure incidents in the isolated sustained-autonomy sandbox run were recovered without human intervention. This is sandbox evidence and is not a claim of identical production autonomy."
+}
