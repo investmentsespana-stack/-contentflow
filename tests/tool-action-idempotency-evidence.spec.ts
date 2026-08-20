@@ -5,7 +5,7 @@ import {
   validateToolActionIdempotency,
 } from '../src/guardrails/tool-action-idempotency';
 
-const evidencePath = 'test-results/tool-action-idempotency-evidence.json';
+const evidencePath = 'certification-evidence/tool-action-idempotency-evidence.json';
 
 test('certifies tool action idempotency fail-closed behavior and persists deterministic evidence', () => {
   let underlyingActionExecuted = false;
@@ -20,14 +20,8 @@ test('certifies tool action idempotency fail-closed behavior and persists determ
   }).toThrow('NON_IDEMPOTENT_ACTION_DENIED:non_idempotent_action_not_explicitly_permitted');
 
   const missingMetadata = validateToolActionIdempotency({ action: 'github.create_file' });
-  const missingKey = validateToolActionIdempotency({
-    action: 'github.update_file',
-    idempotent: true,
-  });
-  const deniedNonIdempotent = validateToolActionIdempotency({
-    action: 'supabase.execute_sql',
-    idempotent: false,
-  });
+  const missingKey = validateToolActionIdempotency({ action: 'github.update_file', idempotent: true });
+  const deniedNonIdempotent = validateToolActionIdempotency({ action: 'supabase.execute_sql', idempotent: false });
   const allowedIdempotent = validateToolActionIdempotency({
     action: 'github.update_file',
     idempotent: true,
@@ -73,6 +67,6 @@ test('certifies tool action idempotency fail-closed behavior and persists determ
     },
   };
 
-  mkdirSync('test-results', { recursive: true });
+  mkdirSync('certification-evidence', { recursive: true });
   writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
 });
