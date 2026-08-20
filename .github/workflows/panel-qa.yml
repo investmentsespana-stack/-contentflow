@@ -51,7 +51,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tool-action-allowlist-evidence
-          path: test-results/tool-action-allowlist-evidence.json
+          path: certification-evidence/tool-action-allowlist-evidence.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/setup-python@v5
