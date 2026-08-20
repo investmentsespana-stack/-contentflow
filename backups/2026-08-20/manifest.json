@@ -6,6 +6,6 @@
   "runtime_control_md5": "d2d5540756ebda85f566ddf09a55110a",
   "schema_catalog_md5": "e88b0bed3ad285f433b58943bef4244d",
   "schema_counts": {"tables": 53, "columns": 642, "indexes": 101, "policies": 16},
-  "files": ["runtime-control.json", "director-operating-rules.json", "director-repair-recipes.json"],
-  "note": "This snapshot provides an immediate effective recovery copy of nonsecret control state. The hardened daily pg_dump remains the canonical full schema backup path."
+  "files": ["runtime-control.json", "director-operating-rules.sql", "director-repair-recipes.sql"],
+  "note": "Immediate recovery copy of nonsecret control state. The hardened daily pg_dump remains the canonical full schema backup path."
 }
