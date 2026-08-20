@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "projectRef": "koqpyfvnprmirqviafzq",
+  "projectStatus": "ACTIVE_HEALTHY",
+  "capturedAt": "2026-08-20",
+  "source": "Supabase live Edge Function inventory",
+  "criticalExports": [
+    {
+      "slug": "contentflow-evidence-tool-runner",
+      "version": 1,
+      "verifyJwt": true,
+      "liveSha256": "49aff4d93de74a37e18c860faa9bbe51ee22729d5491e717b7e4b327985576de",
+      "repositoryPath": "supabase/functions/contentflow-evidence-tool-runner/index.ts",
+      "exported": true
+    },
+    {
+      "slug": "contentflow-director",
+      "version": 16,
+      "verifyJwt": true,
+      "liveSha256": "a030e6cafb7781f9ad93438ca1a2c49a9b1ea92c30d23787d50c9b8c9e772cba",
+      "repositoryPath": "supabase/functions/contentflow-director/index.ts",
+      "exported": false
+    },
+    {
+      "slug": "contentflow-throughput-recovery",
+      "version": 9,
+      "verifyJwt": true,
+      "liveSha256": "b64f284ad8800ef93f87886794c26ea1ea9dac7219488672ad7dfb280c195bdc",
+      "repositoryPath": "supabase/functions/contentflow-throughput-recovery/index.ts",
+      "exported": false
+    }
+  ],
+  "rootBlocker": {
+    "issue": 1,
+    "remainingExternalRequirement": "GitHub Actions secret SUPABASE_DB_URL must exist and a successful daily recovery snapshot must produce schema.sql, runtime-control-data.sql and manifest.json",
+    "closeOnlyWhen": "all live critical runtime assets are reproducible from GitHub plus external secrets and restore verification passes"
+  }
+}
