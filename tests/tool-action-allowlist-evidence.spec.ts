@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test';
 import { assertToolActionAuthorized, authorizeToolAction } from '../src/guardrails/tool-action-authz';
 
 const now = new Date('2026-08-17T10:00:00.000Z');
-const evidencePath = 'test-results/tool-action-allowlist-evidence.json';
+const evidenceDir = 'certification-evidence';
+const evidencePath = `${evidenceDir}/tool-action-allowlist-evidence.json`;
 
 test('certifies tool action allowlist fail-closed behavior and persists deterministic evidence', () => {
   let underlyingActionExecuted = false;
@@ -78,6 +79,6 @@ test('certifies tool action allowlist fail-closed behavior and persists determin
     },
   };
 
-  mkdirSync('test-results', { recursive: true });
+  mkdirSync(evidenceDir, { recursive: true });
   writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
 });
