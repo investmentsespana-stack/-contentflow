@@ -1,0 +1,67 @@
+name: opc-provider-canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: OpenAI-compatible NexoRouter base URL
+        required: true
+        type: string
+      model:
+        description: Canary model identifier
+        required: true
+        type: string
+      max_price_per_1m_tokens:
+        description: Worst-case USD price per 1M tokens for selected model
+        required: true
+        type: string
+      requests:
+        description: Number of sequential requests (1-5)
+        required: true
+        default: '3'
+        type: string
+      max_output_tokens:
+        description: Maximum output tokens per request (1-256)
+        required: true
+        default: '128'
+        type: string
+      max_usd:
+        description: Hard estimated spend ceiling, max 0.50 USD
+        required: true
+        default: '0.25'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: opc-sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify OPC remains non-executable in manifest
+        run: node -e "const m=require('./projects/opc/director-manifest.v1.json'); if(m.status.executable!==false || m.spec.capacity.concurrencyLimit!==0) process.exit(1)"
+      - name: Run isolated provider canary
+        env:
+          NEXOROUTER_API_KEY_SECUNDARY: ${{ secrets.NEXOROUTER_API_KEY_SECUNDARY }}
+          NEXOROUTER_BASE_URL: ${{ inputs.base_url }}
+          NEXOROUTER_CANARY_MODEL: ${{ inputs.model }}
+          OPC_CANARY_MAX_PRICE_PER_1M_TOKENS: ${{ inputs.max_price_per_1m_tokens }}
+          OPC_CANARY_REQUESTS: ${{ inputs.requests }}
+          OPC_CANARY_MAX_OUTPUT_TOKENS: ${{ inputs.max_output_tokens }}
+          OPC_CANARY_MAX_USD: ${{ inputs.max_usd }}
+          OPC_CANARY_ESTIMATED_INPUT_TOKENS: '64'
+        run: node experiments/opc-provider-canary/run-canary.mjs
+      - name: Upload sanitized canary evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opc-provider-canary-evidence
+          path: certification-evidence/opc-provider-canary-evidence.json
+          if-no-files-found: error
+          retention-days: 14
