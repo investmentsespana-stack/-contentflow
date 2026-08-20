@@ -9,6 +9,39 @@ const candidates = [
   { id: "worker-dead", failureDomain: "model-dead", healthy: false, taskClasses: ["build", "qa"], successRate: 1, latencyMs: 1000, costWeight: 0 },
 ];
 
+const failureTypes = ["worker_timeout", "rate_limited", "dependency_unavailable", "lease_expired", "state_drift"];
+
+function buildStage(totalTasks) {
+  const tasks = Array.from({ length: totalTasks }, (_, i) => ({
+    id: `task-${totalTasks}-${i + 1}`,
+    taskClass: i % 3 === 0 ? "qa" : "build",
+    initialFailureDomain: i % 2 === 0 ? "model-a" : "model-b",
+  }));
+  const failurePlan = {};
+  for (let i = 1; i < totalTasks; i += 2) {
+    failurePlan[tasks[i].id] = failureTypes[Math.floor(i / 2) % failureTypes.length];
+  }
+  return { tasks, failurePlan };
+}
+
+function certifyStage(totalTasks) {
+  const { tasks, failurePlan } = buildStage(totalTasks);
+  const result = sustainedAutonomyRun({ tasks, candidates, failurePlan });
+  const expectedIncidents = Math.floor(totalTasks / 2);
+  assert.equal(result.totalTasks, totalTasks);
+  assert.equal(result.incidents, expectedIncidents);
+  assert.equal(result.autonomousRecoveries, expectedIncidents);
+  assert.equal(result.humanInterventions, 0);
+  assert.equal(result.completed, totalTasks);
+  assert.equal(result.rerouted, expectedIncidents);
+  assert.equal(result.autonomyRate, 1);
+  assert.equal(result.completionRate, 1);
+  const recoveries = result.timeline.filter((x) => x.status === "recovered");
+  assert.equal(recoveries.length, expectedIncidents);
+  assert.ok(recoveries.every((x) => x.fromDomain !== x.toDomain));
+  return result;
+}
+
 test("failure-domain avoidance never routes back to the failed domain", () => {
   const route = chooseHealthyCandidate(candidates, "model-a", { taskClass: "build" });
   assert.equal(route.reason, "ALTERNATIVE_SELECTED");
@@ -17,35 +50,15 @@ test("failure-domain avoidance never routes back to the failed domain", () => {
   assert.equal(route.selected.healthy, true);
 });
 
-test("sustained workload autonomously recovers interleaved known failures", () => {
-  const tasks = Array.from({ length: 12 }, (_, i) => ({
-    id: `task-${i + 1}`,
-    taskClass: i % 3 === 0 ? "qa" : "build",
-    initialFailureDomain: i % 2 === 0 ? "model-a" : "model-b",
-  }));
-
-  const failurePlan = {
-    "task-2": "worker_timeout",
-    "task-4": "rate_limited",
-    "task-5": "dependency_unavailable",
-    "task-7": "lease_expired",
-    "task-9": "state_drift",
-    "task-11": "worker_timeout",
-  };
-
-  const result = sustainedAutonomyRun({ tasks, candidates, failurePlan });
-  assert.equal(result.totalTasks, 12);
-  assert.equal(result.incidents, 6);
-  assert.equal(result.autonomousRecoveries, 6);
-  assert.equal(result.humanInterventions, 0);
-  assert.equal(result.completed, 12);
-  assert.equal(result.rerouted, 6);
-  assert.equal(result.autonomyRate, 1);
-  assert.equal(result.completionRate, 1);
-
-  const recoveries = result.timeline.filter((x) => x.status === "recovered");
-  assert.equal(recoveries.length, 6);
-  assert.ok(recoveries.every((x) => x.fromDomain !== x.toDomain));
+test("progressive sustained autonomy escalates 24 -> 50 -> 100 only after green stage", () => {
+  const stages = [24, 50, 100];
+  const evidence = [];
+  for (const stage of stages) {
+    const result = certifyStage(stage);
+    evidence.push({ tasks: stage, incidents: result.incidents, autonomyRate: result.autonomyRate, completionRate: result.completionRate });
+  }
+  assert.deepEqual(evidence.map((x) => x.tasks), stages);
+  assert.ok(evidence.every((x) => x.autonomyRate === 1 && x.completionRate === 1));
 });
 
 test("no healthy alternative fails closed instead of reusing failed domain", () => {
