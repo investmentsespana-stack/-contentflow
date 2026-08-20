@@ -1,0 +1,62 @@
+{
+  "workflowVersion": "1.0.0",
+  "projectId": "opc",
+  "mode": "sandbox",
+  "externalEffectsEnabled": false,
+  "initialState": "lead_received",
+  "terminalStates": ["completed", "rejected", "cancelled"],
+  "states": {
+    "lead_received": { "allowedNext": ["qualification_pending", "rejected"] },
+    "qualification_pending": { "allowedNext": ["qualified", "rejected", "human_review"] },
+    "qualified": { "allowedNext": ["proposal_draft"] },
+    "proposal_draft": { "allowedNext": ["proposal_review", "human_review"] },
+    "proposal_review": { "allowedNext": ["approved_for_send", "proposal_draft", "human_review"] },
+    "approved_for_send": { "allowedNext": ["customer_response_pending"] },
+    "customer_response_pending": { "allowedNext": ["won", "lost", "follow_up", "human_review"] },
+    "follow_up": { "allowedNext": ["customer_response_pending", "lost"] },
+    "won": { "allowedNext": ["fulfillment_pending"] },
+    "fulfillment_pending": { "allowedNext": ["completed", "human_review"] },
+    "human_review": { "allowedNext": ["qualification_pending", "proposal_draft", "proposal_review", "customer_response_pending", "fulfillment_pending", "rejected", "cancelled"] },
+    "completed": { "allowedNext": [] },
+    "rejected": { "allowedNext": [] },
+    "cancelled": { "allowedNext": [] },
+    "lost": { "allowedNext": [] }
+  },
+  "protectedTransitions": [
+    {
+      "from": "proposal_review",
+      "to": "approved_for_send",
+      "operationClass": "external-effect",
+      "riskLevel": "high",
+      "requiresApproval": true,
+      "requiresIdempotency": true,
+      "requiresLeaseFencing": true,
+      "evidenceRequired": ["proposal_hash", "approval_id"]
+    },
+    {
+      "from": "won",
+      "to": "fulfillment_pending",
+      "operationClass": "external-effect",
+      "riskLevel": "high",
+      "requiresApproval": true,
+      "requiresIdempotency": true,
+      "requiresLeaseFencing": true,
+      "evidenceRequired": ["customer_acceptance", "order_intent"]
+    },
+    {
+      "from": "fulfillment_pending",
+      "to": "completed",
+      "operationClass": "write",
+      "riskLevel": "medium",
+      "requiresApproval": false,
+      "requiresIdempotency": true,
+      "requiresLeaseFencing": true,
+      "evidenceRequired": ["completion_evidence"]
+    }
+  ],
+  "recovery": {
+    "policyProfile": "director-recovery-v1",
+    "checkpointAfterStates": ["qualified", "proposal_review", "won", "completed"],
+    "unknownFailureAction": "fail_closed_and_diagnose"
+  }
+}

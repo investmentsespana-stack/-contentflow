@@ -1,0 +1,106 @@
+{
+  "schemaVersion": "1.0.0",
+  "scope": "experimental-only",
+  "decisionModel": "build-buy-hybrid",
+  "policy": {
+    "preferredMode": "hybrid",
+    "authoritativeDirector": "project-director",
+    "protectedStateWriter": "project-director",
+    "stablePromotionRequiresOwnerDecision": true,
+    "externalRuntimeMayOwnProjectAuthority": false
+  },
+  "candidates": [
+    {
+      "id": "microsoft-agent-framework",
+      "status": "candidate",
+      "mode": "adapter-only",
+      "bestFit": ["checkpointing", "workflow-orchestration", "handoff", "human-in-the-loop"],
+      "capabilities": {
+        "durableExecution": true,
+        "checkpointing": true,
+        "observability": true,
+        "humanInTheLoop": true,
+        "multiAgentOrchestration": true
+      },
+      "boundary": {
+        "authoritativeDirector": "project-director",
+        "protectedStateWriter": "project-director",
+        "executionSafetyBypass": false,
+        "recoveryPolicyBypass": false,
+        "fencingBypass": false,
+        "evidenceBypass": false,
+        "crossProjectAccess": false,
+        "selfPromotion": false
+      }
+    },
+    {
+      "id": "langgraph",
+      "status": "candidate",
+      "mode": "adapter-only",
+      "bestFit": ["durable-execution", "checkpointing", "fault-tolerant-resume", "human-in-the-loop"],
+      "capabilities": {
+        "durableExecution": true,
+        "checkpointing": true,
+        "observability": true,
+        "humanInTheLoop": true,
+        "multiAgentOrchestration": true
+      },
+      "boundary": {
+        "authoritativeDirector": "project-director",
+        "protectedStateWriter": "project-director",
+        "executionSafetyBypass": false,
+        "recoveryPolicyBypass": false,
+        "fencingBypass": false,
+        "evidenceBypass": false,
+        "crossProjectAccess": false,
+        "selfPromotion": false
+      }
+    },
+    {
+      "id": "crewai",
+      "status": "investigating",
+      "mode": "adapter-only",
+      "bestFit": ["crews", "flows", "managed-deployment", "operational-observability"],
+      "capabilities": {
+        "durableExecution": true,
+        "checkpointing": true,
+        "observability": true,
+        "humanInTheLoop": true,
+        "multiAgentOrchestration": true
+      },
+      "boundary": {
+        "authoritativeDirector": "project-director",
+        "protectedStateWriter": "project-director",
+        "executionSafetyBypass": false,
+        "recoveryPolicyBypass": false,
+        "fencingBypass": false,
+        "evidenceBypass": false,
+        "crossProjectAccess": false,
+        "selfPromotion": false
+      }
+    },
+    {
+      "id": "vertex-ai-agent-engine",
+      "status": "investigating",
+      "mode": "adapter-only",
+      "bestFit": ["managed-runtime", "sessions", "memory", "observability", "scaling"],
+      "capabilities": {
+        "durableExecution": true,
+        "checkpointing": true,
+        "observability": true,
+        "humanInTheLoop": true,
+        "multiAgentOrchestration": true
+      },
+      "boundary": {
+        "authoritativeDirector": "project-director",
+        "protectedStateWriter": "project-director",
+        "executionSafetyBypass": false,
+        "recoveryPolicyBypass": false,
+        "fencingBypass": false,
+        "evidenceBypass": false,
+        "crossProjectAccess": false,
+        "selfPromotion": false
+      }
+    }
+  ]
+}

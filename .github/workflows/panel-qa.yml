@@ -2,18 +2,63 @@ name: panel-qa-v1
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tests/**'
+      - 'src/**'
+      - 'projects/**'
+      - 'experiments/**'
+      - 'docs/architecture/**'
+      - 'supabase/functions/**'
+      - 'playwright.config.ts'
+      - 'package.json'
+      - '.github/workflows/panel-qa.yml'
   push:
     branches: [main]
     paths:
       - 'tests/**'
       - 'src/**'
+      - 'projects/**'
+      - 'experiments/**'
       - 'docs/architecture/**'
+      - 'supabase/functions/**'
       - 'playwright.config.ts'
       - 'package.json'
       - '.github/workflows/panel-qa.yml'
 
 jobs:
+  director-certification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Static typecheck approval crypto contract
+        run: npm run typecheck:approval-crypto
+      - name: Validate shared Director foundation
+        run: npm run test:director-foundation
+      - name: Certify Director portability across ContentFlow and OPC
+        run: npm run test:director-portability
+      - name: Certify runtime recovery policies
+        run: npm run test:runtime-recovery
+      - name: Certify event-driven reconciliation and RARA autonomous repair
+        run: npm run test:event-reconciliation-rara
+      - name: Certify sustained autonomy and failure-domain avoidance
+        run: npm run test:sustained-autonomy
+      - name: Certify combined failure recovery
+        run: npm run test:combined-failures
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install LangGraph pilot dependencies
+        run: pip install -r experiments/langgraph-runtime-pilot/requirements.txt
+      - name: Certify LangGraph adapter-only checkpoint/resume pilot
+        run: pytest -q experiments/langgraph-runtime-pilot/test_pilot.py
+
   browser-matrix:
+    needs: director-certification
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -24,10 +69,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - run: npm install
-      - name: Static typecheck approval crypto contract
-        run: npm run typecheck:approval-crypto
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Run ${{ matrix.browser }} QA
         env:

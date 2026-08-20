@@ -1,0 +1,75 @@
+{
+  "contract": {
+    "schemaName": "standard-director-contract",
+    "apiVersion": "v1",
+    "contractVersion": "1.0.0",
+    "mode": "observe-only"
+  },
+  "metadata": {
+    "directorId": "opc-director",
+    "projectId": "opc",
+    "projectType": "autonomous-business",
+    "environment": "sandbox",
+    "generation": 1
+  },
+  "spec": {
+    "lifecycleState": "bootstrap",
+    "autonomyLevel": "bounded-autonomous",
+    "capacity": { "concurrencyLimit": 0 },
+    "objectives": [
+      "prove independent Director boundary",
+      "prove deterministic business workflow and recovery",
+      "pass SDC conformance before external effects"
+    ]
+  },
+  "status": {
+    "phase": "bootstrap",
+    "health": "Healthy",
+    "observedGeneration": 1,
+    "lastObservedAt": "2026-08-18T20:55:00Z",
+    "executable": false
+  },
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "False",
+      "reason": "BootstrapNotExecutable",
+      "message": "External execution remains disabled until conformance and sandbox recovery gates pass.",
+      "severity": "info",
+      "lastTransitionTime": "2026-08-18T20:55:00Z",
+      "observedGeneration": 1
+    },
+    {
+      "type": "Isolated",
+      "status": "True",
+      "reason": "IndependentProjectBoundary",
+      "message": "OPC has no direct ContentFlow state, memory, tools, or credentials.",
+      "severity": "info",
+      "lastTransitionTime": "2026-08-18T20:55:00Z",
+      "observedGeneration": 1
+    }
+  ],
+  "capabilities": {
+    "supportedTaskClasses": ["lead-management", "qualification", "sales", "crm", "customer-support", "business-operations"],
+    "acceptedCommands": []
+  },
+  "security": {
+    "projectBoundary": "opc",
+    "allowedScopes": ["observe"],
+    "crossProjectAccess": false
+  },
+  "observability": {
+    "traceable": true,
+    "evidenceBacked": true
+  },
+  "recovery": {
+    "failurePolicyProfile": "director-recovery-v1",
+    "leaseFencingRequired": true,
+    "evidenceRequiredForCompletion": true,
+    "checkpointStrategy": "last-safe-state"
+  },
+  "compatibility": {
+    "minMasterContractVersion": "1.0.0",
+    "maxMasterContractVersion": "1.x"
+  }
+}
