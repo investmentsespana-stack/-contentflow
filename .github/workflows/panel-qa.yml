@@ -45,6 +45,8 @@ jobs:
         run: npm run test:event-reconciliation-rara
       - name: Certify sustained autonomy and failure-domain avoidance
         run: npm run test:sustained-autonomy
+      - name: Certify combined failure recovery
+        run: npm run test:combined-failures
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
