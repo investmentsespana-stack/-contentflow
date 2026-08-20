@@ -1,0 +1,39 @@
+{
+  "captured_at_utc": "2026-08-20T22:45:00Z",
+  "production": {
+    "public_tables": 57,
+    "public_views": 11,
+    "public_indexes": 143,
+    "public_policies": 43,
+    "public_routines": 101
+  },
+  "recovery_sandbox": {
+    "public_tables": 15,
+    "public_views": 0,
+    "public_indexes": 31,
+    "public_policies": 29,
+    "public_routines": 7
+  },
+  "remaining_gap": {
+    "tables": 42,
+    "views": 11,
+    "indexes": 112,
+    "policies": 14,
+    "routines": 94
+  },
+  "restore_policy": {
+    "historical_migration_replay": "forbidden_without_sanitization",
+    "reason": "historical migration bodies include production endpoints/tokens",
+    "target": "sanitized current-state schema plus external secrets",
+    "external_side_effects": "disabled during restore certification"
+  },
+  "acceptance": {
+    "tables": 57,
+    "views": 11,
+    "indexes": 143,
+    "policies": 43,
+    "routines": 101,
+    "runtime_control_restore": "PASS",
+    "external_effects": 0
+  }
+}
