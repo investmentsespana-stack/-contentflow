@@ -102,6 +102,16 @@ jobs:
           path: test-results/tool-action-vault-access-evidence.json
           if-no-files-found: error
           retention-days: 14
+      - name: Certify destructive action safety and generate deterministic evidence
+        run: npx playwright test tests/destructive-action-safety-evidence.spec.ts --project=chromium --workers=1
+      - name: Upload destructive action safety evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: destructive-action-safety-evidence
+          path: certification-evidence/destructive-action-safety-evidence.json
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
