@@ -15,16 +15,7 @@ on:
       - '.github/workflows/panel-qa.yml'
   push:
     branches: [main]
-    paths:
-      - 'tests/**'
-      - 'src/**'
-      - 'projects/**'
-      - 'experiments/**'
-      - 'docs/architecture/**'
-      - 'supabase/functions/**'
-      - 'playwright.config.ts'
-      - 'package.json'
-      - '.github/workflows/panel-qa.yml'
+    # Intentionally no path filter: every merge/push to Stable must recertify the Director.
 
 jobs:
   director-certification:
@@ -41,6 +32,8 @@ jobs:
         run: npm run test:director-foundation
       - name: Certify Director portability across ContentFlow and OPC
         run: npm run test:director-portability
+      - name: Certify SDC compatibility contract matrix
+        run: npm run test:sdc-contract-matrix
       - name: Certify runtime recovery policies
         run: npm run test:runtime-recovery
       - name: Certify event-driven reconciliation and RARA autonomous repair
