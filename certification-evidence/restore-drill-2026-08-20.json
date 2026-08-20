@@ -1,0 +1,28 @@
+{
+  "profile": "contentflow-restore-drill-v1",
+  "executed_at_utc": "2026-08-20T21:34:00Z",
+  "production_project_ref": "koqpyfvnprmirqviafzq",
+  "sandbox_project_ref": "fbdowkcojgszqfrkgwis",
+  "production_mutated": false,
+  "restore_schema": "restore_drill_20260820",
+  "source_backup": "backups/2026-08-20",
+  "restored": {
+    "director_operating_rules": 26,
+    "director_repair_recipes": 13
+  },
+  "backup_manifest_schema_counts": {
+    "tables": 53,
+    "columns": 642,
+    "indexes": 101,
+    "policies": 16
+  },
+  "live_production_schema_counts_at_drill": {
+    "tables": 57,
+    "columns": 799,
+    "indexes": 143,
+    "policies": 43
+  },
+  "schema_drift_detected": true,
+  "result": "PASS_WITH_DRIFT",
+  "promotion_rule": "Backup existence alone is insufficient. A restore must succeed in an isolated sandbox and schema/control-state drift must be reported before promotion."
+}
