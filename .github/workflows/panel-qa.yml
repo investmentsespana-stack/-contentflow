@@ -62,6 +62,16 @@ jobs:
           path: test-results/tool-action-idempotency-evidence.json
           if-no-files-found: error
           retention-days: 14
+      - name: Certify tool action secret patterns and generate deterministic evidence
+        run: npx playwright test tests/tool-action-secret-patterns-evidence.spec.ts --project=chromium --workers=1
+      - name: Upload tool action secret-pattern evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tool-action-secret-patterns-evidence
+          path: test-results/tool-action-secret-patterns-evidence.json
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
