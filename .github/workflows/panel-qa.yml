@@ -46,6 +46,8 @@ jobs:
         run: npm run test:sustained-autonomy
       - name: Certify combined failure recovery
         run: npm run test:combined-failures
+      - name: Certify Stable receipt gating semantics
+        run: npm run test:stable-certification-receipt
       - name: Certify isolated OPC synthetic load recovery and backpressure
         run: npm run test:opc-synthetic-load
       - name: Upload OPC synthetic load evidence
