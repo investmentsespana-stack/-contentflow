@@ -5,7 +5,7 @@ import {
   scanToolActionSecrets,
 } from '../src/guardrails/tool-action-secret-patterns';
 
-const evidencePath = 'test-results/tool-action-secret-patterns-evidence.json';
+const evidencePath = 'certification-evidence/tool-action-secret-patterns-evidence.json';
 const certifiedAt = '2026-08-20T15:45:00.000Z';
 
 test('certifies tool action secret-pattern enforcement and persists deterministic evidence', () => {
@@ -28,10 +28,7 @@ test('certifies tool action secret-pattern enforcement and persists deterministi
   expect(JSON.stringify(findings)).not.toContain(syntheticSecret);
 
   expect(() => {
-    assertNoToolActionSecrets(
-      { password: 'password=abcdefghijklmnopqrstuvwxyz123456' },
-      null,
-    );
+    assertNoToolActionSecrets({ password: 'password=abcdefghijklmnopqrstuvwxyz123456' }, null);
     underlyingActionExecuted = true;
   }).toThrow('TOOL_ACTION_SECRET_REJECTED');
 
@@ -73,6 +70,6 @@ test('certifies tool action secret-pattern enforcement and persists deterministi
     detectedPatterns: [...new Set(findings.map((entry) => entry.pattern))].sort(),
   };
 
-  mkdirSync('test-results', { recursive: true });
+  mkdirSync('certification-evidence', { recursive: true });
   writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
 });
