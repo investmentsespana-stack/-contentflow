@@ -42,6 +42,16 @@ jobs:
         run: npm run test:sustained-autonomy
       - name: Certify combined failure recovery
         run: npm run test:combined-failures
+      - name: Certify isolated OPC synthetic load recovery and backpressure
+        run: npm run test:opc-synthetic-load
+      - name: Upload OPC synthetic load evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opc-synthetic-load-evidence
+          path: certification-evidence/opc-synthetic-load-evidence.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Certify tool action allowlist and generate deterministic evidence
         run: npx playwright test tests/tool-action-allowlist-evidence.spec.ts --project=chromium --workers=1
       - name: Certify centralized project-scoped authorization policy
@@ -61,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tool-action-idempotency-evidence
-          path: test-results/tool-action-idempotency-evidence.json
+          path: certification-evidence/tool-action-idempotency-evidence.json
           if-no-files-found: error
           retention-days: 14
       - name: Certify tool action secret patterns and generate deterministic evidence
@@ -71,7 +81,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tool-action-secret-patterns-evidence
-          path: test-results/tool-action-secret-patterns-evidence.json
+          path: certification-evidence/tool-action-secret-patterns-evidence.json
           if-no-files-found: error
           retention-days: 14
       - uses: actions/setup-python@v5
