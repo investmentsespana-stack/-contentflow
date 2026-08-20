@@ -1,0 +1,20 @@
+{
+  "version": "resilience-cells-canary-v1",
+  "project": "contentflow",
+  "mode": "observe-only",
+  "production_mutations": false,
+  "cells": [
+    { "id": "production", "taskClasses": ["build"], "maxConcurrency": 6, "retryBudget": 2, "failureThreshold": 3, "fallbacks": ["fallback"] },
+    { "id": "qa", "taskClasses": ["qa"], "maxConcurrency": 2, "retryBudget": 1, "failureThreshold": 2, "fallbacks": ["fallback"] },
+    { "id": "recruitment", "taskClasses": ["recruitment"], "maxConcurrency": 1, "retryBudget": 1, "failureThreshold": 2, "fallbacks": [] },
+    { "id": "fallback", "taskClasses": ["build", "qa"], "maxConcurrency": 1, "retryBudget": 1, "failureThreshold": 2, "fallbacks": [] }
+  ],
+  "promotionGates": {
+    "bulkheadIsolation": true,
+    "boundedRetries": true,
+    "gracefulDegradation": true,
+    "evidenceFirstCompletion": true,
+    "leaseAndFencingPreserved": true,
+    "restoreDrillRequired": true
+  }
+}
