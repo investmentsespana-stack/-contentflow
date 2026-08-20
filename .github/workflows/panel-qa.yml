@@ -44,12 +44,14 @@ jobs:
         run: npm run test:combined-failures
       - name: Certify tool action allowlist and generate deterministic evidence
         run: npx playwright test tests/tool-action-allowlist-evidence.spec.ts --project=chromium --workers=1
+      - name: Certify centralized project-scoped authorization policy
+        run: npx playwright test tests/project-authorization-policy.spec.ts --project=chromium --workers=1
       - name: Upload tool action allowlist evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tool-action-allowlist-evidence
-          path: test-results/tool-action-allowlist-evidence.json
+          path: certification-evidence/tool-action-allowlist-evidence.json
           if-no-files-found: error
           retention-days: 14
       - name: Certify tool action idempotency and generate deterministic evidence
