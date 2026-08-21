@@ -1,5 +1,6 @@
 name: hyperstack-gpu-canary-autostart
 
+# One-shot trigger: first autonomous A100 control canary
 on:
   push:
     branches:
