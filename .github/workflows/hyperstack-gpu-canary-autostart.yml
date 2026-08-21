@@ -1,0 +1,61 @@
+name: hyperstack-gpu-canary-autostart
+
+on:
+  push:
+    branches:
+      - feature/hyperstack-gpu-executor
+    paths:
+      - .github/workflows/hyperstack-gpu-canary-autostart.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hyperstack-gpu-executor
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/hyperstack-gpu-executor
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare dedicated SSH key
+        shell: bash
+        env:
+          HYPERSTACK_SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HYPERSTACK_SSH_PRIVATE_KEY"
+          printf '%s\n' "$HYPERSTACK_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/hyperstack_canary_key"
+          chmod 600 "$RUNNER_TEMP/hyperstack_canary_key"
+
+      - name: Execute guarded Hyperstack lifecycle
+        env:
+          HYPERSTACK_API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          HYPERSTACK_VM_NAME: ambitious-schrodinger
+          HYPERSTACK_MODE: canary
+          HYPERSTACK_MAX_RUNTIME_MINUTES: '10'
+          HYPERSTACK_SSH_KEY_PATH: ${{ runner.temp }}/hyperstack_canary_key
+          HYPERSTACK_EVIDENCE_PATH: certification-evidence/hyperstack-gpu-canary.json
+        run: node scripts/hyperstack-gpu-canary.mjs
+
+      - name: Verify canary evidence
+        run: |
+          node -e "const e=require('./certification-evidence/hyperstack-gpu-canary.json'); if(!e.runtime_verified || !e.final_hibernated || !e.success) process.exit(1)"
+
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperstack-gpu-canary-evidence
+          path: certification-evidence/hyperstack-gpu-canary.json
+          if-no-files-found: error
+          retention-days: 14
