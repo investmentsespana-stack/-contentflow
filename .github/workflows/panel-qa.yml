@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'tests/**'
+      - 'scripts/**'
       - 'src/**'
       - 'projects/**'
       - 'experiments/**'
@@ -57,6 +58,8 @@ jobs:
         run: npm run test:tool-executor-stale-claim-quarantine
       - name: Certify evidence verifier preflight and producer hold
         run: npm run test:evidence-verifier-preflight
+      - name: Certify adaptive dispatcher observe-only single-writer contract
+        run: npm run test:adaptive-observe-only
       - name: Certify restore drill and measured sandbox autonomy evidence
         run: npm run test:recovery-evidence
       - name: Upload resilience and recovery evidence
