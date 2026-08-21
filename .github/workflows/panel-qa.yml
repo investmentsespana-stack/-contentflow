@@ -10,13 +10,13 @@ on:
       - 'experiments/**'
       - 'docs/architecture/**'
       - 'supabase/functions/**'
+      - 'supabase/migrations/**'
       - 'certification-evidence/**'
       - 'playwright.config.ts'
       - 'package.json'
       - '.github/workflows/panel-qa.yml'
   push:
     branches: [main]
-    # Intentionally no path filter: every merge/push to Stable must recertify the Director.
 
 permissions:
   contents: read
@@ -51,6 +51,8 @@ jobs:
         run: npm run test:resilience-cells
       - name: Certify policy-controlled auto-loop dispatch
         run: npm run test:auto-loop-dispatch-policy
+      - name: Certify tool executor lane/state/fencing contract
+        run: npm run test:tool-executor-lane-contract
       - name: Certify restore drill and measured sandbox autonomy evidence
         run: npm run test:recovery-evidence
       - name: Upload resilience and recovery evidence
