@@ -20,6 +20,7 @@
     "test:tool-executor-lane-contract": "node --test tests/tool-executor-lane-contract.test.mjs",
     "test:tool-executor-stale-claim-quarantine": "node --test tests/tool-executor-stale-claim-quarantine.test.mjs",
     "test:evidence-verifier-preflight": "node --test tests/evidence-verifier-preflight.test.mjs",
+    "test:hyperstack-gpu-executor": "node --test tests/hyperstack-gpu-executor.test.mjs",
     "test:adaptive-observe-only": "node scripts/test-adaptive-dispatcher-observe-only.mjs",
     "typecheck:approval-crypto": "tsc --noEmit --strict --target ES2022 --module Node16 --moduleResolution Node16 src/platform/approval-crypto-validator.ts"
   },
