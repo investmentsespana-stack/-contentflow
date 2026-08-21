@@ -1,0 +1,89 @@
+name: hyperstack-gpu-canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: inspect = read-only; canary = restore, probe A100, hibernate
+        required: true
+        default: inspect
+        type: choice
+        options:
+          - inspect
+          - canary
+      vm_name:
+        description: Exact allowlisted VM name
+        required: true
+        default: ambitious-schrodinger
+        type: string
+      max_runtime_minutes:
+        description: Hard lifecycle budget, max 15 minutes
+        required: true
+        default: '10'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hyperstack-gpu-executor
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/hyperstack-gpu-executor
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate policy inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.vm_name }}" = "ambitious-schrodinger"
+          case "${{ inputs.max_runtime_minutes }}" in
+            ''|*[!0-9]*) exit 1 ;;
+          esac
+          test "${{ inputs.max_runtime_minutes }}" -ge 1
+          test "${{ inputs.max_runtime_minutes }}" -le 15
+
+      - name: Prepare dedicated SSH key for canary mode
+        if: ${{ inputs.mode == 'canary' }}
+        shell: bash
+        env:
+          HYPERSTACK_SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HYPERSTACK_SSH_PRIVATE_KEY"
+          printf '%s\n' "$HYPERSTACK_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/hyperstack_canary_key"
+          chmod 600 "$RUNNER_TEMP/hyperstack_canary_key"
+
+      - name: Execute guarded Hyperstack lifecycle
+        env:
+          HYPERSTACK_API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          HYPERSTACK_VM_NAME: ${{ inputs.vm_name }}
+          HYPERSTACK_MODE: ${{ inputs.mode }}
+          HYPERSTACK_MAX_RUNTIME_MINUTES: ${{ inputs.max_runtime_minutes }}
+          HYPERSTACK_SSH_KEY_PATH: ${{ runner.temp }}/hyperstack_canary_key
+          HYPERSTACK_EVIDENCE_PATH: certification-evidence/hyperstack-gpu-canary.json
+        run: node scripts/hyperstack-gpu-canary.mjs
+
+      - name: Verify canary evidence
+        if: ${{ inputs.mode == 'canary' }}
+        run: |
+          node -e "const e=require('./certification-evidence/hyperstack-gpu-canary.json'); if(!e.runtime_verified || !e.final_hibernated || !e.success) process.exit(1)"
+
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperstack-gpu-canary-evidence
+          path: certification-evidence/hyperstack-gpu-canary.json
+          if-no-files-found: error
+          retention-days: 14
