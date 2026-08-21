@@ -17,6 +17,7 @@
     "test:resilience-cells": "node --test tests/resilience-cell.test.mjs",
     "test:recovery-evidence": "node --test tests/recovery-evidence.test.mjs",
     "test:auto-loop-dispatch-policy": "node --test tests/auto-loop-dispatch-policy.test.mjs",
+    "test:tool-executor-lane-contract": "node --test tests/tool-executor-lane-contract.test.mjs",
     "typecheck:approval-crypto": "tsc --noEmit --strict --target ES2022 --module Node16 --moduleResolution Node16 src/platform/approval-crypto-validator.ts"
   },
   "devDependencies": {
