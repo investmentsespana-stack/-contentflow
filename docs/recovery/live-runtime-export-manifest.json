@@ -19,7 +19,7 @@
       "verifyJwt": true,
       "liveSha256": "a030e6cafb7781f9ad93438ca1a2c49a9b1ea92c30d23787d50c9b8c9e772cba",
       "repositoryPath": "supabase/functions/contentflow-director/index.ts",
-      "exported": false
+      "exported": true
     },
     {
       "slug": "contentflow-throughput-recovery",
@@ -27,7 +27,7 @@
       "verifyJwt": true,
       "liveSha256": "b64f284ad8800ef93f87886794c26ea1ea9dac7219488672ad7dfb280c195bdc",
       "repositoryPath": "supabase/functions/contentflow-throughput-recovery/index.ts",
-      "exported": false
+      "exported": true
     }
   ],
   "rootBlocker": {
