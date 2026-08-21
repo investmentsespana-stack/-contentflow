@@ -53,6 +53,10 @@ jobs:
         run: npm run test:auto-loop-dispatch-policy
       - name: Certify tool executor lane/state/fencing contract
         run: npm run test:tool-executor-lane-contract
+      - name: Certify stale off-lane tool claim quarantine
+        run: npm run test:tool-executor-stale-claim-quarantine
+      - name: Certify evidence verifier preflight and producer hold
+        run: npm run test:evidence-verifier-preflight
       - name: Certify restore drill and measured sandbox autonomy evidence
         run: npm run test:recovery-evidence
       - name: Upload resilience and recovery evidence
