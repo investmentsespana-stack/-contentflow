@@ -50,6 +50,7 @@ Deno.serve(async(req)=>{
    dispatcher:'adaptive-v4-observe-only',
    accepted:0,
    mutations:0,
+   single_writer:'director_core',
    master_hard_cap:MASTER_HARD_CAP,
    recommended_cap:max,
    running_workers:Number(runningWorkers||0),
