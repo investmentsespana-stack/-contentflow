@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "productionProjectRef": "koqpyfvnprmirqviafzq",
+  "sandboxProjectRef": "fbdowkcojgszqfrkgwis",
+  "verifiedAt": "2026-08-21",
+  "productionStatus": "ACTIVE_HEALTHY",
+  "sandboxStatus": "ACTIVE_HEALTHY",
+  "verificationMethod": "Supabase live SQL snapshot plus isolated sandbox restore with canonical content digests",
+  "requiredRuntimeControlTables": [
+    {"table":"contentflow_capacity_phases","rows":3,"digest":"3093ad12e80b961292feedfc01ca2bb3","restoredExact":true},
+    {"table":"contentflow_capacity_state","rows":1,"digest":"4e4abe5fee5664f804900a831778ea5a","restoredExact":true},
+    {"table":"contentflow_lane_models","rows":4,"digest":"654b9da0071900fd3a2e686d4c042d21","restoredExact":true},
+    {"table":"contentflow_retry_policies","rows":9,"digest":"914f24f702c5905872dbc65d830b5cb2","restoredExact":true},
+    {"table":"director_canary_policy","rows":1,"digest":"1d361c1a733739ad576be013f725ce67","restoredExact":true},
+    {"table":"director_control_policy","rows":1,"digest":"a5ef1772425c22a89da8879707e5747e","restoredExact":true},
+    {"table":"director_operating_rules","rows":26,"digest":"f2f322b54459d80ba6c888bd197832a8","restoredExact":true},
+    {"table":"director_repair_recipes","rows":13,"digest":"74b24e1e5f03dcb88984d7256cf85c52","restoredExact":true},
+    {"table":"director_workflow_versions","rows":1,"digest":"b1639d0e778f89fd85e6acc1566500a3","restoredExact":true}
+  ],
+  "allRequiredTablesPresent": true,
+  "allRequiredTablesNonEmpty": true,
+  "isolatedRestoreVerified": true,
+  "restoreParity": "9/9 exact canonical digests",
+  "productionMutation": false,
+  "snapshotStatus": {
+    "liveSqlSnapshotCaptured": true,
+    "isolatedRestoreFromCapturedControlStateVerified": true,
+    "canonicalPgDumpWorkflow": "pending",
+    "githubActionsSecretRequired": "SUPABASE_DB_URL",
+    "secretPresenceVerified": false
+  },
+  "remainingBoundary": "Run the canonical pg_dump workflow with SUPABASE_DB_URL and persist its SHA256 artifact; isolated restore itself is now verified."
+}
