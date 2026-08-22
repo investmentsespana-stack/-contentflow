@@ -1,0 +1,60 @@
+name: hyperstack-liveavatar-benchmark
+
+on:
+  push:
+    branches:
+      - feature/hyperstack-gpu-executor
+    paths:
+      - .github/workflows/hyperstack-liveavatar-benchmark.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hyperstack-gpu-executor
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/hyperstack-gpu-executor
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare dedicated SSH key
+        shell: bash
+        env:
+          HYPERSTACK_SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$HYPERSTACK_SSH_PRIVATE_KEY"
+          printf '%s\n' "$HYPERSTACK_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/hyperstack_liveavatar_key"
+          chmod 600 "$RUNNER_TEMP/hyperstack_liveavatar_key"
+
+      - name: Execute guarded LiveAvatar benchmark
+        env:
+          HYPERSTACK_API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          HYPERSTACK_VM_NAME: ambitious-schrodinger
+          HYPERSTACK_MAX_RUNTIME_MINUTES: '80'
+          HYPERSTACK_SSH_KEY_PATH: ${{ runner.temp }}/hyperstack_liveavatar_key
+          HYPERSTACK_EVIDENCE_PATH: certification-evidence/liveavatar-a100-benchmark.json
+        run: node scripts/hyperstack-liveavatar-benchmark.mjs
+
+      - name: Verify benchmark evidence
+        run: |
+          node -e "const e=require('./certification-evidence/liveavatar-a100-benchmark.json'); if(!e.gpu_verified || !e.inference_completed || !e.final_hibernated || !e.success) process.exit(1)"
+
+      - name: Upload sanitized benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: liveavatar-a100-benchmark-evidence
+          path: certification-evidence/liveavatar-a100-benchmark.json
+          if-no-files-found: error
+          retention-days: 14
