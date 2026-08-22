@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { evaluateAutonomyAdmission } from '../supabase/functions/_shared/autonomy-admission.mjs';
 
 const now = Date.parse('2026-08-21T20:00:00Z');
@@ -19,12 +20,14 @@ const base = {
 test('caps productive work at certified stable parallelism', () => {
   const d = evaluateAutonomyAdmission(base);
   assert.equal(d.admitted, true);
+  assert.equal(d.mode, 'productive');
   assert.equal(d.effectiveParallelism, 2);
 });
 
 test('blocks productive work when recovery is not certified', () => {
   const d = evaluateAutonomyAdmission({ ...base, recovery: {} });
   assert.equal(d.admitted, false);
+  assert.equal(d.mode, 'support_only');
   assert.equal(d.effectiveParallelism, 0);
   assert.ok(d.blockers.includes('recovery_not_certified'));
 });
@@ -42,4 +45,14 @@ test('blocks productive work on unsafe operating signals', () => {
     assert.equal(d.admitted, false);
     assert.ok(d.blockers.includes(expected));
   }
+});
+
+test('auto-loop gates planner and single writer core behind admission', () => {
+  const s = fs.readFileSync('supabase/functions/contentflow-auto-loop/index.ts', 'utf8');
+  assert.ok(s.includes("evaluateAutonomyAdmission(signals)"));
+  assert.ok(s.includes("if(admission.admitted)"));
+  assert.ok(s.includes("reason:'autonomy_admission_denied'"));
+  assert.ok(s.includes("reason:'recovery_aware_support_only'"));
+  assert.ok(s.includes(".eq('evidence_type','recovery_certification')"));
+  assert.ok(s.includes("contentflow_director_core_cycle_auto"));
 });
