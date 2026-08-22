@@ -37,23 +37,54 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Create dated recovery snapshot
+      - name: Resolve reachable database URL
         shell: bash
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if psql "$SUPABASE_DB_URL" -Atqc 'select 1' >/dev/null 2>&1; then
+            echo 'Using configured database endpoint.'
+            echo "EFFECTIVE_DB_URL=$SUPABASE_DB_URL" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          POOLER_URL=$(python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse, quote
+          raw = os.environ['SUPABASE_DB_URL']
+          parsed = urlparse(raw)
+          if not parsed.password:
+              raise SystemExit('SUPABASE_DB_URL does not contain a database password')
+          database = parsed.path.lstrip('/') or 'postgres'
+          password = quote(parsed.password, safe='')
+          database = quote(database, safe='')
+          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/{database}?sslmode=require')
+          PY
+          )
+          echo "::add-mask::$POOLER_URL"
+          if ! psql "$POOLER_URL" -Atqc 'select 1' >/dev/null 2>&1; then
+            echo 'Neither the configured endpoint nor the Supavisor session pooler is reachable with the stored credentials.'
+            exit 1
+          fi
+          echo 'Using Supavisor session pooler fallback.'
+          echo "EFFECTIVE_DB_URL=$POOLER_URL" >> "$GITHUB_ENV"
+
+      - name: Create dated recovery snapshot
+        shell: bash
         run: |
           set -euo pipefail
           DAY=$(date -u +%Y-%m-%d)
           DIR="backups/${DAY}"
           mkdir -p "$DIR"
 
-          pg_dump "$SUPABASE_DB_URL" \
+          pg_dump "$EFFECTIVE_DB_URL" \
             --schema-only \
             --no-owner \
             --no-privileges \
             --file "$DIR/schema.sql"
 
-          pg_dump "$SUPABASE_DB_URL" \
+          pg_dump "$EFFECTIVE_DB_URL" \
             --data-only \
             --column-inserts \
             --no-owner \
