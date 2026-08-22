@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/recovery-diagnostic-probe.yml'
+      - '.github/scripts/resolve-recovery-db-password.py'
   workflow_dispatch:
 
 permissions:
@@ -20,9 +21,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-      - name: Probe direct and Supavisor recovery connections
+      - name: Probe direct and Session Pooler paths
         shell: bash
         env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set +e
@@ -34,6 +36,7 @@ jobs:
           POOLER_DUMP_OK=false
           DIRECT_ERROR_CLASS=not_attempted
           POOLER_ERROR_CLASS=not_attempted
+          CREDENTIAL_SOURCE=none
 
           classify_pg_error() {
             local f="$1"
@@ -49,51 +52,31 @@ jobs:
             fi
           }
 
+          if [ -n "$SUPABASE_DB_PASSWORD" ] || [ -n "$SUPABASE_DB_URL" ]; then SECRET_PRESENT=true; fi
+
           if [ -n "$SUPABASE_DB_URL" ]; then
-            SECRET_PRESENT=true
             psql "$SUPABASE_DB_URL" -Atqc 'select 1' >/dev/null 2>/tmp/direct.err
-            if [ $? -eq 0 ]; then
-              DIRECT_READY=true
-              DIRECT_ERROR_CLASS=none
-            else
-              DIRECT_ERROR_CLASS=$(classify_pg_error /tmp/direct.err)
-            fi
+            if [ $? -eq 0 ]; then DIRECT_READY=true; DIRECT_ERROR_CLASS=none; else DIRECT_ERROR_CLASS=$(classify_pg_error /tmp/direct.err); fi
             pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-direct.sql >/dev/null 2>/tmp/direct-dump.err
             [ $? -eq 0 ] && [ -s /tmp/recovery-direct.sql ] && DIRECT_DUMP_OK=true
-
-            POOLER_URL=$(python3 - <<'PY'
-          import os
-          from urllib.parse import quote
-          raw = os.environ['SUPABASE_DB_URL'].strip()
-          prefixes = ('postgresql://postgres:', 'postgres://postgres:')
-          prefix = next((p for p in prefixes if raw.startswith(p)), None)
-          marker = '@db.koqpyfvnprmirqviafzq.supabase.co:5432/'
-          if not prefix or marker not in raw:
-              raise SystemExit(2)
-          end = raw.rfind(marker)
-          password_raw = raw[len(prefix):end]
-          if not password_raw:
-              raise SystemExit(2)
-          password = quote(password_raw, safe='')
-          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require')
-          PY
-            )
-            if [ -n "$POOLER_URL" ]; then
-              echo "::add-mask::$POOLER_URL"
-              psql "$POOLER_URL" -Atqc 'select 1' >/dev/null 2>/tmp/pooler.err
-              if [ $? -eq 0 ]; then
-                POOLER_READY=true
-                POOLER_ERROR_CLASS=none
-              else
-                POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err)
-              fi
-              pg_dump "$POOLER_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
-              [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
-            else
-              POOLER_ERROR_CLASS=pooler_url_derivation_failed
-            fi
           fi
-          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" > backups/recovery-diagnostics/latest.json
+
+          python3 .github/scripts/resolve-recovery-db-password.py
+          if [ $? -eq 0 ]; then
+            CREDENTIAL_SOURCE=$(cat /tmp/contentflow-recovery-password-source)
+            export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
+            export PGSSLMODE=require
+            DB_ARGS=(-h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres)
+            psql "${DB_ARGS[@]}" -Atqc 'select 1' >/dev/null 2>/tmp/pooler.err
+            if [ $? -eq 0 ]; then POOLER_READY=true; POOLER_ERROR_CLASS=none; else POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err); fi
+            pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
+            [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
+          else
+            CREDENTIAL_SOURCE=$(cat /tmp/contentflow-recovery-password-source 2>/dev/null || echo none)
+            POOLER_ERROR_CLASS=auth_failed
+          fi
+
+          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s","credential_source":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" "$CREDENTIAL_SOURCE" > backups/recovery-diagnostics/latest.json
       - name: Persist diagnostic marker
         shell: bash
         run: |
@@ -101,6 +84,6 @@ jobs:
           git config user.name "contentflow-backup-bot"
           git config user.email "contentflow-backup-bot@users.noreply.github.com"
           git add backups/recovery-diagnostics/latest.json
-          git commit -m "diag: classify direct and pooler recovery failures" || exit 0
+          git commit -m "diag: probe recovery using PGPASSWORD semantics" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main

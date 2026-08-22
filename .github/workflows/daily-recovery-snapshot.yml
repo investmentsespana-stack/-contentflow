@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/daily-recovery-snapshot.yml'
+      - '.github/scripts/resolve-recovery-db-password.py'
   schedule:
     - cron: '15 7 * * *'
 
@@ -23,12 +24,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify backup secret
+      - name: Verify recovery credential source
         shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          if [ -z "${{ secrets.SUPABASE_DB_URL }}" ]; then
-            echo "SUPABASE_DB_URL secret is required for automated recovery snapshots."
+          if [ -z "$SUPABASE_DB_PASSWORD" ] && [ -z "$SUPABASE_DB_URL" ]; then
+            echo 'SUPABASE_DB_PASSWORD (preferred) or legacy SUPABASE_DB_URL is required.'
             exit 1
           fi
 
@@ -37,62 +41,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Resolve reachable database URL
+      - name: Resolve and verify Session Pooler credential
         shell: bash
         env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          if psql "$SUPABASE_DB_URL" -Atqc 'select 1' >/dev/null 2>&1; then
-            echo 'Using configured database endpoint.'
-            echo "EFFECTIVE_DB_URL=$SUPABASE_DB_URL" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          POOLER_URL=$(python3 - <<'PY'
-          import os
-          from urllib.parse import quote
-          raw = os.environ['SUPABASE_DB_URL'].strip()
-          prefixes = ('postgresql://postgres:', 'postgres://postgres:')
-          prefix = next((p for p in prefixes if raw.startswith(p)), None)
-          marker = '@db.koqpyfvnprmirqviafzq.supabase.co:5432/'
-          if not prefix or marker not in raw:
-              raise SystemExit('SUPABASE_DB_URL is not the expected direct ContentFlow database URI')
-          end = raw.rfind(marker)
-          password_raw = raw[len(prefix):end]
-          if not password_raw:
-              raise SystemExit('SUPABASE_DB_URL does not contain a database password')
-          password = quote(password_raw, safe='')
-          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require')
-          PY
-          )
-          echo "::add-mask::$POOLER_URL"
-          if ! psql "$POOLER_URL" -Atqc 'select 1' >/dev/null 2>&1; then
-            echo 'Neither the configured endpoint nor the Supavisor session pooler is reachable with the stored credentials.'
-            exit 1
-          fi
-          echo 'Using Supavisor session pooler fallback.'
-          echo "EFFECTIVE_DB_URL=$POOLER_URL" >> "$GITHUB_ENV"
+          python3 .github/scripts/resolve-recovery-db-password.py
+          echo 'Session Pooler authentication verified without URI password reconstruction.'
 
       - name: Create dated recovery snapshot
         shell: bash
         run: |
           set -euo pipefail
+          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
+          export PGSSLMODE=require
+          DB_ARGS=(-h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres)
           DAY=$(date -u +%Y-%m-%d)
           DIR="backups/${DAY}"
           mkdir -p "$DIR"
 
-          pg_dump "$EFFECTIVE_DB_URL" \
-            --schema-only \
-            --no-owner \
-            --no-privileges \
-            --file "$DIR/schema.sql"
-
-          pg_dump "$EFFECTIVE_DB_URL" \
-            --data-only \
-            --column-inserts \
-            --no-owner \
-            --no-privileges \
+          pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file "$DIR/schema.sql"
+          pg_dump "${DB_ARGS[@]}" --data-only --column-inserts --no-owner --no-privileges \
             --table=public.director_control_policy \
             --table=public.director_operating_rules \
             --table=public.director_repair_recipes \
@@ -109,8 +80,7 @@ jobs:
           grep -q "CREATE TABLE" "$DIR/schema.sql"
           grep -q "director_control_policy" "$DIR/runtime-control-data.sql"
           (cd "$DIR" && sha256sum schema.sql runtime-control-data.sql > SHA256SUMS)
-
-          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"schema_plus_nonsecret_runtime_control","restore_order":["schema.sql","runtime-control-data.sql"],"integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" > "$DIR/manifest.json"
+          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","restore_order":["schema.sql","runtime-control-data.sql"],"integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" > "$DIR/manifest.json"
 
       - name: Upload recovery artifact before git push
         uses: actions/upload-artifact@v4
