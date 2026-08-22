@@ -51,15 +51,19 @@ jobs:
 
           POOLER_URL=$(python3 - <<'PY'
           import os
-          from urllib.parse import urlparse, quote
-          raw = os.environ['SUPABASE_DB_URL']
-          parsed = urlparse(raw)
-          if not parsed.password:
+          from urllib.parse import quote
+          raw = os.environ['SUPABASE_DB_URL'].strip()
+          prefixes = ('postgresql://postgres:', 'postgres://postgres:')
+          prefix = next((p for p in prefixes if raw.startswith(p)), None)
+          marker = '@db.koqpyfvnprmirqviafzq.supabase.co:5432/'
+          if not prefix or marker not in raw:
+              raise SystemExit('SUPABASE_DB_URL is not the expected direct ContentFlow database URI')
+          end = raw.rfind(marker)
+          password_raw = raw[len(prefix):end]
+          if not password_raw:
               raise SystemExit('SUPABASE_DB_URL does not contain a database password')
-          database = parsed.path.lstrip('/') or 'postgres'
-          password = quote(parsed.password, safe='')
-          database = quote(database, safe='')
-          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/{database}?sslmode=require')
+          password = quote(password_raw, safe='')
+          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require')
           PY
           )
           echo "::add-mask::$POOLER_URL"
