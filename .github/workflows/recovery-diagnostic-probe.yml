@@ -63,14 +63,19 @@ jobs:
 
             POOLER_URL=$(python3 - <<'PY'
           import os
-          from urllib.parse import urlparse, quote
-          raw = os.environ['SUPABASE_DB_URL']
-          parsed = urlparse(raw)
-          if not parsed.password:
+          from urllib.parse import quote
+          raw = os.environ['SUPABASE_DB_URL'].strip()
+          prefixes = ('postgresql://postgres:', 'postgres://postgres:')
+          prefix = next((p for p in prefixes if raw.startswith(p)), None)
+          marker = '@db.koqpyfvnprmirqviafzq.supabase.co:5432/'
+          if not prefix or marker not in raw:
               raise SystemExit(2)
-          database = quote(parsed.path.lstrip('/') or 'postgres', safe='')
-          password = quote(parsed.password, safe='')
-          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/{database}?sslmode=require')
+          end = raw.rfind(marker)
+          password_raw = raw[len(prefix):end]
+          if not password_raw:
+              raise SystemExit(2)
+          password = quote(password_raw, safe='')
+          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require')
           PY
             )
             if [ -n "$POOLER_URL" ]; then
@@ -84,6 +89,8 @@ jobs:
               fi
               pg_dump "$POOLER_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
               [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
+            else
+              POOLER_ERROR_CLASS=pooler_url_derivation_failed
             fi
           fi
           printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" > backups/recovery-diagnostics/latest.json
