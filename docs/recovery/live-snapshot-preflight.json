@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "productionProjectRef": "koqpyfvnprmirqviafzq",
+  "sandboxProjectRef": "lshfmffdbmalexjhiohe",
+  "sandboxBranchId": "bb636f88-9285-48e5-82a7-6f60e259a807",
+  "verifiedAt": "2026-08-21",
+  "productionStatus": "ACTIVE_HEALTHY",
+  "sandboxStatus": "ACTIVE_HEALTHY",
+  "verificationMethod": "isolated Supabase restore using allowlisted temporary recovery bridge plus deterministic row-count and content-hash comparison",
+  "requiredRuntimeControlTables": [
+    {"table":"contentflow_capacity_phases","rows":3,"hash":"d5b5e6933f1fe33b07493d0a5bd0cf8a","comparison":"raw-json-exact","restored":true},
+    {"table":"contentflow_capacity_state","rows":1,"hash":"dc699e3fc59ab501584991af1164b732","comparison":"raw-json-exact","restored":true},
+    {"table":"contentflow_lane_models","rows":4,"hash":"ec358378ba38b505ecede58e8e10e1c0","comparison":"raw-json-exact","restored":true},
+    {"table":"contentflow_retry_policies","rows":9,"hash":"742b03fa9cee9f847eb60d358f87b60b","comparison":"semantic-normalized-numeric","restored":true},
+    {"table":"director_canary_policy","rows":1,"hash":"a5a41815f387fdf16d13a3618285c61a","comparison":"raw-json-exact","restored":true},
+    {"table":"director_control_policy","rows":1,"hash":"901ceb42dcfcd3881e4e8f82c3b183c7","comparison":"raw-json-exact","restored":true},
+    {"table":"director_operating_rules","rows":26,"hash":"716ed8c18fb28187a49769b2d95eb9d7","comparison":"raw-json-exact","restored":true},
+    {"table":"director_repair_recipes","rows":13,"hash":"0c0cf2d1e5c56104999e27808858b75b","comparison":"semantic-normalized-numeric","restored":true},
+    {"table":"director_workflow_versions","rows":1,"hash":"2be105946416557421dc38f230911f3c","comparison":"raw-json-exact","restored":true}
+  ],
+  "allRequiredTablesPresent": true,
+  "allRequiredTablesNonEmpty": true,
+  "isolatedRestoreVerified": true,
+  "restoreParity": "9/9 tables match production by exact or numeric-normalized deterministic digest",
+  "productionMutation": "migration metadata only: repaired historical 20260814160022 statement escaping; no production schema or business-data mutation",
+  "migrationReplayFinding": "Supabase branch replay still exposes historical migration drift independently of the control-state restore; sandbox restore was completed from captured live control state.",
+  "snapshotStatus": {
+    "liveSqlSnapshotCaptured": true,
+    "isolatedRestoreFromCapturedControlStateVerified": true,
+    "canonicalPgDumpWorkflow": "pending",
+    "githubActionsSecretRequired": "SUPABASE_DB_URL",
+    "secretPresenceVerified": false
+  },
+  "remainingBoundary": "Canonical GitHub Actions pg_dump artifact remains pending; isolated control-state restore is verified."
+}
