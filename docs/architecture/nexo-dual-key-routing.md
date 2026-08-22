@@ -1,0 +1,3 @@
+# Dual Nexo key routing contract
+
+ContentFlow production runners must treat `NEXOROUTER_API_KEY` and `NEXOROUTER_API_KEY_SECUNDARY` as independent capacity/failure domains. With both healthy, consecutive builder run ids are deterministically split 50/50, yielding 2+2 distribution at concurrency 4. A run remains pinned to its selected route for traceability; transport/rate-limit failure may fail over once to the alternate route. Metrics may persist only `api_route=primary|secondary`, never secret material. If neither route is healthy/present, execution fails closed. Per-route health is evaluated independently so one account cannot suppress the other.
