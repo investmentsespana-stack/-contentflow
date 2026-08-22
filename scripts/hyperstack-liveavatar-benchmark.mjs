@@ -227,9 +227,21 @@ try {
   else if (status !== 'ACTIVE') throw new Error(`unsafe initial state: ${status}`);
 
   current = await waitFor(vmId, 'ACTIVE', 20 * 60 * 1000);
-  const ip = current.floating_ip || current.public_ip;
-  if (!ip) throw new Error('ACTIVE VM has no public IP; attach public IP before benchmark');
-  evidence.active_ip = ip;
+let ip = null;
+const ipDeadline = Date.now() + 10 * 60 * 1000;
+while (Date.now() < ipDeadline) {
+current = await getVm(vmId);
+ip = current.floating_ip || current.public_ip;
+if (ip) break;
+
+await sleep(10000);
+}
+
+if (!ip) {
+throw new Error('La VM ACTIVA no recibió una IP pública en 10 minutos');
+}
+
+evidence.active_ip = ip;
   await waitSsh(ip);
   record('ssh_ready');
 
