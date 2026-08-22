@@ -1,0 +1,25 @@
+name: autonomy-admission-certification
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/autonomy-admission.mjs'
+      - 'supabase/functions/contentflow-auto-loop/**'
+      - 'tests/autonomy-admission-recovery-aware.test.mjs'
+      - 'package.json'
+      - '.github/workflows/autonomy-admission-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Certify autonomy admission and recovery-aware scheduling
+        run: npm run test:autonomy-admission
