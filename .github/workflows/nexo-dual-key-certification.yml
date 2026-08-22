@@ -1,0 +1,21 @@
+name: nexo-dual-key-certification
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/nexo-key-router.mjs'
+      - 'tests/nexo-dual-key-router.test.mjs'
+      - 'docs/architecture/nexo-dual-key-routing.md'
+      - '.github/workflows/nexo-dual-key-certification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Certify deterministic 2+2 routing and failover
+        run: node --test tests/nexo-dual-key-router.test.mjs
