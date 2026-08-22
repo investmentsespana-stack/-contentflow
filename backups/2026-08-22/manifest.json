@@ -1,0 +1,1 @@
+{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"2026-08-22T21:09:49Z","scope":"schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","credential_source":"dedicated_secret","restore_order":["schema.sql","runtime-control-data.sql"],"integrity":"SHA256SUMS"}
