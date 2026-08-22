@@ -20,7 +20,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-      - name: Probe recovery connection without exposing secret
+      - name: Probe direct and Supavisor recovery connections
         shell: bash
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -28,16 +28,38 @@ jobs:
           set +e
           mkdir -p backups/recovery-diagnostics
           SECRET_PRESENT=false
-          PG_READY=false
-          PG_DUMP_OK=false
+          DIRECT_READY=false
+          DIRECT_DUMP_OK=false
+          POOLER_READY=false
+          POOLER_DUMP_OK=false
           if [ -n "$SUPABASE_DB_URL" ]; then
             SECRET_PRESENT=true
-            pg_isready -d "$SUPABASE_DB_URL" >/dev/null 2>&1
-            [ $? -eq 0 ] && PG_READY=true
-            pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-probe.sql >/dev/null 2>&1
-            [ $? -eq 0 ] && [ -s /tmp/recovery-probe.sql ] && PG_DUMP_OK=true
+            psql "$SUPABASE_DB_URL" -Atqc 'select 1' >/dev/null 2>&1
+            [ $? -eq 0 ] && DIRECT_READY=true
+            pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-direct.sql >/dev/null 2>&1
+            [ $? -eq 0 ] && [ -s /tmp/recovery-direct.sql ] && DIRECT_DUMP_OK=true
+
+            POOLER_URL=$(python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse, quote
+          raw = os.environ['SUPABASE_DB_URL']
+          parsed = urlparse(raw)
+          if not parsed.password:
+              raise SystemExit(2)
+          database = quote(parsed.path.lstrip('/') or 'postgres', safe='')
+          password = quote(parsed.password, safe='')
+          print(f'postgresql://postgres.koqpyfvnprmirqviafzq:{password}@aws-0-us-east-1.pooler.supabase.com:5432/{database}?sslmode=require')
+          PY
+            )
+            if [ -n "$POOLER_URL" ]; then
+              echo "::add-mask::$POOLER_URL"
+              psql "$POOLER_URL" -Atqc 'select 1' >/dev/null 2>&1
+              [ $? -eq 0 ] && POOLER_READY=true
+              pg_dump "$POOLER_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>&1
+              [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
+            fi
           fi
-          printf '{"checked_at_utc":"%s","secret_present":%s,"postgres_ready":%s,"pg_dump_ok":%s}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$PG_READY" "$PG_DUMP_OK" > backups/recovery-diagnostics/latest.json
+          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"pooler_ready":%s,"pooler_pg_dump_ok":%s}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$POOLER_READY" "$POOLER_DUMP_OK" > backups/recovery-diagnostics/latest.json
       - name: Persist diagnostic marker
         shell: bash
         run: |
@@ -45,6 +67,6 @@ jobs:
           git config user.name "contentflow-backup-bot"
           git config user.email "contentflow-backup-bot@users.noreply.github.com"
           git add backups/recovery-diagnostics/latest.json
-          git commit -m "diag: record recovery database preflight" || exit 0
+          git commit -m "diag: compare direct and pooler recovery paths" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
