@@ -1,1 +1,1 @@
-{"checked_at_utc":"2026-08-22T20:55:48Z","secret_present":true,"direct_ready":false,"direct_pg_dump_ok":false,"direct_error_class":"network_unreachable","pooler_ready":false,"pooler_pg_dump_ok":false,"pooler_error_class":"auth_failed","credential_source":"none_valid"}
+{"checked_at_utc":"2026-08-22T21:04:28Z","secret_present":true,"direct_ready":false,"direct_pg_dump_ok":false,"direct_error_class":"network_unreachable","pooler_ready":true,"pooler_pg_dump_ok":false,"pooler_error_class":"none","credential_source":"dedicated_secret"}
