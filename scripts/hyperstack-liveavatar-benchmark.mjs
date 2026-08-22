@@ -201,7 +201,7 @@ CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=29101 minimal_i
   --single_gpu \
   --ckpt_dir ckpt/Wan2.2-S2V-14B/ \
   --fp8 2>&1 | tee "$WORK/liveavatar-inference.log"
-RC=${PIPESTATUS[0]}
+RC=\${PIPESTATUS[0]}
 set -e
 END=$(date +%s)
 printf 'INFERENCE_EXIT=%s\n' "$RC"
