@@ -22,10 +22,19 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Install PostgreSQL client
+      - name: Install PostgreSQL 17 client
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          psql --version
+          pg_dump --version
       - name: Probe direct and Session Pooler paths
         shell: bash
         env:
@@ -41,11 +50,13 @@ jobs:
           POOLER_DUMP_OK=false
           DIRECT_ERROR_CLASS=not_attempted
           POOLER_ERROR_CLASS=not_attempted
+          POOLER_DUMP_ERROR_CLASS=not_attempted
           CREDENTIAL_SOURCE=none
 
           classify_pg_error() {
             local f="$1"
-            if grep -Eqi 'tenant or user not found|user not found|tenant.*not found' "$f"; then echo tenant_or_user_not_found
+            if grep -Eqi 'server version.*pg_dump version|aborting because of server version mismatch' "$f"; then echo client_version_mismatch
+            elif grep -Eqi 'tenant or user not found|user not found|tenant.*not found' "$f"; then echo tenant_or_user_not_found
             elif grep -Eqi 'password authentication failed|authentication failed|wrong password|SCRAM exchange' "$f"; then echo auth_failed
             elif grep -Eqi 'could not translate host name|name or service not known|temporary failure in name resolution' "$f"; then echo dns_failed
             elif grep -Eqi 'timeout expired|connection timed out|operation timed out' "$f"; then echo timeout
@@ -77,7 +88,12 @@ jobs:
               POOLER_READY=true
               POOLER_ERROR_CLASS=none
               pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
-              [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
+              if [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ]; then
+                POOLER_DUMP_OK=true
+                POOLER_DUMP_ERROR_CLASS=none
+              else
+                POOLER_DUMP_ERROR_CLASS=$(classify_pg_error /tmp/pooler-dump.err)
+              fi
             else
               POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err)
             fi
@@ -91,7 +107,7 @@ jobs:
                 POOLER_READY=true
                 POOLER_ERROR_CLASS=none
                 pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
-                [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
+                if [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ]; then POOLER_DUMP_OK=true; POOLER_DUMP_ERROR_CLASS=none; else POOLER_DUMP_ERROR_CLASS=$(classify_pg_error /tmp/pooler-dump.err); fi
               else
                 POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err)
               fi
@@ -101,7 +117,7 @@ jobs:
             fi
           fi
 
-          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s","credential_source":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" "$CREDENTIAL_SOURCE" > /tmp/recovery-diagnostic-latest.json
+          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s","pooler_pg_dump_error_class":"%s","credential_source":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" "$POOLER_DUMP_ERROR_CLASS" "$CREDENTIAL_SOURCE" > /tmp/recovery-diagnostic-latest.json
       - name: Persist diagnostic marker without stale-SHA conflicts
         shell: bash
         run: |
