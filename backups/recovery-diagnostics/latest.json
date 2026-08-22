@@ -1,1 +1,1 @@
-{"checked_at_utc":"2026-08-22T01:51:20Z","secret_present":true,"postgres_ready":false,"pg_dump_ok":false}
+{"checked_at_utc":"2026-08-22T02:24:08Z","secret_present":true,"direct_ready":false,"direct_pg_dump_ok":false,"pooler_ready":false,"pooler_pg_dump_ok":false}
