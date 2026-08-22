@@ -17,6 +17,7 @@
     "test:resilience-cells": "node --test tests/resilience-cell.test.mjs",
     "test:recovery-evidence": "node --test tests/recovery-evidence.test.mjs",
     "test:auto-loop-dispatch-policy": "node --test tests/auto-loop-dispatch-policy.test.mjs",
+    "test:autonomy-admission": "node --test tests/autonomy-admission-recovery-aware.test.mjs",
     "test:tool-executor-lane-contract": "node --test tests/tool-executor-lane-contract.test.mjs",
     "test:tool-executor-stale-claim-quarantine": "node --test tests/tool-executor-stale-claim-quarantine.test.mjs",
     "test:evidence-verifier-preflight": "node --test tests/evidence-verifier-preflight.test.mjs",
