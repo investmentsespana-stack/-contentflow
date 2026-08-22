@@ -32,11 +32,33 @@ jobs:
           DIRECT_DUMP_OK=false
           POOLER_READY=false
           POOLER_DUMP_OK=false
+          DIRECT_ERROR_CLASS=not_attempted
+          POOLER_ERROR_CLASS=not_attempted
+
+          classify_pg_error() {
+            local f="$1"
+            if grep -Eqi 'password authentication failed|authentication failed' "$f"; then echo auth_failed
+            elif grep -Eqi 'tenant or user not found|user not found|tenant.*not found' "$f"; then echo tenant_or_user_not_found
+            elif grep -Eqi 'could not translate host name|name or service not known|temporary failure in name resolution' "$f"; then echo dns_failed
+            elif grep -Eqi 'timeout expired|connection timed out|operation timed out' "$f"; then echo timeout
+            elif grep -Eqi 'connection refused' "$f"; then echo connection_refused
+            elif grep -Eqi 'no route to host|network is unreachable|cannot assign requested address' "$f"; then echo network_unreachable
+            elif grep -Eqi 'ssl|certificate' "$f"; then echo ssl_error
+            elif [ -s "$f" ]; then echo postgres_rejected
+            else echo unknown
+            fi
+          }
+
           if [ -n "$SUPABASE_DB_URL" ]; then
             SECRET_PRESENT=true
-            psql "$SUPABASE_DB_URL" -Atqc 'select 1' >/dev/null 2>&1
-            [ $? -eq 0 ] && DIRECT_READY=true
-            pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-direct.sql >/dev/null 2>&1
+            psql "$SUPABASE_DB_URL" -Atqc 'select 1' >/dev/null 2>/tmp/direct.err
+            if [ $? -eq 0 ]; then
+              DIRECT_READY=true
+              DIRECT_ERROR_CLASS=none
+            else
+              DIRECT_ERROR_CLASS=$(classify_pg_error /tmp/direct.err)
+            fi
+            pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-direct.sql >/dev/null 2>/tmp/direct-dump.err
             [ $? -eq 0 ] && [ -s /tmp/recovery-direct.sql ] && DIRECT_DUMP_OK=true
 
             POOLER_URL=$(python3 - <<'PY'
@@ -53,13 +75,18 @@ jobs:
             )
             if [ -n "$POOLER_URL" ]; then
               echo "::add-mask::$POOLER_URL"
-              psql "$POOLER_URL" -Atqc 'select 1' >/dev/null 2>&1
-              [ $? -eq 0 ] && POOLER_READY=true
-              pg_dump "$POOLER_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>&1
+              psql "$POOLER_URL" -Atqc 'select 1' >/dev/null 2>/tmp/pooler.err
+              if [ $? -eq 0 ]; then
+                POOLER_READY=true
+                POOLER_ERROR_CLASS=none
+              else
+                POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err)
+              fi
+              pg_dump "$POOLER_URL" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
               [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
             fi
           fi
-          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"pooler_ready":%s,"pooler_pg_dump_ok":%s}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$POOLER_READY" "$POOLER_DUMP_OK" > backups/recovery-diagnostics/latest.json
+          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" > backups/recovery-diagnostics/latest.json
       - name: Persist diagnostic marker
         shell: bash
         run: |
@@ -67,6 +94,6 @@ jobs:
           git config user.name "contentflow-backup-bot"
           git config user.email "contentflow-backup-bot@users.noreply.github.com"
           git add backups/recovery-diagnostics/latest.json
-          git commit -m "diag: compare direct and pooler recovery paths" || exit 0
+          git commit -m "diag: classify direct and pooler recovery failures" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
