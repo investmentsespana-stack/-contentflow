@@ -3,6 +3,7 @@ export function evaluateAutonomyAdmission(input={}) {
   const recovery = input.recovery || {};
   const recoveryAgeMs = recovery.verifiedAt ? Math.max(0, nowMs - new Date(recovery.verifiedAt).getTime()) : Number.POSITIVE_INFINITY;
   const recoveryFresh = recovery.verified === true && String(recovery.status || '').toUpperCase() === 'PASS' && recoveryAgeMs <= 7 * 24 * 60 * 60 * 1000;
+  const telemetryHealthy = input.telemetryHealthy !== false;
   const ownershipConflicts = Number(input.ownershipConflicts || 0);
   const openIncidents = Number(input.openIncidents || 0);
   const openCircuits = Number(input.openCircuits || 0);
@@ -13,6 +14,7 @@ export function evaluateAutonomyAdmission(input={}) {
   const stableCap = Math.max(0, Number(input.stableParallelism || 2));
 
   const blockers = [];
+  if (!telemetryHealthy) blockers.push('admission_telemetry_unavailable');
   if (!recoveryFresh) blockers.push('recovery_not_certified');
   if (ownershipConflicts > 0) blockers.push('ownership_conflict');
   if (openIncidents > 0) blockers.push('open_repair_incident');
@@ -29,6 +31,7 @@ export function evaluateAutonomyAdmission(input={}) {
     stableParallelism: stableCap,
     blockers,
     signals: {
+      telemetryHealthy,
       recoveryFresh,
       recoveryAgeMs: Number.isFinite(recoveryAgeMs) ? recoveryAgeMs : null,
       ownershipConflicts,
