@@ -1,4 +1,5 @@
 import { validateRecoveryReceipt } from './recovery-certification-receipt.mjs';
+import { evaluateBudgetAdmission } from './budget-admission.mjs';
 
 export function evaluateAutonomyAdmission(input={}) {
   const nowMs = Number(input.nowMs ?? Date.now());
@@ -17,11 +18,13 @@ export function evaluateAutonomyAdmission(input={}) {
   const healthySinceMs = receiptValidation.receipt.healthySince ? Date.parse(receiptValidation.receipt.healthySince) : NaN;
   const healthyDwellMs = Number.isFinite(healthySinceMs) ? Math.max(0, nowMs - healthySinceMs) : 0;
   const dwellSatisfied = receiptValidation.valid && healthyDwellMs >= minimumDwellMs;
+  const budgetAdmission = evaluateBudgetAdmission(input.budget || {});
 
   const blockers = [];
   if (!telemetryHealthy) blockers.push('admission_telemetry_unavailable');
   if (!receiptValidation.valid) blockers.push('recovery_receipt_invalid');
   if (receiptValidation.valid && !dwellSatisfied) blockers.push('stability_dwell_pending');
+  if (!budgetAdmission.admitted) blockers.push(...budgetAdmission.blockers);
   if (ownershipConflicts > 0) blockers.push('ownership_conflict');
   if (openIncidents > 0) blockers.push('open_repair_incident');
   if (retryOpenRate > 0.25 || openCircuits > 2) blockers.push('retry_budget_unhealthy');
@@ -44,6 +47,8 @@ export function evaluateAutonomyAdmission(input={}) {
       healthyDwellMs,
       minimumDwellMs,
       dwellSatisfied,
+      providerBudgetAdmitted:budgetAdmission.admitted,
+      providerBudget:budgetAdmission,
       ownershipConflicts,
       openIncidents,
       openCircuits,
