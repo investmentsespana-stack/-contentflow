@@ -113,7 +113,10 @@ async function waitSsh(ip, timeoutMs = 8 * 60 * 1000) {
 async function ensureHibernated(id) {
   const vm = await getVm(id);
   const status = String(vm.status || '').toUpperCase();
-  if (status !== 'HIBERNATED' && status !== 'HIBERNATING') await action(id, 'hibernate');
+  if (status !== 'HIBERNATED' && status !== 'HIBERNATING') {
+    record('api_action_requested', { name: 'hibernate', retain_ip: true });
+    await request(`/core/virtual-machines/${id}/hibernate?retain_ip=true`);
+  }
   await waitFor(id, 'HIBERNATED', 20 * 60 * 1000);
   evidence.final_hibernated = true;
 }
@@ -145,7 +148,6 @@ if [ ! -d .venv ]; then python3 -m venv .venv; fi
 source .venv/bin/activate
 python -m pip install -U pip setuptools wheel
 
-# A100/Ampere path. Use CUDA 12.4-compatible PyTorch wheels to stay within the VM driver envelope.
 python -m pip install --extra-index-url https://download.pytorch.org/whl/cu124 'torch>=2.4,<2.7' 'torchvision>=0.19,<0.22' torchaudio
 python -m pip install -r requirements.txt
 python -m pip install 'flash-attn>=2.7,<2.9' --no-build-isolation
@@ -227,21 +229,20 @@ try {
   else if (status !== 'ACTIVE') throw new Error(`unsafe initial state: ${status}`);
 
   current = await waitFor(vmId, 'ACTIVE', 20 * 60 * 1000);
-let ip = null;
-const ipDeadline = Date.now() + 10 * 60 * 1000;
-while (Date.now() < ipDeadline) {
-current = await getVm(vmId);
-ip = current.floating_ip || current.public_ip;
-if (ip) break;
+  let ip = null;
+  const ipDeadline = Date.now() + 10 * 60 * 1000;
+  while (Date.now() < ipDeadline) {
+    current = await getVm(vmId);
+    ip = current.floating_ip || current.public_ip;
+    if (ip) break;
+    await sleep(10000);
+  }
 
-await sleep(10000);
-}
+  if (!ip) {
+    throw new Error('La VM ACTIVA no recibió una IP pública en 10 minutos');
+  }
 
-if (!ip) {
-throw new Error('La VM ACTIVA no recibió una IP pública en 10 minutos');
-}
-
-evidence.active_ip = ip;
+  evidence.active_ip = ip;
   await waitSsh(ip);
   record('ssh_ready');
 
