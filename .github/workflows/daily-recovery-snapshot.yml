@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: daily-contentflow-recovery-snapshot
+  cancel-in-progress: false
+
 jobs:
   snapshot:
     runs-on: ubuntu-latest
