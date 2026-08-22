@@ -48,8 +48,18 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          python3 .github/scripts/resolve-recovery-db-password.py
-          echo 'Session Pooler authentication verified without URI password reconstruction.'
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            printf '%s' "$SUPABASE_DB_PASSWORD" > /tmp/contentflow-recovery-db-password
+            printf '%s' 'dedicated_secret' > /tmp/contentflow-recovery-password-source
+            chmod 600 /tmp/contentflow-recovery-db-password /tmp/contentflow-recovery-password-source
+          else
+            python3 .github/scripts/resolve-recovery-db-password.py
+          fi
+
+          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
+          export PGSSLMODE=require
+          psql -h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres -Atqc 'select 1' >/dev/null
+          echo 'Session Pooler authentication verified with opaque PGPASSWORD.'
 
       - name: Create dated recovery snapshot
         shell: bash
@@ -80,7 +90,7 @@ jobs:
           grep -q "CREATE TABLE" "$DIR/schema.sql"
           grep -q "director_control_policy" "$DIR/runtime-control-data.sql"
           (cd "$DIR" && sha256sum schema.sql runtime-control-data.sql > SHA256SUMS)
-          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","restore_order":["schema.sql","runtime-control-data.sql"],"integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" > "$DIR/manifest.json"
+          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","credential_source":"%s","restore_order":["schema.sql","runtime-control-data.sql"],"integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" "$(cat /tmp/contentflow-recovery-password-source)" > "$DIR/manifest.json"
 
       - name: Upload recovery artifact before git push
         uses: actions/upload-artifact@v4
@@ -90,17 +100,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Commit snapshot
+      - name: Commit snapshot without stale-SHA conflicts
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "contentflow-backup-bot"
           git config user.email "contentflow-backup-bot@users.noreply.github.com"
+          SNAPSHOT_COPY=$(mktemp -d)
+          cp -a backups/. "$SNAPSHOT_COPY/"
+          git fetch origin main
+          git reset --hard origin/main
+          mkdir -p backups
+          cp -a "$SNAPSHOT_COPY/." backups/
           git add backups/
           if git diff --cached --quiet; then
             echo "No recovery changes to commit."
             exit 0
           fi
           git commit -m "backup: daily ContentFlow recovery snapshot $(date -u +%Y-%m-%d)"
-          git pull --rebase origin main
           git push origin HEAD:main
