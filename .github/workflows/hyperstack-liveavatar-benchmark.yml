@@ -6,6 +6,7 @@ on:
       - feature/hyperstack-gpu-executor
     paths:
       - .github/workflows/hyperstack-liveavatar-benchmark.yml
+      - scripts/hyperstack-liveavatar-benchmark.mjs
 
 permissions:
   contents: read
