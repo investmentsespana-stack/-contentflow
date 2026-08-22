@@ -42,6 +42,15 @@ async function request(path) {
   return body;
 }
 
+async function post(path) {
+  const response = await fetch(`${BASE}${path}`, { method: 'POST', headers });
+  const text = await response.text();
+  let body;
+  try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 1200) }; }
+  if (!response.ok) throw new Error(`Hyperstack ${response.status}: ${JSON.stringify(body)}`);
+  return body;
+}
+
 function flattenCandidates(body) {
   const candidates = [];
   if (Array.isArray(body)) candidates.push(...body);
@@ -229,9 +238,15 @@ try {
   else if (status !== 'ACTIVE') throw new Error(`unsafe initial state: ${status}`);
 
   current = await waitFor(vmId, 'ACTIVE', 20 * 60 * 1000);
-  let ip = null;
+  let ip = current.floating_ip || current.public_ip;
+
+  if (!ip) {
+    record('public_ip_attach_requested');
+    await post(`/core/virtual-machines/${vmId}/attach-floatingip`);
+  }
+
   const ipDeadline = Date.now() + 10 * 60 * 1000;
-  while (Date.now() < ipDeadline) {
+  while (!ip && Date.now() < ipDeadline) {
     current = await getVm(vmId);
     ip = current.floating_ip || current.public_ip;
     if (ip) break;
@@ -239,9 +254,10 @@ try {
   }
 
   if (!ip) {
-    throw new Error('La VM ACTIVA no recibió una IP pública en 10 minutos');
+    throw new Error('La VM ACTIVA no recibió una IP pública en 10 minutos después de solicitar attach-floatingip');
   }
 
+  record('public_ip_ready');
   evidence.active_ip = ip;
   await waitSsh(ip);
   record('ssh_ready');
