@@ -14,7 +14,7 @@ async function callInternal(url:string,service:string,path:string,timeoutMs=5000
 async function collectAdmissionSignals(sb:any){
   const errors:string[]=[];
   const recovery=await sb.from('director_external_evidence')
-    .select('status,verified,updated_at')
+    .select('status,verified,updated_at,evidence')
     .eq('project_key','contentflow')
     .eq('evidence_type','recovery_certification')
     .order('updated_at',{ascending:false})
@@ -65,18 +65,15 @@ async function collectAdmissionSignals(sb:any){
   return {
     telemetryHealthy:errors.length===0,
     telemetryErrors:errors,
-    recovery:{
-      verified:Boolean(recovery.data?.verified),
-      status:String(recovery.data?.status||''),
-      verifiedAt:recovery.data?.updated_at||null
-    },
+    recoveryReceipt:recovery.data?.evidence||{},
     ownershipConflicts,
     openIncidents:Number(incidents.count||0),
     openCircuits,
     retryStates,
     waitingForEvidence:Number(evidenceWait.count||0),
     requestedParallelism:Number(policy.data?.desired_running||0),
-    stableParallelism:Number(canary.data?.stable_parallelism||2)
+    stableParallelism:Number(canary.data?.stable_parallelism||2),
+    minimumDwellMs:5*60*1000
   };
 }
 
