@@ -5,11 +5,16 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/recovery-diagnostic-probe.yml'
+      - '.github/workflows/daily-recovery-snapshot.yml'
       - '.github/scripts/resolve-recovery-db-password.py'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: recovery-diagnostic-probe
+  cancel-in-progress: false
 
 jobs:
   probe:
@@ -40,8 +45,8 @@ jobs:
 
           classify_pg_error() {
             local f="$1"
-            if grep -Eqi 'password authentication failed|authentication failed' "$f"; then echo auth_failed
-            elif grep -Eqi 'tenant or user not found|user not found|tenant.*not found' "$f"; then echo tenant_or_user_not_found
+            if grep -Eqi 'tenant or user not found|user not found|tenant.*not found' "$f"; then echo tenant_or_user_not_found
+            elif grep -Eqi 'password authentication failed|authentication failed|wrong password|SCRAM exchange' "$f"; then echo auth_failed
             elif grep -Eqi 'could not translate host name|name or service not known|temporary failure in name resolution' "$f"; then echo dns_failed
             elif grep -Eqi 'timeout expired|connection timed out|operation timed out' "$f"; then echo timeout
             elif grep -Eqi 'connection refused' "$f"; then echo connection_refused
@@ -61,29 +66,52 @@ jobs:
             [ $? -eq 0 ] && [ -s /tmp/recovery-direct.sql ] && DIRECT_DUMP_OK=true
           fi
 
-          python3 .github/scripts/resolve-recovery-db-password.py
-          if [ $? -eq 0 ]; then
-            CREDENTIAL_SOURCE=$(cat /tmp/contentflow-recovery-password-source)
-            export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
-            export PGSSLMODE=require
-            DB_ARGS=(-h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres)
+          export PGSSLMODE=require
+          DB_ARGS=(-h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres)
+
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            CREDENTIAL_SOURCE=dedicated_secret
+            export PGPASSWORD="$SUPABASE_DB_PASSWORD"
             psql "${DB_ARGS[@]}" -Atqc 'select 1' >/dev/null 2>/tmp/pooler.err
-            if [ $? -eq 0 ]; then POOLER_READY=true; POOLER_ERROR_CLASS=none; else POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err); fi
-            pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
-            [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
-          else
-            CREDENTIAL_SOURCE=$(cat /tmp/contentflow-recovery-password-source 2>/dev/null || echo none)
-            POOLER_ERROR_CLASS=auth_failed
+            if [ $? -eq 0 ]; then
+              POOLER_READY=true
+              POOLER_ERROR_CLASS=none
+              pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
+              [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
+            else
+              POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err)
+            fi
+          elif [ -n "$SUPABASE_DB_URL" ]; then
+            python3 .github/scripts/resolve-recovery-db-password.py
+            if [ $? -eq 0 ]; then
+              CREDENTIAL_SOURCE=$(cat /tmp/contentflow-recovery-password-source)
+              export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
+              psql "${DB_ARGS[@]}" -Atqc 'select 1' >/dev/null 2>/tmp/pooler.err
+              if [ $? -eq 0 ]; then
+                POOLER_READY=true
+                POOLER_ERROR_CLASS=none
+                pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file /tmp/recovery-pooler.sql >/dev/null 2>/tmp/pooler-dump.err
+                [ $? -eq 0 ] && [ -s /tmp/recovery-pooler.sql ] && POOLER_DUMP_OK=true
+              else
+                POOLER_ERROR_CLASS=$(classify_pg_error /tmp/pooler.err)
+              fi
+            else
+              CREDENTIAL_SOURCE=$(cat /tmp/contentflow-recovery-password-source 2>/dev/null || echo legacy_unresolved)
+              POOLER_ERROR_CLASS=credential_unresolved
+            fi
           fi
 
-          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s","credential_source":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" "$CREDENTIAL_SOURCE" > backups/recovery-diagnostics/latest.json
-      - name: Persist diagnostic marker
+          printf '{"checked_at_utc":"%s","secret_present":%s,"direct_ready":%s,"direct_pg_dump_ok":%s,"direct_error_class":"%s","pooler_ready":%s,"pooler_pg_dump_ok":%s,"pooler_error_class":"%s","credential_source":"%s"}\n' "$(date -u +%FT%TZ)" "$SECRET_PRESENT" "$DIRECT_READY" "$DIRECT_DUMP_OK" "$DIRECT_ERROR_CLASS" "$POOLER_READY" "$POOLER_DUMP_OK" "$POOLER_ERROR_CLASS" "$CREDENTIAL_SOURCE" > /tmp/recovery-diagnostic-latest.json
+      - name: Persist diagnostic marker without stale-SHA conflicts
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "contentflow-backup-bot"
           git config user.email "contentflow-backup-bot@users.noreply.github.com"
+          git fetch origin main
+          git reset --hard origin/main
+          mkdir -p backups/recovery-diagnostics
+          cp /tmp/recovery-diagnostic-latest.json backups/recovery-diagnostics/latest.json
           git add backups/recovery-diagnostics/latest.json
-          git commit -m "diag: probe recovery using PGPASSWORD semantics" || exit 0
-          git pull --rebase origin main
+          git commit -m "diag: probe recovery canonical credential" || exit 0
           git push origin HEAD:main
