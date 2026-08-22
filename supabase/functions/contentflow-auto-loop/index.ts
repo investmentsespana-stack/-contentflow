@@ -22,6 +22,9 @@ async function collectAdmissionSignals(sb:any){
     .maybeSingle();
   if(recovery.error)errors.push(`recovery:${recovery.error.message}`);
 
+  const budget=await sb.rpc('contentflow_budget_admission_snapshot',{p_project_key:'contentflow'});
+  if(budget.error)errors.push(`provider_budget:${budget.error.message}`);
+
   const activeRuns=await sb.from('contentflow_builder_runs')
     .select('backlog_task_id,status')
     .in('status',['claimed','running','review_required'])
@@ -66,6 +69,7 @@ async function collectAdmissionSignals(sb:any){
     telemetryHealthy:errors.length===0,
     telemetryErrors:errors,
     recoveryReceipt:recovery.data?.evidence||{},
+    budget:budget.data||{},
     ownershipConflicts,
     openIncidents:Number(incidents.count||0),
     openCircuits,
@@ -81,7 +85,7 @@ Deno.serve(async(req)=>{
   const H={'content-type':'application/json','cache-control':'no-store'};
   if(!['GET','POST'].includes(req.method))return new Response('{}',{status:405,headers:H});
   const url=Deno.env.get('SUPABASE_URL')!,service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,sb=createClient(url,service,{auth:{persistSession:false}});
-  const out:any={architecture:'MASTER_DIRECTOR_CONTROL_PLANE_V9_RECOVERY_AWARE',evidence_pre:null,tool_sync:null,evidence_tool_runs:[],recovery_pre:null,pre_reconcile:null,admission:null,planner:null,core_support:null,adaptive_dispatch:null,post_reconcile:null,evidence_post:null,recovery_post:null,review_workers_scheduled:0};
+  const out:any={architecture:'MASTER_DIRECTOR_CONTROL_PLANE_V10_BUDGET_AWARE',evidence_pre:null,tool_sync:null,evidence_tool_runs:[],recovery_pre:null,pre_reconcile:null,admission:null,planner:null,core_support:null,adaptive_dispatch:null,post_reconcile:null,evidence_post:null,recovery_post:null,review_workers_scheduled:0};
   try{
     const evPre=await sb.rpc('contentflow_evidence_first_reconcile',{p_project_key:'contentflow',p_limit:80});out.evidence_pre={data:evPre.data,error:evPre.error?.message||null};
     const ts=await sb.rpc('contentflow_sync_tool_execution_queue',{p_project_key:'contentflow'});out.tool_sync={data:ts.data,error:ts.error?.message||null};
@@ -106,7 +110,7 @@ Deno.serve(async(req)=>{
       out.core_support={data:c.data,error:c.error?.message||null};
     }else{
       out.planner={skipped:true,reason:'autonomy_admission_denied'};
-      out.core_support={skipped:true,reason:'recovery_aware_support_only',blockers:admission.blockers};
+      out.core_support={skipped:true,reason:'recovery_budget_aware_support_only',blockers:admission.blockers};
     }
 
     out.adaptive_dispatch=await callInternal(url,service,'contentflow-adaptive-dispatcher',7000);
@@ -123,8 +127,8 @@ Deno.serve(async(req)=>{
     }
 
     const ok=!evPre.error&&!ts.error&&!evAfterTools.error&&!pre.error&&!coreError&&!post.error&&!evPost.error;
-    return new Response(JSON.stringify({ok,architecture:'MASTER_DIRECTOR_CONTROL_PLANE_V9_RECOVERY_AWARE',out}),{status:ok?200:500,headers:H});
+    return new Response(JSON.stringify({ok,architecture:'MASTER_DIRECTOR_CONTROL_PLANE_V10_BUDGET_AWARE',out}),{status:ok?200:500,headers:H});
   }catch(e){
-    return new Response(JSON.stringify({ok:false,error:String(e),architecture:'MASTER_DIRECTOR_CONTROL_PLANE_V9_RECOVERY_AWARE',out}),{status:500,headers:H});
+    return new Response(JSON.stringify({ok:false,error:String(e),architecture:'MASTER_DIRECTOR_CONTROL_PLANE_V10_BUDGET_AWARE',out}),{status:500,headers:H});
   }
 });
