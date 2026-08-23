@@ -33,13 +33,14 @@ test('fresh complete snapshot is rollback-viable', () => {
     assert.equal(result.pathChecks.every((x) => x.exists), true);
     assert.equal(result.checksumChecks.every((x) => x.matches), true);
     assert.equal(result.ageMinutes, 30);
+    assert.deepEqual(result.restoreOrder, ['public-schema.sql','runtime-control-data.sql']);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('missing path fails closed', () => {
   const dir = fixture();
   try {
-    rmSync(join(dir, 'runtime-control-data.sql'));
+    rmSync(join(dir, 'public-schema.sql'));
     assert.equal(verifyRecoverySnapshot({ dir, projectRef: 'koqpyfvnprmirqviafzq' }).reason, 'required_backup_path_missing');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
