@@ -1,0 +1,100 @@
+name: targeted-evidence-wave1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-evidence-wave1.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targeted-evidence-wave1
+  cancel-in-progress: false
+
+jobs:
+  certify-and-record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - requirement_id: '43'
+            builder_run_id: '1867'
+            task_key: 'arch_guardrail_tool_action_boundary_allowlist'
+            suite: 'tool-action-allowlist'
+            test_file: 'tests/tool-action-allowlist-evidence.spec.ts'
+          - requirement_id: '80'
+            builder_run_id: '2921'
+            task_key: 'arch_guardrail_tool_action_boundary_idempotency_implement_action_validation_middleware'
+            suite: 'tool-action-idempotency'
+            test_file: 'tests/tool-action-idempotency-evidence.spec.ts'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Run exact deterministic certification
+        shell: bash
+        env:
+          TEST_FILE: ${{ matrix.test_file }}
+        run: |
+          set -euo pipefail
+          npx playwright test "$TEST_FILE" --project=chromium --workers=1
+
+      - name: Install PostgreSQL 17 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Persist correlated PASS and reconcile
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          REQUIREMENT_ID: ${{ matrix.requirement_id }}
+          BUILDER_RUN_ID: ${{ matrix.builder_run_id }}
+          TASK_KEY: ${{ matrix.task_key }}
+          SUITE: ${{ matrix.suite }}
+          TEST_FILE: ${{ matrix.test_file }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE=require
+          export PGHOST=aws-0-us-east-1.pooler.supabase.com
+          export PGPORT=5432
+          export PGUSER=postgres.koqpyfvnprmirqviafzq
+          export PGDATABASE=postgres
+          export CI_PAYLOAD="$(node -e 'process.stdout.write(JSON.stringify({passed:true,suite:process.env.SUITE,test_file:process.env.TEST_FILE,repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow:process.env.GITHUB_WORKFLOW,workflow_run_id:process.env.GITHUB_RUN_ID,workflow_run_attempt:process.env.GITHUB_RUN_ATTEMPT,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 \
+            -v requirement_id="$REQUIREMENT_ID" \
+            -v builder_run_id="$BUILDER_RUN_ID" \
+            -v task_key="$TASK_KEY" \
+            -v commit_sha="$GITHUB_SHA" \
+            -v workflow_run_id="$GITHUB_RUN_ID" \
+            -v payload="$CI_PAYLOAD" \
+            <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(
+            :'requirement_id'::bigint,
+            :'builder_run_id'::bigint,
+            :'task_key',
+            'runtime-test',
+            :'commit_sha',
+            :'workflow_run_id',
+            :'payload'::jsonb
+          );
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL
