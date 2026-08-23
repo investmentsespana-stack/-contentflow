@@ -51,26 +51,34 @@ export interface ApprovalValidationEventSink {
   record(event: ApprovalValidationEvent): Promise<void> | void;
 }
 
-function decodeBase64Url(value: string): Uint8Array | null {
+function ownedArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const owned = new Uint8Array(bytes.byteLength);
+  owned.set(bytes);
+  return owned.buffer;
+}
+
+function decodeBase64Url(value: string): ArrayBuffer | null {
   try {
     const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
     const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
     const raw = atob(padded);
-    return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+    return ownedArrayBuffer(Uint8Array.from(raw, (char) => char.charCodeAt(0)));
   } catch {
     return null;
   }
 }
 
-export function canonicalApprovalMessage(record: ApprovalCryptoRecord): Uint8Array {
-  return new TextEncoder().encode(
-    JSON.stringify({
-      approvalId: record.approvalId,
-      changeId: record.changeId,
-      payloadHash: record.payloadHash,
-      signerKeyId: record.signerKeyId,
-      algorithm: record.algorithm,
-    }),
+export function canonicalApprovalMessage(record: ApprovalCryptoRecord): ArrayBuffer {
+  return ownedArrayBuffer(
+    new TextEncoder().encode(
+      JSON.stringify({
+        approvalId: record.approvalId,
+        changeId: record.changeId,
+        payloadHash: record.payloadHash,
+        signerKeyId: record.signerKeyId,
+        algorithm: record.algorithm,
+      }),
+    ),
   );
 }
 
@@ -140,7 +148,9 @@ export class Ed25519ApprovalCryptoValidator implements ApprovalCryptoValidator {
       );
       return this.finish(
         record,
-        valid ? { valid: true, reason: 'valid' } : { valid: false, reason: 'invalid_signature' },
+        valid
+          ? { valid: true, reason: 'valid' }
+          : { valid: false, reason: 'invalid_signature' },
       );
     } catch {
       return this.finish(record, {
@@ -151,10 +161,7 @@ export class Ed25519ApprovalCryptoValidator implements ApprovalCryptoValidator {
   }
 }
 
-/**
- * Explicit emergency fallback for environments where PKI is not configured.
- * It remains fail closed and is not the production verifier.
- */
+/** Explicit emergency fallback when PKI is unavailable. Always fails closed. */
 export class FailClosedApprovalCryptoValidator implements ApprovalCryptoValidator {
   async validate(
     _record: ApprovalCryptoRecord,
