@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "project": "contentflow",
+  "failClosed": true,
+  "families": [
+    {
+      "prerequisite": "runtime_test",
+      "producer": "github-actions-exact-suite",
+      "autoVerify": true,
+      "rule": "Only fixed, versioned test suites may emit PASS evidence; arbitrary commands are forbidden."
+    },
+    {
+      "prerequisite": "runtime_persistence",
+      "producer": "correlated-runtime-attestation",
+      "autoVerify": true,
+      "rule": "A requirement needs an exact task-specific behavioral suite or a curated deterministic database/runtime recipe before evidence can be emitted."
+    },
+    {
+      "prerequisite": "source_contract",
+      "producer": "semantic-source-contract",
+      "autoVerify": true,
+      "rule": "Contracts are verified structurally from versioned repository artifacts, never by keyword presence."
+    },
+    {
+      "prerequisite": "static_analysis",
+      "producer": "sanitized-static-analysis",
+      "autoVerify": true,
+      "rule": "Scanners must enumerate the inspected surface, fail closed, and never emit discovered secret values."
+    },
+    {
+      "prerequisite": "external_approval",
+      "producer": "owner-or-authority-receipt",
+      "autoVerify": false,
+      "rule": "External approval cannot be synthesized by CI. The producer may ingest a correlated authenticated receipt only after the required authority acts."
+    }
+  ]
+}
