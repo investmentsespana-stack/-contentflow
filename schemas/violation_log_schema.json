@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ContentFlow AI Violation Log Schema",
+  "description": "Complete schema for violation logging with atomic claims correlation",
+  "type": "object",
+  "required": ["violation_id", "builder_run_id", "timestamp", "violation_type", "resource_id", "worker_id", "idempotency_key", "evidence"],
+  "properties": {
+    "violation_id": {"type": "string", "format": "uuid"},
+    "builder_run_id": {"type": "string", "pattern": "^\\d+$"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "violation_type": {"type": "string", "enum": ["schema_validation_failed", "atomic_claim_violation", "idempotency_violation", "evidence_integrity_violation"]},
+    "resource_id": {"type": "string"},
+    "worker_id": {"type": "string"},
+    "idempotency_key": {"type": "string"},
+    "evidence": {
+      "type": "object",
+      "required": ["raw_data", "checksum"],
+      "properties": {
+        "raw_data": {"type": "string"},
+        "checksum": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
