@@ -81,7 +81,10 @@ jobs:
           DIR="backups/${DAY}"
           mkdir -p "$DIR"
 
+          # Full schema is retained for forensic/inventory purposes.
           pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file "$DIR/schema.sql"
+          # public-schema.sql is the cold-restore artifact for a fresh Supabase project.
+          pg_dump "${DB_ARGS[@]}" --schema-only --schema=public --no-owner --no-privileges --file "$DIR/public-schema.sql"
           pg_dump "${DB_ARGS[@]}" --data-only --column-inserts --no-owner --no-privileges \
             --table=public.director_control_policy \
             --table=public.director_operating_rules \
@@ -95,11 +98,13 @@ jobs:
             --file "$DIR/runtime-control-data.sql"
 
           test -s "$DIR/schema.sql"
+          test -s "$DIR/public-schema.sql"
           test -s "$DIR/runtime-control-data.sql"
           grep -q "CREATE TABLE" "$DIR/schema.sql"
+          grep -q "CREATE TABLE public\." "$DIR/public-schema.sql"
           grep -q "director_control_policy" "$DIR/runtime-control-data.sql"
-          (cd "$DIR" && sha256sum schema.sql runtime-control-data.sql > SHA256SUMS)
-          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","credential_source":"%s","restore_order":["schema.sql","runtime-control-data.sql"],"integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" "$(cat /tmp/contentflow-recovery-password-source)" > "$DIR/manifest.json"
+          (cd "$DIR" && sha256sum schema.sql public-schema.sql runtime-control-data.sql > SHA256SUMS)
+          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"full_schema_inventory_plus_restorable_public_schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","credential_source":"%s","restore_order":["public-schema.sql","runtime-control-data.sql"],"inventory":"schema.sql","integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" "$(cat /tmp/contentflow-recovery-password-source)" > "$DIR/manifest.json"
 
       - name: Upload recovery artifact before git push
         uses: actions/upload-artifact@v4
