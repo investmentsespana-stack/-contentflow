@@ -1,0 +1,59 @@
+name: targeted-evidence-wave11
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/targeted-evidence-wave11.yml'
+      - 'src/guardrails/evidence-wave6-capabilities.ts'
+      - 'tests/entropy-scanner-exact-certification.spec.ts'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-evidence-wave11.yml'
+      - 'src/guardrails/evidence-wave6-capabilities.ts'
+      - 'tests/entropy-scanner-exact-certification.spec.ts'
+permissions:
+  contents: read
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - name: Certify entropy scanner at 4.5 bits/char and zero false negatives
+        run: npx playwright test tests/entropy-scanner-exact-certification.spec.ts --project=chromium --workers=1
+      - name: Produce sanitized scanner evidence
+        run: node -e 'const fs=require("fs");fs.writeFileSync("/tmp/evidence-wave11.json",JSON.stringify({passed:true,suite:"entropy-scanner-exact-certification",threshold_bits_per_char:4.5,known_secret_false_negatives:0,test_file:"tests/entropy-scanner-exact-certification.spec.ts",source:"src/guardrails/evidence-wave6-capabilities.ts",secretValuesExposed:false}))'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-wave11-181836
+          path: /tmp/evidence-wave11.json
+          retention-days: 14
+      - name: Install PostgreSQL 17 client
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+      - name: Persist correlated PASS and reconcile
+        if: github.event_name == 'push'
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD" PGSSLMODE=require PGHOST=aws-0-us-east-1.pooler.supabase.com PGPORT=5432 PGUSER=postgres.koqpyfvnprmirqviafzq PGDATABASE=postgres
+          export BASE_PAYLOAD="$(cat /tmp/evidence-wave11.json)"
+          export CI_PAYLOAD="$(node -e 'const b=JSON.parse(process.env.BASE_PAYLOAD);process.stdout.write(JSON.stringify({...b,repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow_run_id:process.env.GITHUB_RUN_ID,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 -v commit_sha="$GITHUB_SHA" -v workflow_run_id="$GITHUB_RUN_ID" -v payload="$CI_PAYLOAD" <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(181836,3843,'arch_guardrail_tool_action_boundary_secrets_detect_secret_patterns_implement_entropy_scanner','static-analysis',:'commit_sha',:'workflow_run_id',:'payload'::jsonb);
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL
