@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "mode": "fail-closed",
+  "algorithm": "sha256",
+  "canonical_fields": [
+    "failure_domain",
+    "error_class",
+    "component",
+    "operation",
+    "schema_version",
+    "dependency_state"
+  ],
+  "normalization": {
+    "trim": true,
+    "lowercase_enums": true,
+    "sort_object_keys": true,
+    "ignore_fields": ["timestamp", "request_id", "trace_id", "free_text_message"]
+  },
+  "reuse_policy": {
+    "exact_fingerprint_required": true,
+    "semantic_fallback_allowed": false,
+    "minimum_certified_passes": 1,
+    "requires_post_repair_validation": true,
+    "requires_correlated_evidence": true
+  },
+  "mismatch_action": "deny_reuse_and_escalate"
+}
