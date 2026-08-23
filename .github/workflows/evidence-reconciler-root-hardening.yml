@@ -1,0 +1,29 @@
+name: evidence-reconciler-root-hardening
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20260823115000_evidence_reconciler_root_hardening_v1.sql'
+      - 'supabase/migrations/20260823115100_evidence_first_reconcile_v2.sql'
+      - 'supabase/migrations/20260823115200_evidence_reconciler_rpc_privilege_hardening.sql'
+      - 'tests/evidence-reconciler-root-hardening.test.mjs'
+      - '.github/workflows/evidence-reconciler-root-hardening.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/20260823115000_evidence_reconciler_root_hardening_v1.sql'
+      - 'supabase/migrations/20260823115100_evidence_first_reconcile_v2.sql'
+      - 'supabase/migrations/20260823115200_evidence_reconciler_rpc_privilege_hardening.sql'
+      - 'tests/evidence-reconciler-root-hardening.test.mjs'
+permissions:
+  contents: read
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Certify semantic identity, classifier, GC and RPC privilege invariants
+        run: node --test tests/evidence-reconciler-root-hardening.test.mjs
