@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/daily-recovery-snapshot.yml'
       - '.github/scripts/resolve-recovery-db-password.py'
+      - '.github/scripts/verify-recovery-snapshot.mjs'
   schedule:
     - cron: '15 7 * * *'
 
@@ -23,7 +24,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
       - name: Verify recovery credential source
         shell: bash
         env:
@@ -31,11 +31,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          if [ -z "$SUPABASE_DB_PASSWORD" ] && [ -z "$SUPABASE_DB_URL" ]; then
-            echo 'SUPABASE_DB_PASSWORD (preferred) or legacy SUPABASE_DB_URL is required.'
-            exit 1
-          fi
-
+          if [ -z "$SUPABASE_DB_PASSWORD" ] && [ -z "$SUPABASE_DB_URL" ]; then echo 'SUPABASE_DB_PASSWORD (preferred) or legacy SUPABASE_DB_URL is required.'; exit 1; fi
       - name: Install PostgreSQL 17 client
         run: |
           set -euo pipefail
@@ -45,11 +41,7 @@ jobs:
           sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           . /etc/os-release
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-          psql --version
-          pg_dump --version
-
+          sudo apt-get update && sudo apt-get install -y postgresql-client-17
       - name: Resolve and verify Session Pooler credential
         shell: bash
         env:
@@ -57,74 +49,41 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
-            printf '%s' "$SUPABASE_DB_PASSWORD" > /tmp/contentflow-recovery-db-password
-            printf '%s' 'dedicated_secret' > /tmp/contentflow-recovery-password-source
-            chmod 600 /tmp/contentflow-recovery-db-password /tmp/contentflow-recovery-password-source
-          else
-            python3 .github/scripts/resolve-recovery-db-password.py
-          fi
-
-          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
-          export PGSSLMODE=require
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then printf '%s' "$SUPABASE_DB_PASSWORD" > /tmp/contentflow-recovery-db-password; printf '%s' dedicated_secret > /tmp/contentflow-recovery-password-source; chmod 600 /tmp/contentflow-recovery-db-password /tmp/contentflow-recovery-password-source; else python3 .github/scripts/resolve-recovery-db-password.py; fi
+          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)" PGSSLMODE=require
           psql -h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres -Atqc 'select 1' >/dev/null
-          echo 'Session Pooler authentication verified with opaque PGPASSWORD.'
-
       - name: Create dated recovery snapshot
         shell: bash
         run: |
           set -euo pipefail
-          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
-          export PGSSLMODE=require
+          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)" PGSSLMODE=require
           DB_ARGS=(-h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres)
-          DAY=$(date -u +%Y-%m-%d)
-          DIR="backups/${DAY}"
-          mkdir -p "$DIR"
-
+          DAY=$(date -u +%Y-%m-%d); DIR="backups/${DAY}"; mkdir -p "$DIR"
           pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file "$DIR/schema.sql"
-          pg_dump "${DB_ARGS[@]}" --data-only --column-inserts --no-owner --no-privileges \
-            --table=public.director_control_policy \
-            --table=public.director_operating_rules \
-            --table=public.director_repair_recipes \
-            --table=public.director_workflow_versions \
-            --table=public.director_canary_policy \
-            --table=public.contentflow_retry_policies \
-            --table=public.contentflow_capacity_phases \
-            --table=public.contentflow_capacity_state \
-            --table=public.contentflow_lane_models \
-            --file "$DIR/runtime-control-data.sql"
-
-          test -s "$DIR/schema.sql"
-          test -s "$DIR/runtime-control-data.sql"
-          grep -q "CREATE TABLE" "$DIR/schema.sql"
-          grep -q "director_control_policy" "$DIR/runtime-control-data.sql"
+          pg_dump "${DB_ARGS[@]}" --data-only --column-inserts --no-owner --no-privileges --table=public.director_control_policy --table=public.director_operating_rules --table=public.director_repair_recipes --table=public.director_workflow_versions --table=public.director_canary_policy --table=public.contentflow_retry_policies --table=public.contentflow_capacity_phases --table=public.contentflow_capacity_state --table=public.contentflow_lane_models --file "$DIR/runtime-control-data.sql"
+          test -s "$DIR/schema.sql" && test -s "$DIR/runtime-control-data.sql"
+          grep -q 'CREATE TABLE' "$DIR/schema.sql" && grep -q 'director_control_policy' "$DIR/runtime-control-data.sql"
           (cd "$DIR" && sha256sum schema.sql runtime-control-data.sql > SHA256SUMS)
           printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","credential_source":"%s","restore_order":["schema.sql","runtime-control-data.sql"],"integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" "$(cat /tmp/contentflow-recovery-password-source)" > "$DIR/manifest.json"
-
-      - name: Upload recovery artifact before git push
+          echo "SNAPSHOT_DIR=$DIR" >> "$GITHUB_ENV"
+      - name: Fail closed unless snapshot is rollback-viable and fresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOYMENT_START_UTC=$(date -u +%FT%TZ) MAX_BACKUP_AGE_MINUTES=60 node .github/scripts/verify-recovery-snapshot.mjs "$SNAPSHOT_DIR" | tee "$SNAPSHOT_DIR/recovery-verification.json"
+          node -e "const r=require('fs').readFileSync(process.env.SNAPSHOT_DIR+'/recovery-verification.json','utf8'); if(JSON.parse(r).passed!==true) process.exit(1)"
+      - name: Upload verified recovery artifact before git push
         uses: actions/upload-artifact@v4
         with:
           name: contentflow-recovery-${{ github.run_id }}
           path: backups/
           if-no-files-found: error
           retention-days: 30
-
-      - name: Commit snapshot without stale-SHA conflicts
+      - name: Commit verified snapshot without stale-SHA conflicts
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "contentflow-backup-bot"
-          git config user.email "contentflow-backup-bot@users.noreply.github.com"
-          SNAPSHOT_COPY=$(mktemp -d)
-          cp -a backups/. "$SNAPSHOT_COPY/"
-          git fetch origin main
-          git reset --hard origin/main
-          mkdir -p backups
-          cp -a "$SNAPSHOT_COPY/." backups/
-          git add backups/
-          if git diff --cached --quiet; then
-            echo "No recovery changes to commit."
-            exit 0
-          fi
-          git commit -m "backup: daily ContentFlow recovery snapshot $(date -u +%Y-%m-%d)"
-          git push origin HEAD:main
+          git config user.name contentflow-backup-bot; git config user.email contentflow-backup-bot@users.noreply.github.com
+          SNAPSHOT_COPY=$(mktemp -d); cp -a backups/. "$SNAPSHOT_COPY/"; git fetch origin main; git reset --hard origin/main; mkdir -p backups; cp -a "$SNAPSHOT_COPY/." backups/
+          git add backups/; if git diff --cached --quiet; then echo 'No recovery changes to commit.'; exit 0; fi
+          git commit -m "backup: verified ContentFlow recovery snapshot $(date -u +%Y-%m-%d)"; git push origin HEAD:main
