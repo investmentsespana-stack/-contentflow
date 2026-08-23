@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "contentflow",
+  "catalog": "EVIDENCE_PRODUCER_FAMILIES_V1",
   "failClosed": true,
   "families": [
     {
