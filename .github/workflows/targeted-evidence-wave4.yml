@@ -56,7 +56,6 @@ jobs:
       - run: npm install
 
       - name: Run fixed producer suite
-        id: producer
         shell: bash
         env:
           SUITE: ${{ matrix.suite }}
@@ -127,7 +126,7 @@ jobs:
           export PGPORT=5432
           export PGUSER=postgres.koqpyfvnprmirqviafzq
           export PGDATABASE=postgres
-          BASE_PAYLOAD="$(cat /tmp/evidence-payload.json)"
+          export BASE_PAYLOAD="$(cat /tmp/evidence-payload.json)"
           export CI_PAYLOAD="$(node -e 'const base=JSON.parse(process.env.BASE_PAYLOAD);process.stdout.write(JSON.stringify({...base,repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow:process.env.GITHUB_WORKFLOW,workflow_run_id:process.env.GITHUB_RUN_ID,workflow_run_attempt:process.env.GITHUB_RUN_ATTEMPT,produced_at:new Date().toISOString()}))')"
           psql -v ON_ERROR_STOP=1 \
             -v requirement_id="$REQUIREMENT_ID" \
