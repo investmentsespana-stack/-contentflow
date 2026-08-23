@@ -25,6 +25,7 @@ on:
           - tool-executor-lane-contract
           - runtime-recovery
           - approval-crypto-static
+          - deployment-secret-gate
 
 permissions:
   contents: read
@@ -82,6 +83,10 @@ jobs:
             approval-crypto-static)
               PROFILE=static-analysis
               COMMAND='npm run typecheck:approval-crypto'
+              ;;
+            deployment-secret-gate)
+              PROFILE=runtime-test
+              COMMAND='npx playwright test tests/deployment-secret-gate.spec.ts --project=chromium --workers=1'
               ;;
             *) echo 'unsupported suite' >&2; exit 64 ;;
           esac
