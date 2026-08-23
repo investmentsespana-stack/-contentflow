@@ -1,0 +1,144 @@
+name: runtime-evidence-producer
+
+on:
+  workflow_dispatch:
+    inputs:
+      requirement_id:
+        description: 'ContentFlow evidence requirement id'
+        required: true
+        type: string
+      builder_run_id:
+        description: 'Source builder run id required by the evidence contract'
+        required: true
+        type: string
+      task_key:
+        description: 'Source ContentFlow task key'
+        required: true
+        type: string
+      suite:
+        description: 'Fixed certification suite; arbitrary commands are not accepted'
+        required: true
+        type: choice
+        options:
+          - evidence-persistence
+          - autonomy-admission
+          - tool-executor-lane-contract
+          - runtime-recovery
+          - approval-crypto-static
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-evidence-${{ inputs.requirement_id }}
+  cancel-in-progress: false
+
+jobs:
+  certify-and-record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate correlation inputs
+        shell: bash
+        env:
+          REQUIREMENT_ID: ${{ inputs.requirement_id }}
+          BUILDER_RUN_ID: ${{ inputs.builder_run_id }}
+          TASK_KEY: ${{ inputs.task_key }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUIREMENT_ID" =~ ^[0-9]+$ ]]
+          [[ "$BUILDER_RUN_ID" =~ ^[0-9]+$ ]]
+          test -n "$TASK_KEY"
+
+      - name: Run fixed certification suite
+        id: certification
+        shell: bash
+        env:
+          SUITE: ${{ inputs.suite }}
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            evidence-persistence)
+              PROFILE=runtime-test
+              COMMAND='node --experimental-test-coverage --test-coverage-branches=100 --test tests/evidence-persistence.test.mjs'
+              ;;
+            autonomy-admission)
+              PROFILE=runtime-test
+              COMMAND='npm run test:autonomy-admission'
+              ;;
+            tool-executor-lane-contract)
+              PROFILE=runtime-test
+              COMMAND='npm run test:tool-executor-lane-contract'
+              ;;
+            runtime-recovery)
+              PROFILE=runtime-test
+              COMMAND='npm run test:runtime-recovery'
+              ;;
+            approval-crypto-static)
+              PROFILE=static-analysis
+              COMMAND='npm run typecheck:approval-crypto'
+              ;;
+            *) echo 'unsupported suite' >&2; exit 64 ;;
+          esac
+          echo "profile=$PROFILE" >> "$GITHUB_OUTPUT"
+          echo "command=$COMMAND" >> "$GITHUB_OUTPUT"
+          bash -lc "$COMMAND"
+
+      - name: Install PostgreSQL 17 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Record correlated PASS in Runtime Evidence Ledger
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          REQUIREMENT_ID: ${{ inputs.requirement_id }}
+          BUILDER_RUN_ID: ${{ inputs.builder_run_id }}
+          TASK_KEY: ${{ inputs.task_key }}
+          SUITE: ${{ inputs.suite }}
+          PROFILE: ${{ steps.certification.outputs.profile }}
+          TEST_COMMAND: ${{ steps.certification.outputs.command }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE=require
+          export PGHOST=aws-0-us-east-1.pooler.supabase.com
+          export PGPORT=5432
+          export PGUSER=postgres.koqpyfvnprmirqviafzq
+          export PGDATABASE=postgres
+          export CI_PAYLOAD="$(node -e 'process.stdout.write(JSON.stringify({passed:true,suite:process.env.SUITE,test_command:process.env.TEST_COMMAND,repository:process.env.GITHUB_REPOSITORY,ref:process.env.GITHUB_REF_NAME,sha:process.env.GITHUB_SHA,workflow:process.env.GITHUB_WORKFLOW,workflow_run_id:process.env.GITHUB_RUN_ID,workflow_run_attempt:process.env.GITHUB_RUN_ATTEMPT,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 \
+            -v requirement_id="$REQUIREMENT_ID" \
+            -v builder_run_id="$BUILDER_RUN_ID" \
+            -v task_key="$TASK_KEY" \
+            -v profile="$PROFILE" \
+            -v commit_sha="$GITHUB_SHA" \
+            -v workflow_run_id="$GITHUB_RUN_ID" \
+            -v payload="$CI_PAYLOAD" \
+            <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(
+            :'requirement_id'::bigint,
+            :'builder_run_id'::bigint,
+            :'task_key',
+            :'profile',
+            :'commit_sha',
+            :'workflow_run_id',
+            :'payload'::jsonb
+          );
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL

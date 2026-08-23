@@ -1,0 +1,25 @@
+name: ci-runtime-evidence-bridge-certification
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/runtime-evidence-producer.yml'
+      - '.github/workflows/ci-runtime-evidence-bridge-certification.yml'
+      - 'supabase/migrations/20260823011200_ci_runtime_evidence_bridge_v1.sql'
+      - 'tests/ci-runtime-evidence-bridge.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Certify CI runtime evidence bridge contract
+        run: node --test tests/ci-runtime-evidence-bridge.test.mjs
