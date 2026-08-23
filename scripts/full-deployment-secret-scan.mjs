@@ -1,10 +1,10 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { extname, join, relative } from 'node:path';
+import { extname, join, relative, basename } from 'node:path';
 
-const ROOTS = ['supabase', '.github/workflows'];
-const ROOT_FILES = ['vercel.json'];
-const TEXT_EXTENSIONS = new Set(['.sql', '.ts', '.tsx', '.js', '.mjs', '.json', '.yml', '.yaml', '.toml', '.md']);
+const ROOTS = ['.'];
+const TEXT_EXTENSIONS = new Set(['.sql', '.ts', '.tsx', '.js', '.mjs', '.json', '.yml', '.yaml', '.toml']);
 const MAX_BYTES = 2_000_000;
+const SKIP_DIR_NAMES = new Set(['.git', 'node_modules', 'tests', 'docs', 'certification-evidence', 'playwright-report', 'test-results']);
 
 const PATTERNS = [
   ['private_key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g],
@@ -17,19 +17,10 @@ const PATTERNS = [
   ['generic_secret_assignment', /(?:api[_-]?key|secret|token|password)\s*[:=]\s*["'][^"'\n]{16,}["']/gi],
 ];
 
-const ALLOWED_PATHS = [
-  /^tests\//,
-  /^certification-evidence\//,
-  /^docs\//,
-];
-
-function isAllowedPath(path) {
-  return ALLOWED_PATHS.some((pattern) => pattern.test(path));
-}
-
 async function collect(path) {
   const info = await stat(path);
   if (info.isFile()) return [path];
+  if (SKIP_DIR_NAMES.has(basename(path))) return [];
   const out = [];
   for (const entry of await readdir(path)) out.push(...await collect(join(path, entry)));
   return out;
@@ -37,18 +28,13 @@ async function collect(path) {
 
 export async function scanDeploymentArtifacts(root = process.cwd()) {
   const files = [];
-  for (const dir of ROOTS) {
-    try { files.push(...await collect(join(root, dir))); } catch {}
-  }
-  for (const file of ROOT_FILES) {
-    try { files.push(...await collect(join(root, file))); } catch {}
-  }
+  for (const dir of ROOTS) files.push(...await collect(join(root, dir)));
 
   const scanned = [];
   const findings = [];
   for (const file of files.sort()) {
     const rel = relative(root, file).replaceAll('\\', '/');
-    if (isAllowedPath(rel) || !TEXT_EXTENSIONS.has(extname(file))) continue;
+    if (!TEXT_EXTENSIONS.has(extname(file))) continue;
     const info = await stat(file);
     if (info.size > MAX_BYTES) continue;
     const text = await readFile(file, 'utf8');
@@ -67,7 +53,8 @@ export async function scanDeploymentArtifacts(root = process.cwd()) {
   return {
     schemaVersion: 1,
     passed: findings.length === 0,
-    roots: [...ROOTS, ...ROOT_FILES],
+    roots: ROOTS,
+    excludedDirectories: [...SKIP_DIR_NAMES].sort(),
     scannedFileCount: scanned.length,
     scannedFiles: scanned,
     findings,
