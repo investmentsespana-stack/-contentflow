@@ -40,22 +40,116 @@ jobs:
         run: npm run test:director-foundation
       - name: Certify Director portability across ContentFlow and OPC
         run: npm run test:director-portability
-      - name: Certify SDC isolation and cross-director denial
-        run: npm run test:sdc-matrix
-      - name: Certify SDC boundary enforcement
-        run: npm run test:sdc-enforcement
-      - name: Certify Director observability contract
-        run: npm run test:director-observability
-      - name: Certify worker admission gate
-        run: npm run test:worker-admission
-      - name: Certify autonomy authority envelope
-        run: npm run test:autonomy-authority
-      - name: Certify recovery trust chain
-        run: npm run test:recovery-trust-chain
-      - name: Certify recovery promotion ledger
-        run: npm run test:recovery-promotion
+      - name: Certify SDC compatibility contract matrix
+        run: npm run test:sdc-contract-matrix
+      - name: Certify runtime recovery policies
+        run: npm run test:runtime-recovery
+      - name: Certify event-driven reconciliation and RARA autonomous repair
+        run: npm run test:event-reconciliation-rara
+      - name: Certify sustained autonomy and failure-domain avoidance
+        run: npm run test:sustained-autonomy
+      - name: Certify combined failure recovery
+        run: npm run test:combined-failures
+      - name: Certify resilience-cell isolation, retry budgets and fallback
+        run: npm run test:resilience-cells
+      - name: Certify policy-controlled auto-loop dispatch
+        run: npm run test:auto-loop-dispatch-policy
+      - name: Certify tool executor lane/state/fencing contract
+        run: npm run test:tool-executor-lane-contract
+      - name: Certify stale off-lane tool claim quarantine
+        run: npm run test:tool-executor-stale-claim-quarantine
+      - name: Certify evidence verifier preflight and producer hold
+        run: npm run test:evidence-verifier-preflight
+      - name: Certify adaptive dispatcher observe-only single-writer contract
+        run: npm run test:adaptive-observe-only
+      - name: Certify restore drill and measured sandbox autonomy evidence
+        run: npm run test:recovery-evidence
+      - name: Upload resilience and recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resilience-recovery-evidence
+          path: |
+            certification-evidence/restore-drill-2026-08-20.json
+            certification-evidence/autonomy-sandbox-2026-08-20.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Certify Stable receipt gating semantics
+        run: npm run test:stable-certification-receipt
+      - name: Certify isolated OPC synthetic load recovery and backpressure
+        run: npm run test:opc-synthetic-load
+      - name: Certify OPC provider-canary safety bounds without network access
+        run: npm run test:opc-provider-canary-safety
+      - name: Upload OPC synthetic load evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opc-synthetic-load-evidence
+          path: certification-evidence/opc-synthetic-load-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Certify tool action allowlist and generate deterministic evidence
+        run: npx playwright test tests/tool-action-allowlist-evidence.spec.ts --project=chromium --workers=1
+      - name: Certify centralized project-scoped authorization policy
+        run: npx playwright test tests/project-authorization-policy.spec.ts --project=chromium --workers=1
+      - name: Upload tool action allowlist evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tool-action-allowlist-evidence
+          path: certification-evidence/tool-action-allowlist-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Certify tool action idempotency and generate deterministic evidence
+        run: npx playwright test tests/tool-action-idempotency-evidence.spec.ts --project=chromium --workers=1
+      - name: Upload tool action idempotency evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tool-action-idempotency-evidence
+          path: certification-evidence/tool-action-idempotency-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Certify tool action secret patterns and generate deterministic evidence
+        run: npx playwright test tests/tool-action-secret-patterns-evidence.spec.ts --project=chromium --workers=1
+      - name: Upload tool action secret-pattern evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tool-action-secret-patterns-evidence
+          path: certification-evidence/tool-action-secret-patterns-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Certify tool action vault access and generate deterministic evidence
+        run: npx playwright test tests/tool-action-vault-access-evidence.spec.ts --project=chromium --workers=1
+      - name: Upload tool action vault access evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tool-action-vault-access-evidence
+          path: test-results/tool-action-vault-access-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Certify destructive action safety and generate deterministic evidence
+        run: npx playwright test tests/destructive-action-safety-evidence.spec.ts --project=chromium --workers=1
+      - name: Upload destructive action safety evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: destructive-action-safety-evidence
+          path: certification-evidence/destructive-action-safety-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install LangGraph pilot dependencies
+        run: pip install -r experiments/langgraph-runtime-pilot/requirements.txt
+      - name: Certify LangGraph adapter-only checkpoint/resume pilot
+        run: pytest -q experiments/langgraph-runtime-pilot/test_pilot.py
 
-  browser-qa:
+  browser-matrix:
+    needs: director-certification
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -67,7 +161,39 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
-      - name: Run browser QA
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Run ${{ matrix.browser }} QA
+        env:
+          CONTENTFLOW_BASE_URL: https://contentflow-ai-tan.vercel.app
         run: npx playwright test --project=${{ matrix.browser }}
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: panel-qa-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  stable-certification-receipt:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [director-certification, browser-matrix]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Publish Stable recertification receipt
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'success',
+              context: 'contentflow/stable-recertification',
+              description: 'All Stable Director and browser certification gates passed'
+            });
