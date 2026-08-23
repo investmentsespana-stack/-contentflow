@@ -1,0 +1,10 @@
+{
+  "version":1,
+  "default":"deny",
+  "max_initial_workers":2,
+  "promotion_requires":["pre_repair_evidence","repair_evidence","post_repair_validation_pass","no_new_schema_violation","rollback_available"],
+  "on_failure":"rollback_and_escalate",
+  "on_unknown":"stop_and_escalate",
+  "external_side_effects":false,
+  "automatic_global_promotion":false
+}

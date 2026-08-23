@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "default": "deny",
+  "rules": [
+    {"risk":"low","known_repair":true,"external_side_effect":false,"decision":"rara_autonomous"},
+    {"risk":"medium","known_repair":true,"external_side_effect":false,"decision":"canary_then_director"},
+    {"risk":"high","decision":"owner_required"},
+    {"risk":"critical","decision":"owner_required"},
+    {"external_side_effect":true,"decision":"owner_required"}
+  ],
+  "mandatory_guards":["correlated_evidence","idempotency","fencing","rollback_available","post_repair_validation"],
+  "unknown_action":"deny_and_escalate"
+}
