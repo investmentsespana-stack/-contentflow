@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contentflow.ai/schemas/action-idempotency-metadata/v1",
+  "title": "ContentFlow AI Action Idempotency Metadata",
+  "type": "object",
+  "properties": {
+    "idempotent": {"type": "boolean"},
+    "idempotency_override_reason": {"type": "string", "minLength": 1}
+  },
+  "required": ["idempotent"],
+  "additionalProperties": false
+}
