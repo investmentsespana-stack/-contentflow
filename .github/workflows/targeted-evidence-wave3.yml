@@ -2,6 +2,14 @@ name: targeted-evidence-wave3
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/targeted-evidence-wave3.yml'
+      - 'schemas/input_contract.v1.schema.json'
+      - 'src/shared/contentflow_evidence_checker.py'
+      - 'tests/test_contentflow_evidence_checker.py'
+      - 'scripts/contentflow_irreversible_scanner.py'
+      - 'supabase/migrations/**'
   push:
     branches: [main]
     paths:
@@ -11,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: targeted-evidence-wave3
+  group: targeted-evidence-wave3-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -39,14 +47,12 @@ jobs:
           from jsonschema import Draft202012Validator, FormatChecker
           schema=json.loads(Path('schemas/input_contract.v1.schema.json').read_text())
           validator=Draft202012Validator(schema, format_checker=FormatChecker())
-          cases=[]
-          for i in range(30):
-              cases.append({
-                  'resource_id': f'resource_{i}',
-                  'worker_id': f'worker_{i}',
-                  'idempotency_key': str(uuid.uuid4()),
-                  'ttl_seconds': 30 + (i % 5),
-              })
+          cases=[{
+              'resource_id': f'resource_{i}',
+              'worker_id': f'worker_{i}',
+              'idempotency_key': str(uuid.uuid4()),
+              'ttl_seconds': 30 + (i % 5),
+          } for i in range(30)]
           for idx,case in enumerate(cases):
               errors=list(validator.iter_errors(case))
               if errors:
@@ -71,6 +77,7 @@ jobs:
           PY
 
       - name: Install PostgreSQL 17 client
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
@@ -84,6 +91,7 @@ jobs:
           sudo apt-get install -y postgresql-client-17
 
       - name: Persist correlated evidence in Supabase
+        if: github.event_name == 'push'
         shell: bash
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -96,22 +104,9 @@ jobs:
           export PGPORT=5432
           export PGUSER=postgres.koqpyfvnprmirqviafzq
           export PGDATABASE=postgres
-          CHECKER_PAYLOAD="$(python - <<'PY'
-          import json, os
-          print(json.dumps({'passed':True,'suite':'contentflow-evidence-checker','test_file':'tests/test_contentflow_evidence_checker.py','cases':['empty','partial','full','malformed-empty'],'repository':os.environ['GITHUB_REPOSITORY'],'sha':os.environ['GITHUB_SHA'],'workflow':os.environ['GITHUB_WORKFLOW'],'workflow_run_id':os.environ['GITHUB_RUN_ID'],'produced_at':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()}))
-          PY
-          )"
-          CONTRACT_PAYLOAD="$(python - <<'PY'
-          import json, os
-          print(json.dumps({'passed':True,'suite':'input-contract-positive-cases','schema':'schemas/input_contract.v1.schema.json','positive_cases':30,'required_fields':['resource_id','worker_id','idempotency_key'],'repository':os.environ['GITHUB_REPOSITORY'],'sha':os.environ['GITHUB_SHA'],'workflow':os.environ['GITHUB_WORKFLOW'],'workflow_run_id':os.environ['GITHUB_RUN_ID']}))
-          PY
-          )"
-          SCANNER_PAYLOAD="$(python - <<'PY'
-          import json, os
-          report=json.load(open('/tmp/irreversible-report.json'))
-          print(json.dumps({'passed':True,'suite':'irreversible-mutation-scanner','target':'supabase/migrations','finding_count':len(report),'report':report[:50],'repository':os.environ['GITHUB_REPOSITORY'],'sha':os.environ['GITHUB_SHA'],'workflow':os.environ['GITHUB_WORKFLOW'],'workflow_run_id':os.environ['GITHUB_RUN_ID']}))
-          PY
-          )"
+          CHECKER_PAYLOAD="$(python -c 'import json,os; print(json.dumps({"passed":True,"suite":"contentflow-evidence-checker","test_file":"tests/test_contentflow_evidence_checker.py","cases":["empty","partial","full","malformed-empty"],"repository":os.environ["GITHUB_REPOSITORY"],"sha":os.environ["GITHUB_SHA"],"workflow":os.environ["GITHUB_WORKFLOW"],"workflow_run_id":os.environ["GITHUB_RUN_ID"]}))')"
+          CONTRACT_PAYLOAD="$(python -c 'import json,os; print(json.dumps({"passed":True,"suite":"input-contract-positive-cases","schema":"schemas/input_contract.v1.schema.json","positive_cases":30,"required_fields":["resource_id","worker_id","idempotency_key"],"repository":os.environ["GITHUB_REPOSITORY"],"sha":os.environ["GITHUB_SHA"],"workflow":os.environ["GITHUB_WORKFLOW"],"workflow_run_id":os.environ["GITHUB_RUN_ID"]}))')"
+          SCANNER_PAYLOAD="$(python -c 'import json,os; report=json.load(open("/tmp/irreversible-report.json")); print(json.dumps({"passed":True,"suite":"irreversible-mutation-scanner","target":"supabase/migrations","finding_count":len(report),"report":report[:50],"repository":os.environ["GITHUB_REPOSITORY"],"sha":os.environ["GITHUB_SHA"],"workflow":os.environ["GITHUB_WORKFLOW"],"workflow_run_id":os.environ["GITHUB_RUN_ID"]}))')"
           psql -v ON_ERROR_STOP=1 \
             -v commit_sha="$GITHUB_SHA" \
             -v workflow_run_id="$GITHUB_RUN_ID" \
