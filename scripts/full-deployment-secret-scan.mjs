@@ -1,6 +1,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, join, relative, basename } from 'node:path';
 
+// Reports only file, line and pattern class; matched secret values are never emitted.
 const ROOTS = ['.'];
 const TEXT_EXTENSIONS = new Set(['.sql', '.ts', '.tsx', '.js', '.mjs', '.json', '.yml', '.yaml', '.toml']);
 const MAX_BYTES = 2_000_000;
