@@ -1,5 +1,7 @@
 from src.shared.contentflow_evidence_checker import has_evidence
 
+# CI observability probe: changing this test path must trigger targeted-evidence-wave3.
+
 
 def test_empty_output_is_false():
     assert has_evidence({}) is False
