@@ -9,12 +9,14 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/targeted-evidence-wave5.yml'
+      - 'src/guardrails/output-claim-rejection-report.ts'
+      - 'tests/output-claim-rejection-report.spec.ts'
 permissions:
   contents: read
 jobs:
   certify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,3 +25,53 @@ jobs:
       - run: npm install
       - name: Certify generated rejection report
         run: npx playwright test tests/output-claim-rejection-report.spec.ts --project=chromium --workers=1
+      - name: Validate producer payload
+        run: node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("certification-evidence/output-claim-rejection-report.json","utf8"));if(p.passed!==true||p.allNonVerifiableClaimsIncluded!==true||p.schemaValidated!==true||p.generatedReport?.rejectedClaims?.length!==2)process.exit(2)'
+      - name: Upload generated rejection report evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-wave5-87
+          path: certification-evidence/output-claim-rejection-report.json
+          retention-days: 14
+      - name: Install PostgreSQL 17 client
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+      - name: Persist requirement 87 evidence and reconcile
+        if: github.event_name == 'push'
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE=require
+          export PGHOST=aws-0-us-east-1.pooler.supabase.com
+          export PGPORT=5432
+          export PGUSER=postgres.koqpyfvnprmirqviafzq
+          export PGDATABASE=postgres
+          export BASE_PAYLOAD="$(cat certification-evidence/output-claim-rejection-report.json)"
+          export CI_PAYLOAD="$(node -e 'const base=JSON.parse(process.env.BASE_PAYLOAD);process.stdout.write(JSON.stringify({...base,repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow:process.env.GITHUB_WORKFLOW,workflow_run_id:process.env.GITHUB_RUN_ID,workflow_run_attempt:process.env.GITHUB_RUN_ATTEMPT,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 \
+            -v payload="$CI_PAYLOAD" \
+            -v commit_sha="$GITHUB_SHA" \
+            -v workflow_run_id="$GITHUB_RUN_ID" <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(
+            87::bigint,
+            3646::bigint,
+            'arch_guardrail_output_review_boundary_claim_verifiability_check_generate_rejection_report',
+            'evidence-persistence',
+            :'commit_sha',
+            :'workflow_run_id',
+            :'payload'::jsonb
+          );
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL

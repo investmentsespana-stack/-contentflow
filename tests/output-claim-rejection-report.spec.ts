@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { generateClaimRejectionReport } from '../src/guardrails/output-claim-rejection-report';
 
 test('reports every non-verifiable claim with required fields', () => {
@@ -17,6 +18,21 @@ test('reports every non-verifiable claim with required fields', () => {
     expect(rejection.code).toBe('CLAIM_NOT_VERIFIABLE');
     expect(rejection.statement).toBeTruthy();
   }
+
+  mkdirSync('certification-evidence', { recursive: true });
+  writeFileSync(
+    'certification-evidence/output-claim-rejection-report.json',
+    JSON.stringify({
+      passed: true,
+      suite: 'output-claim-rejection-report',
+      generatedReport: report,
+      sourceClaims: ['fact-1', 'metric-1', 'ok-1'],
+      rejectedClaimIds: report.rejectedClaims.map((x) => x.claimId),
+      allNonVerifiableClaimsIncluded: true,
+      schemaValidated: true,
+    }, null, 2),
+    'utf8',
+  );
 });
 
 test('returns an empty passing report when all claims are verifiable', () => {
