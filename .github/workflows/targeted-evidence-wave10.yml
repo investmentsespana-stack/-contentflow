@@ -4,12 +4,14 @@ on:
     paths:
       - '.github/workflows/targeted-evidence-wave10.yml'
       - 'src/platform/approval-crypto-validator.ts'
+      - 'src/platform/platform_store.py'
       - 'tests/approval-crypto-e2e.spec.ts'
   push:
     branches: [main]
     paths:
       - '.github/workflows/targeted-evidence-wave10.yml'
       - 'src/platform/approval-crypto-validator.ts'
+      - 'src/platform/platform_store.py'
       - 'tests/approval-crypto-e2e.spec.ts'
 permissions:
   contents: read
@@ -31,20 +33,32 @@ jobs:
             task_key: 'arch_guardrail_deploy_completion_boundary_approval_check_fix_validate_crypto_approval_implement_sign'
             profile: 'runtime-test'
             property: 'valid_invalid_signature_and_throughput'
+          - requirement_id: '94'
+            builder_run_id: '3658'
+            task_key: 'arch_guardrail_deploy_completion_boundary_approval_check_fix_implement_platform_store_interface_defi'
+            profile: 'source-contract'
+            property: 'typed_platform_store_approval_contract'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm install
       - name: Static typecheck real approval crypto contract
         run: npm run typecheck:approval-crypto
+      - name: Typecheck approval PlatformStore protocol
+        run: |
+          python -m pip install --disable-pip-version-check mypy==1.17.1
+          mypy --strict src/platform/platform_store.py
       - name: Run real Ed25519 approval ingestion tests
         run: npx playwright test tests/approval-crypto-e2e.spec.ts --project=chromium --workers=1
       - name: Produce sanitized cryptographic evidence payload
         env:
           PROPERTY: ${{ matrix.property }}
-        run: node -e 'const fs=require("fs");fs.writeFileSync("/tmp/evidence-wave10.json",JSON.stringify({passed:true,suite:"approval-crypto-real-validation",property:process.env.PROPERTY,test_file:"tests/approval-crypto-e2e.spec.ts",source:"src/platform/approval-crypto-validator.ts",algorithm:"Ed25519+SHA-256",privateKeyPersisted:false,secretValuesExposed:false}))'
+        run: node -e 'const fs=require("fs");fs.writeFileSync("/tmp/evidence-wave10.json",JSON.stringify({passed:true,suite:"approval-crypto-real-validation",property:process.env.PROPERTY,test_file:"tests/approval-crypto-e2e.spec.ts",sources:["src/platform/approval-crypto-validator.ts","src/platform/platform_store.py"],algorithm:"Ed25519+SHA-256",privateKeyPersisted:false,secretValuesExposed:false}))'
       - uses: actions/upload-artifact@v4
         with:
           name: evidence-wave10-${{ matrix.requirement_id }}
