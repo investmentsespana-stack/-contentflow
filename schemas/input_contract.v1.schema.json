@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contentflow.ai/schemas/input-contract/v1.json",
+  "title": "ContentFlow AI Input Contract",
+  "type": "object",
+  "properties": {
+    "resource_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+    "worker_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+    "idempotency_key": {"type": "string", "format": "uuid"},
+    "ttl_seconds": {"type": "integer", "minimum": 10, "maximum": 300, "default": 30}
+  },
+  "required": ["resource_id", "worker_id", "idempotency_key"],
+  "additionalProperties": false
+}
