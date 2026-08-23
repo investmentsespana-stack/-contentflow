@@ -1,0 +1,233 @@
+name: targeted-evidence-wave4
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/targeted-evidence-wave4.yml'
+      - 'scripts/full-deployment-secret-scan.mjs'
+      - 'scripts/validate-allowlist-schema.mjs'
+      - 'scripts/validate-evidence-schema.mjs'
+      - 'scripts/prepare-input-required-fields-coverage.mjs'
+      - 'schemas/tool_allowlist.v1.schema.json'
+      - 'schemas/evidence/v1.json'
+      - 'src/guardrails/input-secrets-pii.ts'
+      - 'src/guardrails/input-required-fields.ts'
+      - 'src/guardrails/input-unverified-assumptions.ts'
+      - 'src/guardrails/output-claim-verifiability.ts'
+      - 'src/guardrails/project-authorization-policy.ts'
+      - 'src/guardrails/tool-action-authz.ts'
+      - 'src/platform/approval-crypto-validator.ts'
+      - 'tests/input-secrets-pii.spec.ts'
+      - 'tests/full-deployment-secret-scan.test.mjs'
+      - 'tests/input-unverified-assumptions-evidence.spec.ts'
+      - 'tests/project-authorization-resolution-evidence.spec.ts'
+      - 'tests/output-claim-verifiability.spec.ts'
+      - 'tests/approval-crypto-validator.spec.ts'
+      - 'tests/ci-runtime-evidence-bridge-v2.test.mjs'
+      - 'supabase/migrations/20260823033000_ci_runtime_evidence_bridge_v2.sql'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-evidence-wave4.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targeted-evidence-wave4-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - requirement_id: '58'
+            builder_run_id: '2122'
+            task_key: 'arch_guardrail_input_boundary_required_fields_implement_presence_validator'
+            suite: 'input-required-fields-coverage'
+            profile: 'runtime-test'
+          - requirement_id: '70'
+            builder_run_id: '2675'
+            task_key: 'arch_guardrail_deploy_completion_boundary_approval_check_fix_validate_crypto_approval_define_crypto_'
+            suite: 'approval-crypto-interface'
+            profile: 'runtime-test'
+          - requirement_id: '74'
+            builder_run_id: '2768'
+            task_key: 'arch_guardrail_tool_action_boundary_allowlist_define_allowlist_format_format_validation_rules'
+            suite: 'allowlist-source-contract'
+            profile: 'source-contract'
+          - requirement_id: '76'
+            builder_run_id: '2878'
+            task_key: 'arch_guardrail_deploy_completion_boundary_secrets_safety_fix_static_analysis_secrets_scan'
+            suite: 'full-deployment-secret-scan'
+            profile: 'static-analysis'
+          - requirement_id: '79'
+            builder_run_id: '2918'
+            task_key: 'arch_guardrail_input_boundary_secrets_pii_scan_implement_scanner'
+            suite: 'input-secrets-pii'
+            profile: 'runtime-test'
+          - requirement_id: '81'
+            builder_run_id: '2923'
+            task_key: 'arch_guardrail_deploy_completion_boundary_post_deploy_evidence_evidence_schema'
+            suite: 'immutable-evidence-source-contract'
+            profile: 'source-contract'
+          - requirement_id: '86'
+            builder_run_id: '3645'
+            task_key: 'arch_guardrail_tool_action_boundary_authz_audit_logging_hook'
+            suite: 'tool-action-authz-audit'
+            profile: 'runtime-test'
+          - requirement_id: '782'
+            builder_run_id: '3664'
+            task_key: 'arch_guardrail_output_review_boundary_claim_verifiability_check_classify_verifiability'
+            suite: 'output-claim-verifiability'
+            profile: 'runtime-test'
+          - requirement_id: '995'
+            builder_run_id: '3663'
+            task_key: 'arch_guardrail_input_boundary_unverified_assumptions_detect_unverified_assumptions'
+            suite: 'input-unverified-assumptions-20-cases'
+            profile: 'runtime-test'
+          - requirement_id: '34711'
+            builder_run_id: '3676'
+            task_key: 'arch_guardrail_tool_action_boundary_authz_atomic_claims_resolver'
+            suite: 'project-authorization-resolution-5-patterns'
+            profile: 'runtime-test'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Run fixed producer suite
+        shell: bash
+        env:
+          SUITE: ${{ matrix.suite }}
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            input-required-fields-coverage)
+              node scripts/prepare-input-required-fields-coverage.mjs > /tmp/required-fields-prepare.json
+              node --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=95 --test-coverage-functions=95 --test .tmp-evidence/input-required-fields.test.mjs | tee /tmp/required-fields-coverage.txt
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"input-required-fields-coverage",source:"src/guardrails/input-required-fields.ts",coverageThresholds:{lines:95,branches:95,functions:95},cases:["missing","null","undefined","complete","assert_reject","assert_allow"]}))' > /tmp/evidence-payload.json
+              ;;
+            approval-crypto-interface)
+              npm run typecheck:approval-crypto
+              npx playwright test tests/approval-crypto-validator.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"approval-crypto-interface",typecheck:"typecheck:approval-crypto",test_file:"tests/approval-crypto-validator.spec.ts",scope:"typed fail-closed interface stub only; does not claim real PKI validation"}))' > /tmp/evidence-payload.json
+              ;;
+            allowlist-source-contract)
+              node scripts/validate-allowlist-schema.mjs > /tmp/allowlist-schema-report.json
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/allowlist-schema-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"allowlist-source-contract",artifact:report.path,checks:report.checks}))' > /tmp/evidence-payload.json
+              ;;
+            full-deployment-secret-scan)
+              node --test tests/full-deployment-secret-scan.test.mjs
+              set +e
+              node scripts/full-deployment-secret-scan.mjs > /tmp/full-secret-scan-report.json
+              code=$?
+              set -e
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/full-secret-scan-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"full-deployment-secret-scan",roots:report.roots,excludedDirectories:report.excludedDirectories,scannedFileCount:report.scannedFileCount,findings:report.findings,secretValuesExposed:report.secretValuesExposed}))' > /tmp/evidence-payload.json
+              test "$code" -eq 0
+              ;;
+            input-secrets-pii)
+              npx playwright test tests/input-secrets-pii.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"input-secrets-pii",test_file:"tests/input-secrets-pii.spec.ts",properties:["secret_detection","pii_detection","redaction","clean_input","deterministic_classification"]}))' > /tmp/evidence-payload.json
+              ;;
+            immutable-evidence-source-contract)
+              node scripts/validate-evidence-schema.mjs > /tmp/evidence-schema-report.json
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/evidence-schema-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"immutable-evidence-source-contract",artifact:report.path,checks:report.checks}))' > /tmp/evidence-payload.json
+              ;;
+            tool-action-authz-audit)
+              npx playwright test tests/tool-action-authz.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"tool-action-authz-audit",test_file:"tests/tool-action-authz.spec.ts",properties:["deny_before_execution","denial_callback","missing_claims","expired_claims","explicit_allow"]}))' > /tmp/evidence-payload.json
+              ;;
+            output-claim-verifiability)
+              npx playwright test tests/output-claim-verifiability.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"output-claim-verifiability",test_file:"tests/output-claim-verifiability.spec.ts",properties:["unsupported_fact_rejected","ungrounded_inference_rejected","stable_id_required","deterministic_refs_allowed"]}))' > /tmp/evidence-payload.json
+              ;;
+            input-unverified-assumptions-20-cases)
+              npx playwright test tests/input-unverified-assumptions-evidence.spec.ts --project=chromium --workers=1
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("certification-evidence/input-unverified-assumptions-evidence.json","utf8"));process.stdout.write(JSON.stringify({passed:report.falseNegatives===0,suite:"input-unverified-assumptions-20-cases",caseCount:report.caseCount,falseNegatives:report.falseNegatives,falseNegativeRate:report.falseNegativeRate,artifact:"certification-evidence/input-unverified-assumptions-evidence.json"}))' > /tmp/evidence-payload.json
+              ;;
+            project-authorization-resolution-5-patterns)
+              npx playwright test tests/project-authorization-resolution-evidence.spec.ts --project=chromium --workers=1
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("certification-evidence/project-authorization-resolution-evidence.json","utf8"));process.stdout.write(JSON.stringify({passed:report.caseCount===5,suite:"project-authorization-resolution-5-patterns",caseCount:report.caseCount,artifact:"certification-evidence/project-authorization-resolution-evidence.json"}))' > /tmp/evidence-payload.json
+              ;;
+            *) echo 'unsupported suite' >&2; exit 64 ;;
+          esac
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("/tmp/evidence-payload.json","utf8"));if(p.passed!==true)process.exit(2)'
+
+      - name: Upload sanitized producer report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-wave4-${{ matrix.requirement_id }}
+          path: |
+            /tmp/evidence-payload.json
+            /tmp/allowlist-schema-report.json
+            /tmp/full-secret-scan-report.json
+            /tmp/evidence-schema-report.json
+            /tmp/required-fields-coverage.txt
+            certification-evidence/input-unverified-assumptions-evidence.json
+            certification-evidence/project-authorization-resolution-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Install PostgreSQL 17 client
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Persist correlated PASS and reconcile
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          REQUIREMENT_ID: ${{ matrix.requirement_id }}
+          BUILDER_RUN_ID: ${{ matrix.builder_run_id }}
+          TASK_KEY: ${{ matrix.task_key }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE=require
+          export PGHOST=aws-0-us-east-1.pooler.supabase.com
+          export PGPORT=5432
+          export PGUSER=postgres.koqpyfvnprmirqviafzq
+          export PGDATABASE=postgres
+          export BASE_PAYLOAD="$(cat /tmp/evidence-payload.json)"
+          export CI_PAYLOAD="$(node -e 'const base=JSON.parse(process.env.BASE_PAYLOAD);process.stdout.write(JSON.stringify({...base,repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow:process.env.GITHUB_WORKFLOW,workflow_run_id:process.env.GITHUB_RUN_ID,workflow_run_attempt:process.env.GITHUB_RUN_ATTEMPT,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 \
+            -v requirement_id="$REQUIREMENT_ID" \
+            -v builder_run_id="$BUILDER_RUN_ID" \
+            -v task_key="$TASK_KEY" \
+            -v profile="$PROFILE" \
+            -v commit_sha="$GITHUB_SHA" \
+            -v workflow_run_id="$GITHUB_RUN_ID" \
+            -v payload="$CI_PAYLOAD" \
+            <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(
+            :'requirement_id'::bigint,
+            :'builder_run_id'::bigint,
+            :'task_key',
+            :'profile',
+            :'commit_sha',
+            :'workflow_run_id',
+            :'payload'::jsonb
+          );
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL

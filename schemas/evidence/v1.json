@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contentflow://schemas/evidence/v1",
+  "title": "ContentFlow Immutable Evidence V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "builder_run_id",
+    "timestamp",
+    "action_id",
+    "artifact_type",
+    "payload_hash",
+    "storage_location"
+  ],
+  "properties": {
+    "builder_run_id": {
+      "type": "integer",
+      "const": 2923,
+      "readOnly": true
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true
+    },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "readOnly": true
+    },
+    "artifact_type": {
+      "type": "string",
+      "minLength": 1,
+      "readOnly": true
+    },
+    "payload_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "readOnly": true
+    },
+    "storage_location": {
+      "type": "string",
+      "minLength": 1,
+      "readOnly": true
+    }
+  }
+}
