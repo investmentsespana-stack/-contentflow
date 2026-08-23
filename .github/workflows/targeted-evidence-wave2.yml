@@ -1,0 +1,73 @@
+name: targeted-evidence-wave2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-evidence-wave2.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targeted-evidence-wave2
+  cancel-in-progress: false
+
+jobs:
+  certify-and-record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Run exact destructive safety certification
+        run: npx playwright test tests/destructive-action-safety-evidence.spec.ts --project=chromium --workers=1
+
+      - name: Install PostgreSQL 17 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Persist correlated PASS and reconcile requirement 67
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE=require
+          export PGHOST=aws-0-us-east-1.pooler.supabase.com
+          export PGPORT=5432
+          export PGUSER=postgres.koqpyfvnprmirqviafzq
+          export PGDATABASE=postgres
+          export CI_PAYLOAD="$(node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"destructive-action-safety",test_file:"tests/destructive-action-safety-evidence.spec.ts",repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow:process.env.GITHUB_WORKFLOW,workflow_run_id:process.env.GITHUB_RUN_ID,workflow_run_attempt:process.env.GITHUB_RUN_ATTEMPT,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 \
+            -v commit_sha="$GITHUB_SHA" \
+            -v workflow_run_id="$GITHUB_RUN_ID" \
+            -v payload="$CI_PAYLOAD" \
+            <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(
+            67,
+            2160,
+            'arch_guardrail_deploy_completion_boundary_destructive_changes_guard_fix_validate_override_annotation',
+            'runtime-test',
+            :'commit_sha',
+            :'workflow_run_id',
+            :'payload'::jsonb
+          );
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL
