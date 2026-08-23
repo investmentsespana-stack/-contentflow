@@ -1,0 +1,38 @@
+[
+  {
+    "name": "multiline_delete_with_where_is_safe",
+    "file_path": "safe_multiline.sql",
+    "source": "delete from public.example\nwhere id = 1;",
+    "expected": []
+  },
+  {
+    "name": "delete_without_where_is_flagged",
+    "file_path": "unsafe_delete.sql",
+    "source": "delete from public.example;",
+    "expected": [{"line_number": 1, "operation_type": "DELETE_WITHOUT_WHERE"}]
+  },
+  {
+    "name": "drop_table_is_flagged",
+    "file_path": "drop.sql",
+    "source": "drop table public.example;",
+    "expected": [{"line_number": 1, "operation_type": "DROP_TABLE"}]
+  },
+  {
+    "name": "truncate_is_flagged",
+    "file_path": "truncate.sql",
+    "source": "truncate table public.example;",
+    "expected": [{"line_number": 1, "operation_type": "TRUNCATE_TABLE"}]
+  },
+  {
+    "name": "alter_drop_column_is_flagged",
+    "file_path": "alter.sql",
+    "source": "alter table public.example drop column obsolete;",
+    "expected": [{"line_number": 1, "operation_type": "ALTER_DROP_COLUMN"}]
+  },
+  {
+    "name": "commented_delete_is_ignored",
+    "file_path": "comment.sql",
+    "source": "-- delete from public.example;\nselect 1;",
+    "expected": []
+  }
+]
