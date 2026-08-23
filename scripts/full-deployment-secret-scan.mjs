@@ -14,8 +14,8 @@ const PATTERNS = [
   ['aws_access_key', /\bAKIA[0-9A-Z]{16}\b/g],
   ['bearer_token', /\bBearer\s+[A-Za-z0-9._~+\/-]{20,}=*\b/gi],
   ['jwt', /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g],
-  ['supabase_service_role_assignment', /(?:SUPABASE_SERVICE_ROLE_KEY|service_role_key)\s*[:=]\s*["']?[A-Za-z0-9._-]{20,}/gi],
-  ['generic_secret_assignment', /(?:api[_-]?key|secret|token|password)\s*[:=]\s*["'][^"'\n]{16,}["']/gi],
+  ['supabase_service_role_assignment', /\b(?:SUPABASE_SERVICE_ROLE_KEY|service_role_key)\b\s*[:=]\s*["']?[A-Za-z0-9._-]{20,}/gi],
+  ['generic_secret_assignment', /\b(?:api[_-]?key|secret|token|password)\b\s*[:=]\s*["'](?!\$\{?)[^"'\n]{16,}["']/gi],
 ];
 
 async function collect(path) {
