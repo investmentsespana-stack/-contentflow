@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "mode": "fail-closed",
+  "decision": "deny_unless_all_required_checks_pass",
+  "checks": [
+    "capability_registered",
+    "authority_allowed",
+    "incident_fingerprint_valid",
+    "repair_certified_when_reused",
+    "correlated_evidence_available",
+    "rollback_available",
+    "idempotency_guard_present",
+    "fencing_guard_present",
+    "approval_verified_when_required",
+    "post_repair_validator_available"
+  ],
+  "critical_or_external_effects": {
+    "owner_approval_required": true,
+    "automatic_admission": false
+  },
+  "unknown_capability": "deny_and_escalate",
+  "unknown_authority": "deny_and_escalate",
+  "missing_evidence": "deny_and_escalate",
+  "missing_rollback": "deny_and_escalate",
+  "admission_result_schema": {
+    "required": ["decision", "checks", "evidence_ids", "authority", "fingerprint"],
+    "allowed_decisions": ["admit_canary", "deny", "escalate_owner"]
+  }
+}
