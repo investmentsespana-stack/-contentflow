@@ -100,3 +100,10 @@ test('unverifiable URI fails closed', async () => {
     /unverifiable URI/,
   );
 });
+
+test('canonical digest supports arrays, primitives, and null', () => {
+  const first = evidenceDigest([1, null, 'x', { b: 2, a: 1 }]);
+  const second = evidenceDigest([1, null, 'x', { a: 1, b: 2 }]);
+  assert.equal(first, second);
+  assert.match(first, /^[a-f0-9]{64}$/);
+});
