@@ -1,7 +1,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, join, relative, basename } from 'node:path';
 
-// Reports only file, line and pattern class; matched secret values are never emitted.
+// Reports only file, line and pattern class; matched credential values are never emitted.
 const ROOTS = ['.'];
 const TEXT_EXTENSIONS = new Set(['.sql', '.ts', '.tsx', '.js', '.mjs', '.json', '.yml', '.yaml', '.toml']);
 const MAX_BYTES = 2_000_000;
@@ -17,6 +17,23 @@ const PATTERNS = [
   ['supabase_service_role_assignment', /\b(?:SUPABASE_SERVICE_ROLE_KEY|service_role_key)\b\s*[:=]\s*["']?[A-Za-z0-9._-]{20,}/gi],
   ['generic_secret_assignment', /\b(?:api[_-]?key|secret|token|password)\b\s*[:=]\s*["'](?!\$\{?)[^"'\n]{16,}["']/gi],
 ];
+
+function jwtRole(jwt) {
+  try {
+    const parts = jwt.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    return typeof payload?.role === 'string' ? payload.role : null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldReport(pattern, matchedValue) {
+  // Supabase anon JWTs are intentionally publishable client credentials; service-role/other JWTs remain findings.
+  if (pattern === 'jwt' && jwtRole(matchedValue) === 'anon') return false;
+  return true;
+}
 
 async function collect(path) {
   const info = await stat(path);
@@ -44,8 +61,10 @@ export async function scanDeploymentArtifacts(root = process.cwd()) {
       regex.lastIndex = 0;
       let match;
       while ((match = regex.exec(text)) !== null) {
-        const line = text.slice(0, match.index).split('\n').length;
-        findings.push({ file: rel, line, pattern });
+        if (shouldReport(pattern, match[0])) {
+          const line = text.slice(0, match.index).split('\n').length;
+          findings.push({ file: rel, line, pattern });
+        }
         if (match.index === regex.lastIndex) regex.lastIndex += 1;
       }
     }
