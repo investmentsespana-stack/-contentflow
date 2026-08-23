@@ -1,0 +1,24 @@
+name: evidence-persistence-certification
+
+on:
+  pull_request:
+    paths:
+      - 'src/platform/evidence-persistence.mjs'
+      - 'tests/evidence-persistence.test.mjs'
+      - '.github/workflows/evidence-persistence-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run persistence tests with 100% branch coverage gate
+        run: node --experimental-test-coverage --test-coverage-branches=100 --test tests/evidence-persistence.test.mjs
