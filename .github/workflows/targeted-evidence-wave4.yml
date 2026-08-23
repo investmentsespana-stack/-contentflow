@@ -1,0 +1,151 @@
+name: targeted-evidence-wave4
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/targeted-evidence-wave4.yml'
+      - 'scripts/full-deployment-secret-scan.mjs'
+      - 'scripts/validate-allowlist-schema.mjs'
+      - 'tests/input-secrets-pii.spec.ts'
+      - 'tests/full-deployment-secret-scan.test.mjs'
+      - 'schemas/tool_allowlist.v1.schema.json'
+      - 'src/guardrails/input-secrets-pii.ts'
+      - 'supabase/migrations/20260823033000_ci_runtime_evidence_bridge_v2.sql'
+      - 'tests/ci-runtime-evidence-bridge-v2.test.mjs'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-evidence-wave4.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targeted-evidence-wave4-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - requirement_id: '79'
+            builder_run_id: '2918'
+            task_key: 'arch_guardrail_input_boundary_secrets_pii_scan_implement_scanner'
+            suite: 'input-secrets-pii'
+            profile: 'runtime-test'
+          - requirement_id: '74'
+            builder_run_id: '2768'
+            task_key: 'arch_guardrail_tool_action_boundary_allowlist_define_allowlist_format_format_validation_rules'
+            suite: 'allowlist-source-contract'
+            profile: 'source-contract'
+          - requirement_id: '76'
+            builder_run_id: '2878'
+            task_key: 'arch_guardrail_deploy_completion_boundary_secrets_safety_fix_static_analysis_secrets_scan'
+            suite: 'full-deployment-secret-scan'
+            profile: 'static-analysis'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+
+      - name: Run fixed producer suite
+        id: producer
+        shell: bash
+        env:
+          SUITE: ${{ matrix.suite }}
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            input-secrets-pii)
+              npx playwright test tests/input-secrets-pii.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"input-secrets-pii",test_file:"tests/input-secrets-pii.spec.ts"}))' > /tmp/evidence-payload.json
+              ;;
+            allowlist-source-contract)
+              node scripts/validate-allowlist-schema.mjs > /tmp/allowlist-schema-report.json
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/allowlist-schema-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"allowlist-source-contract",artifact:report.path,checks:report.checks}))' > /tmp/evidence-payload.json
+              ;;
+            full-deployment-secret-scan)
+              node --test tests/full-deployment-secret-scan.test.mjs
+              set +e
+              node scripts/full-deployment-secret-scan.mjs > /tmp/full-secret-scan-report.json
+              code=$?
+              set -e
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/full-secret-scan-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"full-deployment-secret-scan",roots:report.roots,scannedFileCount:report.scannedFileCount,findings:report.findings,secretValuesExposed:report.secretValuesExposed}))' > /tmp/evidence-payload.json
+              test "$code" -eq 0
+              ;;
+            *) echo 'unsupported suite' >&2; exit 64 ;;
+          esac
+
+      - name: Upload sanitized producer report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-wave4-${{ matrix.requirement_id }}
+          path: |
+            /tmp/evidence-payload.json
+            /tmp/allowlist-schema-report.json
+            /tmp/full-secret-scan-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Install PostgreSQL 17 client
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Persist correlated PASS and reconcile
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          REQUIREMENT_ID: ${{ matrix.requirement_id }}
+          BUILDER_RUN_ID: ${{ matrix.builder_run_id }}
+          TASK_KEY: ${{ matrix.task_key }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE=require
+          export PGHOST=aws-0-us-east-1.pooler.supabase.com
+          export PGPORT=5432
+          export PGUSER=postgres.koqpyfvnprmirqviafzq
+          export PGDATABASE=postgres
+          BASE_PAYLOAD="$(cat /tmp/evidence-payload.json)"
+          export CI_PAYLOAD="$(node -e 'const base=JSON.parse(process.env.BASE_PAYLOAD);process.stdout.write(JSON.stringify({...base,repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow:process.env.GITHUB_WORKFLOW,workflow_run_id:process.env.GITHUB_RUN_ID,workflow_run_attempt:process.env.GITHUB_RUN_ATTEMPT,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 \
+            -v requirement_id="$REQUIREMENT_ID" \
+            -v builder_run_id="$BUILDER_RUN_ID" \
+            -v task_key="$TASK_KEY" \
+            -v profile="$PROFILE" \
+            -v commit_sha="$GITHUB_SHA" \
+            -v workflow_run_id="$GITHUB_RUN_ID" \
+            -v payload="$CI_PAYLOAD" \
+            <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(
+            :'requirement_id'::bigint,
+            :'builder_run_id'::bigint,
+            :'task_key',
+            :'profile',
+            :'commit_sha',
+            :'workflow_run_id',
+            :'payload'::jsonb
+          );
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL
