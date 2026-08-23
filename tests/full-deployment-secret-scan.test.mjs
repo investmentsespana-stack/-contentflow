@@ -15,6 +15,11 @@ async function fixture(files) {
   return root;
 }
 
+function syntheticJwt(role) {
+  const enc = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({ role, ref: 'fixture' })}.${'a'.repeat(32)}`;
+}
+
 test('passes clean deployment artifacts and reports all scanned files', async () => {
   const root = await fixture({
     'supabase/migrations/001.sql': 'create table public.a(id bigint);',
@@ -38,4 +43,21 @@ test('fails closed on a secret but never emits the secret value', async () => {
   assert.equal(report.secretValuesExposed, false);
   assert.equal(report.findings[0].pattern, 'github_token');
   assert.equal(JSON.stringify(report).includes(secret), false);
+});
+
+test('does not treat a Supabase anon JWT as a secret finding', async () => {
+  const anon = syntheticJwt('anon');
+  const root = await fixture({ 'backups/schema.sql': `v_anon text := '${anon}';` });
+  const report = await scanDeploymentArtifacts(root);
+  assert.equal(report.passed, true);
+  assert.deepEqual(report.findings, []);
+});
+
+test('still fails closed on non-anon JWT roles without exposing the token', async () => {
+  const serviceRole = syntheticJwt('service_role');
+  const root = await fixture({ 'supabase/functions/a/index.ts': `const value = '${serviceRole}';` });
+  const report = await scanDeploymentArtifacts(root);
+  assert.equal(report.passed, false);
+  assert.equal(report.findings.some((entry) => entry.pattern === 'jwt'), true);
+  assert.equal(JSON.stringify(report).includes(serviceRole), false);
 });
