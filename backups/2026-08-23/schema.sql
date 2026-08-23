@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Pmg3TbHXxmlS2Ma2jY1UoJXX5ZR7EQV5rGJYPncS0Hmz8eX9wXtBEEo2oONpXdu
+\restrict GRdZRyC6SfH8AWD8OevEhdXiqK4bnjvQswOGXvl6XI3QdW6Z8ZA5e7kb18OTw2b
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -825,8 +825,7 @@ begin
   if old.status is distinct from new.status
      and new.status='running'
      and new.project_key='contentflow'
-     and coalesce(new.execution_lane,'llm_artifact')='llm_artifact'
-     and new.task_key not like 'evidence_%' then
+     and coalesce(new.execution_lane,'llm_artifact') in ('llm_artifact','evidence_producer') then
     insert into public.contentflow_builder_runs(
       project_key,backlog_task_id,task_key,task_type,status,selected_model,
       lease_token,lease_generation,heartbeat_at,lease_expires_at,control_protocol
@@ -836,7 +835,8 @@ begin
     );
   end if;
   return new;
-end $$;
+end
+$$;
 
 
 --
@@ -954,7 +954,15 @@ CREATE FUNCTION public.contentflow_apply_retry_policy(p_run_id bigint) RETURNS j
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare r public.contentflow_builder_runs%rowtype; b public.contentflow_build_backlog%rowtype; p public.contentflow_retry_policies%rowtype; s public.contentflow_retry_state%rowtype; cls text; att int; base_delay numeric; jitter numeric; delay_s int; next_at timestamptz; begin
+declare
+ r public.contentflow_builder_runs%rowtype;
+ b public.contentflow_build_backlog%rowtype;
+ p public.contentflow_retry_policies%rowtype;
+ s public.contentflow_retry_state%rowtype;
+ cls text; att int; base_delay numeric; jitter numeric; delay_s int; next_at timestamptz;
+ deps_complete boolean:=true;
+ target_status text;
+begin
  select * into r from public.contentflow_builder_runs where id=p_run_id;
  if not found or r.status not in ('failed','deferred') then return jsonb_build_object('applied',false,'reason','run_not_failed'); end if;
  select * into b from public.contentflow_build_backlog where id=r.backlog_task_id for update;
@@ -964,19 +972,32 @@ declare r public.contentflow_builder_runs%rowtype; b public.contentflow_build_ba
  select * into s from public.contentflow_retry_state where backlog_task_id=b.id for update;
  if found and s.last_run_id=r.id then return jsonb_build_object('applied',false,'reason','already_processed','class',cls,'attempt',s.attempt_count); end if;
  att:=case when found and s.error_class=cls then s.attempt_count+1 else 1 end;
+
+ select not exists(
+   select 1
+   from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) dep(value)
+   where not exists(
+     select 1 from public.contentflow_build_backlog d
+     where d.project_key=b.project_key and d.task_key=dep.value and d.status='completed'
+   )
+ ) into deps_complete;
+
  if p.retryable and att<=p.max_attempts then
    base_delay:=least(p.max_backoff_seconds::numeric,p.initial_backoff_seconds*power(p.backoff_coefficient,att-1));
    jitter:=((('x'||substr(md5(b.task_key||':'||r.id::text),1,8))::bit(32)::bigint % 10001)::numeric/10000.0*2-1)*p.jitter_ratio;
    delay_s:=greatest(1,round(base_delay*(1+jitter))::int);
    next_at:=now()+make_interval(secs=>delay_s);
+   target_status:=case when deps_complete then 'ready' else 'planned' end;
    insert into public.contentflow_retry_state(backlog_task_id,project_key,task_key,error_class,attempt_count,last_run_id,last_error,last_model,next_retry_at,circuit_state,circuit_open_until,updated_at)
    values(b.id,b.project_key,b.task_key,cls,att,r.id,r.error,r.selected_model,next_at,'cooldown',next_at,now())
    on conflict(backlog_task_id) do update set error_class=excluded.error_class,attempt_count=excluded.attempt_count,last_run_id=excluded.last_run_id,last_error=excluded.last_error,last_model=excluded.last_model,next_retry_at=excluded.next_retry_at,circuit_state='cooldown',circuit_open_until=excluded.circuit_open_until,updated_at=now();
-   update public.contentflow_build_backlog set status='ready',selected_model=null,next_eligible_at=next_at,updated_at=now() where id=b.id and status in ('failed','blocked','ready','planned');
+   update public.contentflow_build_backlog
+      set status=target_status,selected_model=null,next_eligible_at=next_at,updated_at=now()
+    where id=b.id and status in ('failed','blocked','ready','planned');
    insert into public.contentflow_runtime_event_ledger(project_key,builder_run_id,task_key,event_type,idempotency_key,actor,payload,trace_id)
-   values(b.project_key,r.id,b.task_key,'retry_scheduled',r.idempotency_key,'director_retry_policy',jsonb_build_object('error_class',cls,'attempt',att,'delay_seconds',delay_s,'next_retry_at',next_at,'switch_model',p.switch_model_on_retry),r.trace_id)
+   values(b.project_key,r.id,b.task_key,'retry_scheduled',r.idempotency_key,'director_retry_policy',jsonb_build_object('error_class',cls,'attempt',att,'delay_seconds',delay_s,'next_retry_at',next_at,'switch_model',p.switch_model_on_retry,'dependencies_complete',deps_complete,'target_status',target_status),r.trace_id)
    on conflict do nothing;
-   return jsonb_build_object('applied',true,'action','retry_scheduled','class',cls,'attempt',att,'next_retry_at',next_at,'delay_seconds',delay_s);
+   return jsonb_build_object('applied',true,'action','retry_scheduled','class',cls,'attempt',att,'next_retry_at',next_at,'delay_seconds',delay_s,'dependencies_complete',deps_complete,'target_status',target_status);
  else
    insert into public.contentflow_retry_state(backlog_task_id,project_key,task_key,error_class,attempt_count,last_run_id,last_error,last_model,next_retry_at,circuit_state,circuit_open_until,updated_at)
    values(b.id,b.project_key,b.task_key,cls,att,r.id,r.error,r.selected_model,null,'open',null,now())
@@ -987,7 +1008,8 @@ declare r public.contentflow_builder_runs%rowtype; b public.contentflow_build_ba
    on conflict do nothing;
    return jsonb_build_object('applied',true,'action','blocked_for_repair','class',cls,'attempt',att);
  end if;
-end $$;
+end
+$$;
 
 
 --
@@ -1157,18 +1179,19 @@ declare qid bigint; bid bigint; tok uuid:=gen_random_uuid();
 begin
  select q.id,b.id into qid,bid
  from public.contentflow_tool_execution_queue q join public.contentflow_build_backlog b on b.id=q.backlog_task_id
- where q.project_key=p_project_key and q.state='pending' and b.status in ('blocked','ready') and b.execution_lane='tool_executor'
+ where q.project_key=p_project_key and q.state='pending' and b.status in ('blocked','ready')
+   and b.execution_lane in ('tool_executor','evidence_producer')
    and public.contentflow_tool_execution_capability_ready(p_project_key,b.task_key)
    and (b.next_eligible_at is null or b.next_eligible_at<=now())
-   and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required'))
+   and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required','verification_required') and r.finished_at is null)
    and not exists(select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value) where not exists(select 1 from public.contentflow_build_backlog x where x.project_key=b.project_key and x.task_key=d.value and x.status='completed'))
  order by public.contentflow_dependency_impact_score(b.project_key,b.task_key) desc,b.priority desc,b.id asc for update of q,b skip locked limit 1;
  if qid is null then return; end if;
  update public.contentflow_tool_execution_queue set state='claimed',claim_token=tok,claimed_at=now(),attempts=attempts+1,updated_at=now() where id=qid and state='pending'; if not found then return; end if;
- update public.contentflow_build_backlog set status='running',updated_at=now() where id=bid and status in ('blocked','ready') and execution_lane='tool_executor';
+ update public.contentflow_build_backlog set status='running',updated_at=now() where id=bid and status in ('blocked','ready') and execution_lane in ('tool_executor','evidence_producer');
  if not found then update public.contentflow_tool_execution_queue set state='blocked',claim_token=null,claimed_at=null,updated_at=now(),last_error='BACKLOG_CLAIM_FAILED' where id=qid and claim_token=tok; return; end if;
  return query select q.id,b.id,b.task_key,b.title,b.description,b.acceptance_criteria,b.task_type,tok from public.contentflow_tool_execution_queue q join public.contentflow_build_backlog b on b.id=q.backlog_task_id where q.id=qid and q.claim_token=tok;
-end; $$;
+end $$;
 
 
 --
@@ -1178,7 +1201,17 @@ end; $$;
 CREATE FUNCTION public.contentflow_classify_execution_lane_fields(p_task_type text, p_description text, p_acceptance text) RETURNS text
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public', 'pg_temp'
-    AS $$ select case when (coalesce(p_description,'') ~* '(produce REAL, persisted, correlated evidence|evidence harness:)' or coalesce(p_acceptance,'') ~* '(correlated to source task|do not fabricate evidence|generic LLM prose.*do not satisfy|deterministic platform evidence)') then 'tool_executor' else 'llm_artifact' end; $$;
+    AS $$
+ select case
+   when coalesce(p_description,'') ~* '(produce REAL, persisted, correlated evidence|evidence harness:)'
+     or coalesce(p_acceptance,'') ~* '(correlated to source task|do not fabricate evidence|generic LLM prose.*do not satisfy)'
+     then 'evidence_producer'
+   when coalesce(p_description,'') ~* '(verify persisted evidence|deterministic verifier|verify runtime evidence)'
+     or coalesce(p_acceptance,'') ~* '(verify persisted evidence|deterministic verification)'
+     then 'tool_executor'
+   else 'llm_artifact'
+ end;
+$$;
 
 
 --
@@ -1381,6 +1414,7 @@ begin
   begin v_leases := public.contentflow_recover_expired_leases(p_project_key); exception when others then v_warnings:=v_warnings||jsonb_build_array(jsonb_build_object('phase','expired_leases','error',sqlerrm)); end;
   begin v_reviews := public.contentflow_review_gate_reconcile(p_project_key); exception when others then v_warnings:=v_warnings||jsonb_build_array(jsonb_build_object('phase','review_gate','error',sqlerrm)); end;
 
+  begin perform public.contentflow_precycle_evidence_reconcile(p_project_key); exception when others then v_warnings:=v_warnings||jsonb_build_array(jsonb_build_object('phase','evidence_precycle','error',sqlerrm)); end;
   update public.director_cycle_runs set phase='support' where id=v_cycle_id;
   begin v_detected:=public.rara_detect_incidents(p_project_key); exception when unique_violation then v_warnings:=v_warnings||jsonb_build_array(jsonb_build_object('phase','rara_detect','error','duplicate_incident_suppressed')); when others then v_warnings:=v_warnings||jsonb_build_array(jsonb_build_object('phase','rara_detect','error',sqlerrm)); end;
   begin v_known:=public.rara_apply_known_repairs(p_project_key,20); exception when others then v_warnings:=v_warnings||jsonb_build_array(jsonb_build_object('phase','rara_known_repairs','error',sqlerrm)); end;
@@ -1477,8 +1511,14 @@ CREATE FUNCTION public.contentflow_dispatchable_count(p_project_key text DEFAULT
    and b.task_key not like 'gap_gap_%'
    and (b.next_eligible_at is null or b.next_eligible_at<=now())
    and not exists(select 1 from public.contentflow_retry_state rs where rs.backlog_task_id=b.id and rs.circuit_state='open')
-   and not exists(select 1 from public.contentflow_builder_runs ar where ar.backlog_task_id=b.id and ar.status in ('claimed','running','review_required') and ar.finished_at is null)
-   and not exists(select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) dep(value) where not exists(select 1 from public.contentflow_build_backlog d where d.project_key=b.project_key and d.task_key=dep.value and d.status='completed'));
+   and not exists(select 1 from public.contentflow_builder_runs ar where ar.backlog_task_id=b.id and ar.status in ('claimed','running','review_required','verification_required') and ar.finished_at is null)
+   and not exists(
+     select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) dep(value)
+     where not exists(
+       select 1 from public.contentflow_build_backlog d
+       where d.project_key=b.project_key and d.task_key=dep.value and d.status='completed'
+     )
+   );
 $$;
 
 
@@ -1538,20 +1578,34 @@ end $$;
 
 
 --
--- Name: contentflow_enforce_master_running_cap_2(); Type: FUNCTION; Schema: public; Owner: -
+-- Name: contentflow_enforce_dynamic_running_cap(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.contentflow_enforce_master_running_cap_2() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
+CREATE FUNCTION public.contentflow_enforce_dynamic_running_cap() RETURNS trigger
+    LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
+declare
+  v_cap int:=1;
+  v_prod int:=1;
 begin
   if new.project_key='contentflow'
      and new.status='running'
      and old.status is distinct from 'running'
-     and coalesce(new.execution_lane,'llm_artifact')='llm_artifact'
-     and new.task_key not like 'evidence_%' then
+     and coalesce(new.execution_lane,'llm_artifact')='llm_artifact' then
     perform pg_advisory_xact_lock(hashtext('contentflow:master-running-cap'));
+    begin
+      v_cap:=public.contentflow_recommended_parallelism('contentflow');
+    exception when others then
+      v_cap:=1;
+    end;
+    begin
+      select greatest(1,coalesce(production_max,1)) into v_prod
+      from public.contentflow_nexo_lane_status limit 1;
+    exception when others then
+      v_prod:=1;
+    end;
+    v_cap:=greatest(1,least(coalesce(v_cap,1),coalesce(v_prod,1)));
     if (
       select count(*)
       from public.contentflow_build_backlog b
@@ -1559,13 +1613,33 @@ begin
         and b.status='running'
         and b.id<>new.id
         and coalesce(b.execution_lane,'llm_artifact')='llm_artifact'
-        and b.task_key not like 'evidence_%'
-    ) >= 2 then
-      raise exception 'contentflow_master_running_cap_2';
+    ) >= v_cap then
+      raise exception 'contentflow_dynamic_running_cap_%',v_cap;
     end if;
   end if;
   return new;
-end $$;
+end
+$$;
+
+
+--
+-- Name: contentflow_enforce_learned_evidence_lane(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_enforce_learned_evidence_lane() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.project_key='contentflow'
+     and new.epic='evidence_first'
+     and new.task_key like 'evidence_%'
+     and coalesce(new.description,'') like 'Produce REAL, persisted, correlated evidence%'
+     and new.status <> 'completed' then
+    new.execution_lane := 'evidence_producer';
+  end if;
+  return new;
+end;
+$$;
 
 
 --
@@ -1703,24 +1777,27 @@ declare
   v_fp text;
   v_cls text;
   v_evidence_key text;
+  v_existing_evidence_key text;
   v_created int:=0;
   v_held int:=0;
   v_verified int:=0;
   v_reopened int:=0;
+  v_reused int:=0;
   v_existing bigint;
+  v_existing_status text;
   v_dep jsonb;
+  v_new_dep jsonb;
 begin
-  if coalesce(auth.role(),'') <> 'service_role' then raise exception 'service_role_required'; end if;
+  if coalesce(auth.role(),'') <> 'service_role' and session_user <> 'postgres' then raise exception 'privileged_channel_required'; end if;
 
-  -- 1) Discover latest evidence-related failures only once per fingerprint.
   for x in
-    select r.id run_id,r.backlog_task_id,r.task_key,r.error,r.created_at,
-           b.title,b.description,b.task_type,b.depends_on,b.priority,b.status,b.runtime_verified,b.runtime_evidence
+    select r.id run_id,r.backlog_task_id,r.task_key,r.error,r.created_at,b.title,b.depends_on,b.status,b.completion_phase
     from public.contentflow_builder_runs r
     join public.contentflow_build_backlog b on b.id=r.backlog_task_id
     where r.project_key=p_project_key
-      and b.status <> 'completed'
+      and b.status<>'completed'
       and b.task_key not like 'evidence_%'
+      and coalesce(b.epic,'')<>'evidence_capability'
       and r.status in ('failed','deferred')
       and r.finished_at is not null
       and (
@@ -1734,74 +1811,78 @@ begin
     limit greatest(1,least(coalesce(p_limit,50),200))
   loop
     v_cls:=public.contentflow_evidence_requirement_class(x.error);
-    v_fp:=md5(v_cls||'|'||regexp_replace(lower(left(coalesce(x.error,''),1800)),'[0-9]+','N','g'));
+    v_fp:=md5(lower(x.task_key)||'|'||v_cls);
     v_evidence_key:='evidence_'||left(regexp_replace(x.task_key,'[^a-zA-Z0-9_]+','','g'),70)||'_'||left(v_fp,10);
+    v_existing:=null; v_existing_status:=null; v_existing_evidence_key:=null;
 
-    insert into public.contentflow_evidence_requirements(project_key,backlog_task_id,source_run_id,task_key,requirement_class,requirement_fingerprint,requirement_text,evidence_task_key,status,updated_at)
-    values(p_project_key,x.backlog_task_id,x.run_id,x.task_key,v_cls,v_fp,left(coalesce(x.error,'NEEDS_EVIDENCE'),6000),v_evidence_key,'open',now())
-    on conflict(project_key,backlog_task_id,requirement_fingerprint)
-    do update set source_run_id=excluded.source_run_id,requirement_text=excluded.requirement_text,updated_at=now()
-    returning id into v_existing;
+    select er.id,er.status,er.evidence_task_key
+      into v_existing,v_existing_status,v_existing_evidence_key
+      from public.contentflow_evidence_requirements er
+     where er.project_key=p_project_key
+       and er.backlog_task_id=x.backlog_task_id
+       and er.requirement_class=v_cls
+       and er.status<>'obsolete'
+     order by case when er.status='verified' then 0 else 1 end,er.id
+     limit 1;
 
-    -- Evidence requirement becomes a dependency. This blocks blind regeneration.
+    if v_existing is not null and v_existing_status='verified' then
+      v_reused:=v_reused+1;
+      continue;
+    end if;
+
+    if v_existing is not null then
+      if coalesce(v_existing_evidence_key,'')<>'' then v_evidence_key:=v_existing_evidence_key; end if;
+      update public.contentflow_evidence_requirements
+         set requirement_fingerprint=v_fp,requirement_text=left(coalesce(x.error,'NEEDS_EVIDENCE'),6000),
+             evidence_task_key=v_evidence_key,updated_at=now()
+       where id=v_existing
+         and (requirement_fingerprint is distinct from v_fp
+              or requirement_text is distinct from left(coalesce(x.error,'NEEDS_EVIDENCE'),6000)
+              or evidence_task_key is distinct from v_evidence_key);
+    else
+      insert into public.contentflow_evidence_requirements(project_key,backlog_task_id,source_run_id,task_key,requirement_class,requirement_fingerprint,requirement_text,evidence_task_key,status,updated_at)
+      values(p_project_key,x.backlog_task_id,x.run_id,x.task_key,v_cls,v_fp,left(coalesce(x.error,'NEEDS_EVIDENCE'),6000),v_evidence_key,'task_created',now())
+      returning id into v_existing;
+    end if;
+
     if not exists(select 1 from public.contentflow_build_backlog e where e.project_key=p_project_key and e.task_key=v_evidence_key) then
-      insert into public.contentflow_build_backlog(
-        project_key,epic,task_key,title,description,task_type,stage,depends_on,team,status,priority,acceptance_criteria,quality_score,next_eligible_at,completion_phase,execution_lane
-      ) values(
-        p_project_key,'evidence_first',v_evidence_key,
-        'Evidence harness: '||left(coalesce(x.title,x.task_key),180),
-        'Produce REAL, persisted, correlated evidence for source task '||x.task_key||' and source builder_run_id='||x.run_id||'. Requirement class='||v_cls||'. Missing evidence: '||left(coalesce(x.error,''),4000)||'. Do not fabricate evidence. If the environment cannot produce it, return NEEDS_EVIDENCE with the exact unavailable prerequisite.',
-        'code',greatest(1,coalesce((select stage from public.contentflow_build_backlog where id=x.backlog_task_id),1)),
-        coalesce(x.depends_on,'[]'::jsonb),
-        'evidence-first', 'blocked', 100,
-        'Evidence must be produced by an actual deterministic test, static analysis, integration, persisted runtime record, or externally verifiable artifact as appropriate; it must be correlated to source task '||x.task_key||' and source run '||x.run_id||'. Generic LLM prose, placeholders, stubs, invented IDs, or claims without persisted evidence do not satisfy acceptance.',
-        0,now(),'evidence_required','tool_executor'
-      );
+      insert into public.contentflow_build_backlog(project_key,epic,task_key,title,description,task_type,stage,depends_on,team,status,priority,acceptance_criteria,quality_score,next_eligible_at,completion_phase,execution_lane)
+      values(p_project_key,'evidence_first',v_evidence_key,'Evidence harness: '||left(coalesce(x.title,x.task_key),180),
+             'Produce REAL, persisted, correlated evidence for source task '||x.task_key||' and source builder_run_id='||x.run_id||'. Requirement class='||v_cls||'. Do not fabricate evidence.',
+             'code',1,coalesce(x.depends_on,'[]'::jsonb),'evidence-first','blocked',100,
+             'Evidence must be produced by an actual deterministic test, static analysis, integration, persisted runtime record, or externally verifiable artifact; generic prose/placeholders do not satisfy acceptance.',
+             0,now(),'evidence_required','tool_executor');
       v_created:=v_created+1;
     end if;
 
-    update public.contentflow_evidence_requirements
-       set evidence_task_key=v_evidence_key,status='task_created',updated_at=now()
-     where id=v_existing and status in ('open','task_created');
-
-    -- Append evidence task dependency idempotently and hold original.
     select coalesce(depends_on,'[]'::jsonb) into v_dep from public.contentflow_build_backlog where id=x.backlog_task_id for update;
-    if not (v_dep ? v_evidence_key) then v_dep:=v_dep||to_jsonb(v_evidence_key); end if;
-    update public.contentflow_build_backlog
-       set depends_on=v_dep,status='blocked',selected_model=null,next_eligible_at=null,
-           completion_phase='waiting_for_evidence',updated_at=now()
-     where id=x.backlog_task_id and status<>'completed';
-    v_held:=v_held+1;
+    v_new_dep:=v_dep;
+    if not (v_new_dep ? v_evidence_key) then v_new_dep:=v_new_dep||to_jsonb(v_evidence_key); end if;
 
-    -- Remove generic retry state for this evidence failure. The evidence dependency is now the gate.
+    update public.contentflow_build_backlog
+       set depends_on=v_new_dep,status='blocked',selected_model=null,next_eligible_at=null,
+           completion_phase='waiting_for_evidence',updated_at=now()
+     where id=x.backlog_task_id and status<>'completed'
+       and (depends_on is distinct from v_new_dep or status<>'blocked' or completion_phase<>'waiting_for_evidence');
+    if found then v_held:=v_held+1; end if;
+
     delete from public.contentflow_retry_state where backlog_task_id=x.backlog_task_id;
   end loop;
 
-  -- 2) Verify evidence jobs only if they themselves completed with runtime verification/evidence.
   update public.contentflow_evidence_requirements er
      set status='verified',verified_at=now(),updated_at=now(),
          evidence_ref=jsonb_build_object('evidence_task_key',er.evidence_task_key,'evidence_task_id',e.id,'source_run_id',er.source_run_id,'runtime_evidence',coalesce(e.runtime_evidence,'{}'::jsonb))
     from public.contentflow_build_backlog e
-   where er.project_key=p_project_key
-     and er.status='task_created'
+   where er.project_key=p_project_key and er.status='task_created'
      and e.project_key=er.project_key and e.task_key=er.evidence_task_key
      and e.status='completed' and coalesce(e.runtime_verified,false)=true
-     and coalesce(e.runtime_evidence,'{}'::jsonb) <> '{}'::jsonb;
+     and coalesce(e.runtime_evidence,'{}'::jsonb)<>'{}'::jsonb;
   get diagnostics v_verified=row_count;
 
-  -- 3) Reopen originals only when every evidence requirement is verified and dependencies are complete.
-  update public.contentflow_build_backlog b
-     set status='ready',next_eligible_at=now(),completion_phase='evidence_verified',updated_at=now()
-   where b.project_key=p_project_key and b.status='blocked' and b.completion_phase='waiting_for_evidence'
-     and not exists(select 1 from public.contentflow_builder_runs ar where ar.backlog_task_id=b.id and ar.status in ('claimed','running','review_required') and ar.finished_at is null)
-    and not exists(select 1 from public.contentflow_evidence_requirements er where er.backlog_task_id=b.id and er.status<>'verified')
-     and not exists(
-       select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
-       where not exists(select 1 from public.contentflow_build_backlog dep where dep.project_key=b.project_key and dep.task_key=d.value and dep.status='completed')
-     );
-  get diagnostics v_reopened=row_count;
+  perform public.contentflow_gc_evidence_dependencies(p_project_key);
+  select (public.contentflow_reconcile_ready_after_evidence(p_project_key)->>'reopened')::int into v_reopened;
 
-  return jsonb_build_object('architecture','EVIDENCE_FIRST_EXECUTION_V1','requirements_created',v_created,'originals_held',v_held,'requirements_verified',v_verified,'originals_reopened',v_reopened);
+  return jsonb_build_object('architecture','EVIDENCE_FIRST_EXECUTION_V2_2_BOOTSTRAP_SAFE','requirements_created',v_created,'verified_requirements_reused',v_reused,'originals_held',v_held,'requirements_verified',v_verified,'originals_reopened',coalesce(v_reopened,0));
 end
 $$;
 
@@ -1822,19 +1903,25 @@ CREATE FUNCTION public.contentflow_evidence_prerequisite_class(p_requirement_cla
     SET search_path TO 'public', 'pg_temp'
     AS $$
  select case
+   when coalesce(p_requirement_class,'')='external_approval'
+     or lower(coalesce(p_requirement_text,'')) ~ '(requires? (manual|human) approval|pending owner decision|(human|owner|security team|architecture team)[ -]?(approval|sign.?off|authorization))'
+     then 'external_approval'
    when (
      lower(coalesce(p_requirement_text,'')) ~ '(commit hash|commit sha|repository|repo link|file path|merged into|published|version-controlled|version control)'
      and lower(coalesce(p_requirement_text,'')) ~ '(unit test|integration test|test suite|test corpus|test execution|coverage|executed|execution on|runtime report|runtime evidence|30 positive test|test cases|machine-readable report)'
    ) then 'repo_and_runtime_test'
-   when coalesce(p_requirement_class,'')='external_approval' or lower(coalesce(p_requirement_text,'')) ~ '(approval|approved_by|security team|architecture team|human approval)' then 'external_approval'
+   when coalesce(p_requirement_class,'')='static_analysis' then 'static_analysis'
+   when coalesce(p_requirement_class,'')='runtime_test' then 'runtime_test'
+   when coalesce(p_requirement_class,'')='source_contract' then 'source_contract'
+   when coalesce(p_requirement_class,'') in ('runtime_evidence','persistence_integration') then 'runtime_persistence'
    when lower(coalesce(p_requirement_text,'')) ~ '(commit hash|commit sha|repository|repo link|file path|merged into|published|version-controlled|version control)' then 'repo_commit_or_file'
-   when coalesce(p_requirement_class,'')='static_analysis' or lower(coalesce(p_requirement_text,'')) ~ '(static analysis|lint|mypy|scanner|scan)' then 'static_analysis'
+   when lower(coalesce(p_requirement_text,'')) ~ '(static analysis|lint|mypy|scanner|scan)' then 'static_analysis'
    when lower(coalesce(p_requirement_text,'')) ~ '(platformstore|record_evidence|evidence store|durable storage|database record|database query|persisted runtime|runtime evidence|runtime log|runtime trace)' then 'runtime_persistence'
-   when coalesce(p_requirement_class,'')='runtime_test' or lower(coalesce(p_requirement_text,'')) ~ '(unit test|integration test|test suite|test corpus|test execution|coverage|benchmark|http 400|http 200)' then 'runtime_test'
-   when coalesce(p_requirement_class,'')='source_contract' or lower(coalesce(p_requirement_text,'')) ~ '(interface|contract|schema|missing method|field)' then 'source_contract'
+   when lower(coalesce(p_requirement_text,'')) ~ '(unit test|integration test|test suite|test corpus|test execution|coverage|benchmark|http 400|http 200)' then 'runtime_test'
+   when lower(coalesce(p_requirement_text,'')) ~ '(interface|contract|schema|missing method|field)' then 'source_contract'
    when lower(coalesce(p_requirement_text,'')) ~ '(deploy|deployment|staging|production)' then 'deployment_trace'
-   when coalesce(p_requirement_class,'')='runtime_evidence' then 'runtime_persistence'
-   else 'other' end;
+   else 'other'
+ end;
 $$;
 
 
@@ -1847,11 +1934,11 @@ CREATE FUNCTION public.contentflow_evidence_requirement_class(p_error text) RETU
     SET search_path TO 'public', 'pg_temp'
     AS $$
   select case
-    when coalesce(p_error,'') ~* 'static analysis|mypy|lint|scanner' then 'static_analysis'
-    when coalesce(p_error,'') ~* 'test corpus|test suite|integration test|unit test|test execution|false negative' then 'runtime_test'
-    when coalesce(p_error,'') ~* 'PlatformStore|persisted evidence|record_evidence|evidence store|database record|durable storage' then 'persistence_integration'
-    when coalesce(p_error,'') ~* 'approval|security team|architecture team' then 'external_approval'
-    when coalesce(p_error,'') ~* 'missing method|interface|contract|schema|field' then 'source_contract'
+    when coalesce(p_error,'') ~* 'static analysis|mypy|lint|scanner|entropy scanner' then 'static_analysis'
+    when coalesce(p_error,'') ~* 'test corpus|test suite|integration test|unit test|test execution|false negative|end-to-end test|e2e test' then 'runtime_test'
+    when coalesce(p_error,'') ~* 'PlatformStore|persisted evidence|record_evidence|evidence store|database record|durable storage|runtime log|persisted runtime' then 'persistence_integration'
+    when coalesce(p_error,'') ~* 'missing method|interface|contract|schema|field|signature not verified|method signature' then 'source_contract'
+    when coalesce(p_error,'') ~* '(human|owner|security team|architecture team|external)[ -]?(approval|sign.?off|authorization)|requires? (manual|human) approval|pending owner decision' then 'external_approval'
     when coalesce(p_error,'') ~* 'NEEDS_EVIDENCE|missing evidence|no persisted runtime evidence|RARA_REVIEW_REJECTED' then 'runtime_evidence'
     else 'unknown'
   end
@@ -1877,15 +1964,12 @@ CREATE FUNCTION public.contentflow_executable_tool_pending_count(p_project_key t
     SET search_path TO 'public'
     AS $$
  select count(*)::int
- from public.contentflow_tool_execution_queue q
- join public.contentflow_build_backlog b on b.id=q.backlog_task_id
- where q.project_key=p_project_key
-   and q.state='pending'
-   and b.status in ('blocked','ready')
-   and b.execution_lane='tool_executor'
+ from public.contentflow_tool_execution_queue q join public.contentflow_build_backlog b on b.id=q.backlog_task_id
+ where q.project_key=p_project_key and q.state='pending' and b.status in ('blocked','ready')
+   and b.execution_lane in ('tool_executor','evidence_producer')
    and public.contentflow_tool_execution_capability_ready(p_project_key,b.task_key)
    and (b.next_eligible_at is null or b.next_eligible_at<=now())
-   and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required'))
+   and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required','verification_required') and r.finished_at is null)
    and not exists(select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value) where not exists(select 1 from public.contentflow_build_backlog x where x.project_key=b.project_key and x.task_key=d.value and x.status='completed'));
 $$;
 
@@ -1932,7 +2016,77 @@ end $$;
 CREATE FUNCTION public.contentflow_finish_tool_execution_task(p_queue_id bigint, p_claim_token uuid, p_success boolean, p_evidence jsonb DEFAULT '{}'::jsonb, p_error text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ declare bid bigint; tkey text; is_evidence boolean:=false; begin select backlog_task_id,task_key into bid,tkey from public.contentflow_tool_execution_queue where id=p_queue_id and state='claimed' and claim_token=p_claim_token for update; if bid is null then return jsonb_build_object('ok',false,'reason','fenced_out'); end if; select (epic='evidence_first' or completion_phase='evidence_required') into is_evidence from public.contentflow_build_backlog where id=bid for update; update public.contentflow_tool_execution_queue set state=case when p_success then 'completed' else 'failed' end,completed_at=case when p_success then now() else null end,last_error=p_error,evidence=coalesce(p_evidence,'{}'::jsonb),updated_at=now() where id=p_queue_id and state='claimed' and claim_token=p_claim_token; if not found then return jsonb_build_object('ok',false,'reason','fenced_out'); end if; if p_success then perform public.contentflow_clear_retry_after_repair(tkey); update public.contentflow_build_backlog set runtime_verified=true,runtime_verified_at=now(),runtime_evidence=coalesce(runtime_evidence,'{}'::jsonb)||coalesce(p_evidence,'{}'::jsonb),status=case when is_evidence then 'completed' else 'ready' end,quality_score=case when is_evidence then 100 else quality_score end,completion_phase=case when is_evidence then 'evidence_verified' else completion_phase end,next_eligible_at=case when is_evidence then next_eligible_at else now() end,updated_at=now() where id=bid and status='running' and execution_lane='tool_executor'; else update public.contentflow_build_backlog set status='blocked',updated_at=now() where id=bid and status='running' and execution_lane='tool_executor'; end if; return jsonb_build_object('ok',true,'task_key',tkey,'success',p_success,'evidence_task',is_evidence); end; $$;
+    AS $$
+declare bid bigint; tkey text; is_evidence boolean:=false;
+begin
+ select backlog_task_id,task_key into bid,tkey from public.contentflow_tool_execution_queue where id=p_queue_id and state='claimed' and claim_token=p_claim_token for update;
+ if bid is null then return jsonb_build_object('ok',false,'reason','fenced_out'); end if;
+ select (epic='evidence_first' or completion_phase='evidence_required' or execution_lane='evidence_producer') into is_evidence from public.contentflow_build_backlog where id=bid for update;
+ update public.contentflow_tool_execution_queue set state=case when p_success then 'completed' else 'failed' end,completed_at=case when p_success then now() else null end,last_error=p_error,evidence=coalesce(p_evidence,'{}'::jsonb),updated_at=now() where id=p_queue_id and state='claimed' and claim_token=p_claim_token;
+ if not found then return jsonb_build_object('ok',false,'reason','fenced_out'); end if;
+ if p_success then
+   perform public.contentflow_clear_retry_after_repair(tkey);
+   update public.contentflow_build_backlog set runtime_verified=true,runtime_verified_at=now(),runtime_evidence=coalesce(runtime_evidence,'{}'::jsonb)||coalesce(p_evidence,'{}'::jsonb),status=case when is_evidence then 'completed' else 'ready' end,quality_score=case when is_evidence then 100 else quality_score end,completion_phase=case when is_evidence then 'evidence_verified' else completion_phase end,next_eligible_at=case when is_evidence then next_eligible_at else now() end,updated_at=now() where id=bid and status='running' and execution_lane in ('tool_executor','evidence_producer');
+ else
+   update public.contentflow_build_backlog set status='blocked',updated_at=now() where id=bid and status='running' and execution_lane in ('tool_executor','evidence_producer');
+ end if;
+ return jsonb_build_object('ok',true,'task_key',tkey,'success',p_success,'evidence_task',is_evidence);
+end $$;
+
+
+--
+-- Name: contentflow_gc_evidence_dependencies(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_gc_evidence_dependencies(p_project_key text DEFAULT 'contentflow'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_removed int:=0; v_retired int:=0; v_reopened int:=0;
+begin
+  if coalesce(auth.role(),'') <> 'service_role' and session_user <> 'postgres' then raise exception 'privileged_channel_required'; end if;
+
+  with cleaned as (
+    select b.id,
+           coalesce((select jsonb_agg(d.value)
+                     from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
+                     left join public.contentflow_build_backlog e on e.project_key=b.project_key and e.task_key=d.value
+                     where not (
+                       d.value like 'evidence_%'
+                       and coalesce(e.status,'missing')<>'completed'
+                       and not exists (
+                         select 1 from public.contentflow_evidence_requirements er
+                         where er.project_key=b.project_key and er.evidence_task_key=d.value
+                           and er.status in ('task_created','open','blocked')
+                       )
+                     )),'[]'::jsonb) new_depends
+    from public.contentflow_build_backlog b
+    where b.project_key=p_project_key
+  )
+  update public.contentflow_build_backlog b
+     set depends_on=c.new_depends,updated_at=now()
+    from cleaned c
+   where b.id=c.id and b.depends_on is distinct from c.new_depends;
+  get diagnostics v_removed=row_count;
+
+  update public.contentflow_build_backlog e
+     set status='deferred',completion_phase='orphan_evidence_retired',next_eligible_at=null,updated_at=now()
+   where e.project_key=p_project_key and e.task_key like 'evidence_%' and e.status<>'completed'
+     and not exists(select 1 from public.contentflow_evidence_requirements er where er.project_key=e.project_key and er.evidence_task_key=e.task_key and er.status in ('task_created','open','blocked'));
+  get diagnostics v_retired=row_count;
+
+  update public.contentflow_build_backlog b
+     set status='ready',next_eligible_at=now(),completion_phase='evidence_verified',updated_at=now()
+   where b.project_key=p_project_key and b.status='blocked' and b.completion_phase='waiting_for_evidence'
+     and not exists(select 1 from public.contentflow_evidence_requirements er where er.backlog_task_id=b.id and er.status not in ('verified','obsolete'))
+     and not exists(select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
+                    where not exists(select 1 from public.contentflow_build_backlog dep where dep.project_key=b.project_key and dep.task_key=d.value and dep.status='completed'))
+     and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required','verification_required') and r.finished_at is null);
+  get diagnostics v_reopened=row_count;
+
+  return jsonb_build_object('architecture','EVIDENCE_DEPENDENCY_GC_V1','tasks_dependencies_rewritten',v_removed,'orphan_evidence_tasks_retired',v_retired,'originals_reopened',v_reopened);
+end
+$$;
 
 
 --
@@ -1965,6 +2119,7 @@ CREATE FUNCTION public.contentflow_guard_backlog_completion() RETURNS trigger
     AS $$
 begin
   if new.status='completed'
+     and coalesce(new.epic,'')<>'evidence_capability'
      and public.contentflow_requires_runtime_evidence(new.task_type,new.title,new.description,new.acceptance_criteria)
      and not coalesce(new.runtime_verified,false) then
     new.status:='verification_required';
@@ -1972,9 +2127,12 @@ begin
     new.updated_at:=now();
   elsif new.status='completed' and coalesce(new.runtime_verified,false) then
     new.completion_phase:='runtime_proven';
+  elsif new.status='completed' and coalesce(new.epic,'')='evidence_capability' then
+    new.completion_phase:='artifact_approved';
   end if;
   return new;
-end $$;
+end
+$$;
 
 
 --
@@ -1990,15 +2148,20 @@ begin
   if new.status='completed' then
     select * into b from public.contentflow_build_backlog where id=new.backlog_task_id;
     if found
+       and coalesce(b.epic,'')<>'evidence_capability'
        and public.contentflow_requires_runtime_evidence(b.task_type,b.title,b.description,b.acceptance_criteria)
        and not coalesce(b.runtime_verified,false) then
       new.status:='verification_required';
       new.finished_at:=null;
       new.error:='RUNTIME_VERIFICATION_REQUIRED';
+    elsif found and coalesce(b.epic,'')='evidence_capability' then
+      new.error:=null;
+      new.finished_at:=coalesce(new.finished_at,now());
     end if;
   end if;
   return new;
-end $$;
+end
+$$;
 
 
 --
@@ -2216,6 +2379,119 @@ CREATE FUNCTION public.contentflow_pgnet_recover_if_queued() RETURNS integer
 
 
 --
+-- Name: contentflow_plan_execution_buffer(text, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_plan_execution_buffer(p_project_key text DEFAULT 'contentflow'::text, p_target integer DEFAULT 10) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_target int:=greatest(1,least(coalesce(p_target,10),20));
+  v_before int:=0;
+  v_after int:=0;
+  v_created_root int:=0;
+  v_created_next int:=0;
+  v_verifier_only int:=0;
+  v_ready_workers int:=0;
+  v_prepared int:=0;
+  v_next_ready int:=0;
+  v_norm jsonb:='{}'::jsonb;
+begin
+  if coalesce(auth.role(),'')<>'service_role' and session_user<>'postgres' then
+    raise exception 'privileged_channel_required';
+  end if;
+
+  begin v_norm:=public.contentflow_normalize_dispatchability(p_project_key); exception when others then v_norm:=jsonb_build_object('error',sqlerrm); end;
+  select count(*) into v_ready_workers from public.director_worker_queue where status='ready';
+  select public.contentflow_dispatchable_count(p_project_key) into v_before;
+  select count(*) into v_verifier_only from public.contentflow_evidence_coverage_plan(p_project_key) where coverage_state='verifier_only';
+
+  -- BLOCK A: root producer capabilities. These are source/bootstrap artifacts, not claims of deployment.
+  if v_verifier_only>0 then
+    insert into public.contentflow_build_backlog(
+      project_key,epic,task_key,title,description,task_type,stage,depends_on,team,status,priority,
+      acceptance_criteria,quality_score,cost_usd,execution_lane,updated_at
+    ) values
+    (p_project_key,'evidence_capability','capability_producer_runtime_persistence_v1',
+     'Implement deterministic runtime persistence evidence producer',
+     'Implement the reusable source artifact for a producer that reads real persisted platform/runtime records and emits correlated evidence. It must fail closed when source records are absent. This bootstrap task does not claim deployment.',
+     'code',1,'[]'::jsonb,'director_buffer:block_a_root','planned',100,
+     'Source artifact defines deterministic runtime-persistence producer interfaces, correlation contract, fail-closed behavior, and deterministic present/absent-record test fixtures. No deployment claim is required in this bootstrap task.',0,0,'llm_artifact',now()),
+    (p_project_key,'evidence_capability','capability_producer_runtime_test_v1',
+     'Implement deterministic runtime test evidence producer',
+     'Implement the reusable source artifact for deterministic test-result production and persistence. It must reject prose-only or unexecuted test claims. This bootstrap task does not claim deployment.',
+     'code',1,'[]'::jsonb,'director_buffer:block_a_root','planned',100,
+     'Source artifact defines deterministic test producer interfaces, pass/fail contract, correlation fields, fail-closed behavior, and fixtures showing unexecuted claims are rejected. No deployment claim is required.',0,0,'llm_artifact',now()),
+    (p_project_key,'evidence_capability','capability_producer_source_contract_v1',
+     'Implement deterministic source contract evidence producer',
+     'Implement the reusable source artifact for repository/source-contract verification by immutable path/hash. It must fail closed if the artifact cannot be fetched or parsed. This bootstrap task does not claim deployment.',
+     'code',1,'[]'::jsonb,'director_buffer:block_a_root','planned',100,
+     'Source artifact defines immutable artifact identity, parse/validation rules, correlation fields, fail-closed behavior and deterministic fixtures. No deployment claim is required.',0,0,'llm_artifact',now()),
+    (p_project_key,'evidence_capability','capability_producer_registry_bridge_v1',
+     'Implement producer capability registry and routing bridge',
+     'Implement the source artifact for a single producer registry/bridge mapping evidence prerequisites to producers and keeping evidence-producer work isolated from the LLM builder. This bootstrap task does not claim deployment.',
+     'architecture',1,'[]'::jsonb,'director_buffer:block_a_root','planned',100,
+     'Source artifact defines one producer capability registry, prerequisite routing, lane isolation, fail-closed semantics and deterministic contract tests. No deployment claim is required.',0,0,'llm_artifact',now())
+    on conflict(project_key,task_key) do nothing;
+    get diagnostics v_created_root=row_count;
+  end if;
+
+  -- BLOCK B: pre-plan the next integration block immediately. It remains planned until Block A dependencies complete.
+  insert into public.contentflow_build_backlog(
+    project_key,epic,task_key,title,description,task_type,stage,depends_on,team,status,priority,
+    acceptance_criteria,quality_score,cost_usd,execution_lane,updated_at
+  ) values
+  (p_project_key,'evidence_capability','capability_integrate_runtime_persistence_producer_v1',
+   'Integrate runtime persistence producer into evidence pipeline',
+   'Produce the integration source artifact connecting the approved runtime-persistence producer contract to ContentFlow evidence routing and persistence interfaces. Keep activation/deployment proof as a later validation boundary.',
+   'code',2,'["capability_producer_runtime_persistence_v1"]'::jsonb,'director_buffer:block_b_integration','planned',99,
+   'Integration source artifact wires the producer contract into the evidence pipeline, preserves correlation/fail-closed semantics, and contains deterministic contract tests. This task does not claim live deployment.',0,0,'llm_artifact',now()),
+  (p_project_key,'evidence_capability','capability_integrate_runtime_test_producer_v1',
+   'Integrate runtime test producer into evidence pipeline',
+   'Produce the integration source artifact connecting the approved runtime-test producer contract to ContentFlow evidence routing. Keep activation/deployment proof as a later validation boundary.',
+   'code',2,'["capability_producer_runtime_test_v1"]'::jsonb,'director_buffer:block_b_integration','planned',99,
+   'Integration source artifact wires deterministic test production into evidence routing, preserves correlation/fail-closed semantics, and contains deterministic contract tests. This task does not claim live deployment.',0,0,'llm_artifact',now()),
+  (p_project_key,'evidence_capability','capability_integrate_source_contract_producer_v1',
+   'Integrate source contract producer into evidence pipeline',
+   'Produce the integration source artifact connecting the approved source-contract producer contract to ContentFlow evidence routing. Keep activation/deployment proof as a later validation boundary.',
+   'code',2,'["capability_producer_source_contract_v1"]'::jsonb,'director_buffer:block_b_integration','planned',99,
+   'Integration source artifact wires immutable source-contract verification into evidence routing, preserves fail-closed semantics, and contains deterministic contract tests. This task does not claim live deployment.',0,0,'llm_artifact',now()),
+  (p_project_key,'evidence_capability','capability_integrate_registry_bridge_v1',
+   'Integrate producer registry bridge with all producer families',
+   'Produce the integration source artifact joining the approved registry/bridge with runtime-persistence, runtime-test and source-contract producer interfaces. Keep activation/deployment proof as a later validation boundary.',
+   'architecture',2,'["capability_producer_registry_bridge_v1","capability_producer_runtime_persistence_v1","capability_producer_runtime_test_v1","capability_producer_source_contract_v1"]'::jsonb,'director_buffer:block_b_integration','planned',99,
+   'Integration artifact defines one coherent producer registry, routing precedence, capability state transitions, lane isolation, fail-closed behavior and contract tests. This task does not claim live deployment.',0,0,'llm_artifact',now())
+  on conflict(project_key,task_key) do nothing;
+  get diagnostics v_created_next=row_count;
+
+  begin v_norm:=public.contentflow_normalize_dispatchability(p_project_key); exception when others then v_norm:=coalesce(v_norm,'{}'::jsonb)||jsonb_build_object('post_error',sqlerrm); end;
+  select public.contentflow_dispatchable_count(p_project_key) into v_after;
+  select count(*) into v_prepared from public.contentflow_build_backlog
+    where project_key=p_project_key and team in ('director_buffer:block_a_root','director_buffer:block_b_integration') and status in ('planned','ready','running','blocked','review_required','verification_required');
+  select count(*) into v_next_ready from public.contentflow_build_backlog
+    where project_key=p_project_key and team='director_buffer:block_b_integration' and status='ready';
+
+  insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at)
+  values(p_project_key,'execution_buffer_plan','director_buffer_planner_v2','deterministic_two_block_lookahead',
+         case when v_created_root+v_created_next>0 then 'tasks_created' when v_after>0 then 'buffer_executable' else 'next_block_prepared_waiting_dependencies' end,
+         false,
+         format('target=%s ready_workers=%s dispatchable_before=%s dispatchable_after=%s verifier_only=%s root_created=%s next_created=%s prepared=%s next_ready=%s',v_target,v_ready_workers,v_before,v_after,v_verifier_only,v_created_root,v_created_next,v_prepared,v_next_ready),now());
+
+  return jsonb_build_object(
+    'architecture','DETERMINISTIC_EXECUTION_BUFFER_PLANNER_V2_TWO_BLOCK_LOOKAHEAD',
+    'target',v_target,'ready_workers',v_ready_workers,
+    'dispatchable_before',v_before,'dispatchable_after',v_after,
+    'verifier_only_requirements',v_verifier_only,
+    'root_created',v_created_root,'next_block_created',v_created_next,
+    'prepared_block_tasks',v_prepared,'next_block_ready',v_next_ready,
+    'normalize',v_norm
+  );
+end
+$$;
+
+
+--
 -- Name: contentflow_platform_get_active_evidence(bigint, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2275,6 +2551,32 @@ begin
   v_uri:=format('supabase://contentflow_runtime_evidence_ledger/%s?sha256=%s',v_id,v_hash);
   return v_result||jsonb_build_object('storage_uri',v_uri,'event_type',v_event_type,'evidence_key',v_key,'append_only',true);
 end $$;
+
+
+--
+-- Name: contentflow_precycle_evidence_reconcile(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_precycle_evidence_reconcile(p_project_key text DEFAULT 'contentflow'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_first jsonb:='{}'::jsonb;
+  v_ci jsonb:='{}'::jsonb;
+  v_cap jsonb:='{}'::jsonb;
+  v_accept jsonb:='{}'::jsonb;
+begin
+  if coalesce(auth.role(),'') <> 'service_role' and session_user <> 'postgres' then
+    raise exception 'privileged_channel_required';
+  end if;
+  begin v_first:=public.contentflow_evidence_first_reconcile(p_project_key,100); exception when others then v_first:=jsonb_build_object('error',sqlerrm); end;
+  begin v_ci:=public.contentflow_reconcile_ci_requirement_evidence(p_project_key); exception when others then v_ci:=jsonb_build_object('error',sqlerrm); end;
+  begin v_cap:=public.contentflow_reconcile_evidence_capability_queue(p_project_key); exception when others then v_cap:=jsonb_build_object('error',sqlerrm); end;
+  begin v_accept:=public.contentflow_reconcile_acceptance_evidence_incidents(p_project_key); exception when others then v_accept:=jsonb_build_object('error',sqlerrm); end;
+  return jsonb_build_object('architecture','LEARNED_EVIDENCE_PRE_CYCLE_V1','evidence_first',v_first,'ci_bridge',v_ci,'capability_queue',v_cap,'incident_reconcile',v_accept);
+end;
+$$;
 
 
 --
@@ -2476,7 +2778,13 @@ begin
   select count(*), count(*) filter(where status='failed' or coalesce((post_state->>'active_state_mismatches')::int,0)>0)
     into runs,bad from (select * from public.director_cycle_runs where project_key=p_project_key order by id desc limit greatest(1,p.required_clean_cycles)) x;
   clean:=runs-bad;
-  select count(*) filter(where status='failed'),count(*) into fails,total from public.contentflow_builder_runs where project_key=p_project_key and created_at>now()-interval '60 minutes';
+  select count(*) filter(where r.status='failed'),count(*)
+    into fails,total
+  from public.contentflow_builder_runs r
+  join public.contentflow_build_backlog b on b.id=r.backlog_task_id
+  where r.project_key=p_project_key
+    and r.created_at>now()-interval '60 minutes'
+    and coalesce(b.execution_lane,'llm_artifact')='llm_artifact';
   if total>0 then rate:=fails::numeric/total::numeric; end if;
   if runs<p.required_clean_cycles or bad>0 or rate>p.max_recent_failure_rate then
     return least(prod_max,greatest(1,p.bootstrap_parallelism));
@@ -2493,30 +2801,59 @@ CREATE FUNCTION public.contentflow_reconcile_acceptance_evidence_incidents(p_pro
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare v_resolved int:=0;
+declare
+  v_verified int:=0;
+  v_routed int:=0;
+  v_obsolete_evidence_incidents int:=0;
 begin
+  if coalesce(auth.role(),'') <> 'service_role' and session_user <> 'postgres' then
+    raise exception 'privileged_channel_required';
+  end if;
+
   update public.director_repair_incidents i
-     set status='resolved',
-         resolved_at=coalesce(i.resolved_at,now()),
-         updated_at=now(),
-         requires_human=false,
-         validation='all persisted evidence requirements verified',
-         outcome='resolved_by_evidence_reconciliation',
+     set status='resolved_obsolete',resolved_at=coalesce(i.resolved_at,now()),updated_at=now(),requires_human=false,
+         executed_action='suppressed_recursive_evidence_incident',
+         validation='evidence tasks are handled by the evidence pipeline and must not recursively create acceptance-evidence repair incidents',
+         outcome='resolved_recursive_evidence_incident'
+   where i.project_key=p_project_key and i.error_class='acceptance_evidence' and i.status in ('open','analyzing','needs_help')
+     and i.task_key like 'evidence_%';
+  get diagnostics v_obsolete_evidence_incidents=row_count;
+
+  update public.director_repair_incidents i
+     set status='resolved',resolved_at=coalesce(i.resolved_at,now()),updated_at=now(),requires_human=false,
+         validation='all persisted evidence requirements verified',outcome='resolved_by_evidence_reconciliation',
          executed_action=coalesce(i.executed_action,'evidence requirements reconciled automatically')
-   where i.project_key=p_project_key
-     and i.error_class='acceptance_evidence'
-     and i.status in ('open','analyzing','needs_help')
+   where i.project_key=p_project_key and i.error_class='acceptance_evidence' and i.status in ('open','analyzing','needs_help')
      and exists(
        select 1 from public.contentflow_build_backlog b
-       where b.project_key=i.project_key and b.task_key=i.task_key
-         and b.runtime_verified=true
+       where b.project_key=i.project_key and b.task_key=i.task_key and b.runtime_verified=true
          and exists(select 1 from public.contentflow_evidence_requirements er where er.project_key=b.project_key and er.backlog_task_id=b.id)
          and not exists(select 1 from public.contentflow_evidence_requirements er where er.project_key=b.project_key and er.backlog_task_id=b.id and er.status<>'verified')
      );
-  get diagnostics v_resolved=row_count;
+  get diagnostics v_verified=row_count;
+
+  update public.director_repair_incidents i
+     set status='resolved',resolved_at=coalesce(i.resolved_at,now()),updated_at=now(),requires_human=false,
+         executed_action='routed_to_evidence_pipeline',
+         validation='repair incident resolved by deterministic routing; source task remains blocked until persisted evidence verifies',
+         outcome='resolved_by_evidence_pipeline_routing'
+   where i.project_key=p_project_key and i.error_class='acceptance_evidence' and i.status in ('open','analyzing','needs_help')
+     and exists(
+       select 1 from public.contentflow_build_backlog b
+       join public.contentflow_evidence_requirements er on er.project_key=b.project_key and er.backlog_task_id=b.id and er.status='task_created'
+       join public.contentflow_build_backlog e on e.project_key=er.project_key and e.task_key=er.evidence_task_key
+       where b.project_key=i.project_key and b.task_key=i.task_key
+         and b.status='blocked' and b.completion_phase='waiting_for_evidence'
+         and e.status in ('blocked','ready','deferred','completed') and e.execution_lane='evidence_producer'
+     );
+  get diagnostics v_routed=row_count;
+
   insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at)
-  values(p_project_key,'acceptance_evidence_incident_reconcile','master_director_v3','deterministic_reconcile',case when v_resolved>0 then 'resolved' else 'no_change' end,false,format('resolved_incidents=%s',v_resolved),now());
-  return jsonb_build_object('architecture','ACCEPTANCE_EVIDENCE_RECONCILE_V1','resolved_incidents',v_resolved);
+  values(p_project_key,'acceptance_evidence_incident_reconcile','master_director_v3','deterministic_reconcile',
+         case when v_verified+v_routed+v_obsolete_evidence_incidents>0 then 'resolved' else 'no_change' end,false,
+         format('verified_resolved=%s routed_resolved=%s recursive_suppressed=%s',v_verified,v_routed,v_obsolete_evidence_incidents),now());
+
+  return jsonb_build_object('architecture','ACCEPTANCE_EVIDENCE_RECONCILE_V3','verified_resolved',v_verified,'routed_resolved',v_routed,'recursive_suppressed',v_obsolete_evidence_incidents);
 end
 $$;
 
@@ -2564,7 +2901,7 @@ begin
   update public.contentflow_build_backlog b set status='ready',next_eligible_at=now(),completion_phase='evidence_verified',updated_at=now()
   where b.project_key=p_project_key and b.status='blocked' and b.completion_phase='waiting_for_evidence'
     and not exists(select 1 from public.contentflow_evidence_requirements er where er.backlog_task_id=b.id and er.status<>'verified')
-    and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required') and r.finished_at is null)
+    and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required','verification_required') and r.finished_at is null)
     and not exists(select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value) where not exists(select 1 from public.contentflow_build_backlog dep where dep.project_key=b.project_key and dep.task_key=d.value and dep.status='completed'));
   get diagnostics v_reopened=row_count;
   return jsonb_build_object('architecture','TRUSTED_RUNTIME_EVIDENCE_BRIDGE_V3','requirements_verified',v_verified,'evidence_tasks_completed',v_completed,'originals_reopened',v_reopened);
@@ -2607,6 +2944,29 @@ end; $$;
 
 
 --
+-- Name: contentflow_reconcile_ready_after_evidence(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_reconcile_ready_after_evidence(p_project_key text DEFAULT 'contentflow'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_ready int:=0;
+begin
+  if coalesce(auth.role(),'') <> 'service_role' and session_user <> 'postgres' then raise exception 'privileged_channel_required'; end if;
+  update public.contentflow_build_backlog b
+     set status='ready',next_eligible_at=now(),updated_at=now()
+   where b.project_key=p_project_key and b.status='blocked' and b.completion_phase='evidence_verified'
+     and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required','verification_required') and r.finished_at is null)
+     and not exists(select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
+                    where not exists(select 1 from public.contentflow_build_backlog dep where dep.project_key=b.project_key and dep.task_key=d.value and dep.status='completed'));
+  get diagnostics v_ready=row_count;
+  return jsonb_build_object('architecture','READY_AFTER_EVIDENCE_V1','reopened',v_ready);
+end
+$$;
+
+
+--
 -- Name: contentflow_reconcile_retry_policies(text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2615,15 +2975,23 @@ CREATE FUNCTION public.contentflow_reconcile_retry_policies(p_project_key text D
     SET search_path TO 'public'
     AS $$
 declare x record; n int:=0; scheduled int:=0; blocked int:=0; a jsonb; cleaned int:=0; begin
-  -- Remove retry state derived from a historical failure that has since been superseded.
   with obsolete as (
     select s.backlog_task_id
     from public.contentflow_retry_state s
     join public.contentflow_build_backlog b on b.id=s.backlog_task_id
+    left join public.contentflow_builder_runs lr on lr.id=s.last_run_id
     where s.project_key=p_project_key
       and (
         b.status='completed'
+        or lr.id is null
+        or lr.status not in ('failed','deferred')
         or exists(select 1 from public.contentflow_builder_runs newer where newer.backlog_task_id=s.backlog_task_id and newer.id>s.last_run_id)
+        or (
+          coalesce(b.epic,'')='evidence_capability'
+          and b.status in ('ready','planned')
+          and lr.finished_at is not null
+          and b.updated_at>lr.finished_at
+        )
       )
   )
   delete from public.contentflow_retry_state s using obsolete o where s.backlog_task_id=o.backlog_task_id;
@@ -2638,15 +3006,25 @@ declare x record; n int:=0; scheduled int:=0; blocked int:=0; a jsonb; cleaned i
       and b.status<>'completed'
       and r.status in ('failed','deferred') and r.finished_at is not null
       and s.last_run_id is distinct from r.id
-      and r.id=(select max(z.id) from public.contentflow_builder_runs z where z.backlog_task_id=r.backlog_task_id)
+      and r.id=(select max(z.id) from public.contentflow_builder_runs z where z.backlog_task_id=r.backlog_task_id and z.finished_at is not null)
+      and not exists(
+        select 1 from public.contentflow_builder_runs active
+        where active.backlog_task_id=b.id and active.status in ('claimed','running','review_required','verification_required') and active.finished_at is null
+      )
+      and not (
+        coalesce(b.epic,'')='evidence_capability'
+        and b.status in ('ready','planned')
+        and b.updated_at>r.finished_at
+      )
     order by r.id asc limit greatest(1,least(coalesce(p_limit,100),500))
   loop
     a:=public.contentflow_apply_retry_policy(x.id); n:=n+1;
     if a->>'action'='retry_scheduled' then scheduled:=scheduled+1; elsif a->>'action'='blocked_for_repair' then blocked:=blocked+1; end if;
   end loop;
   update public.contentflow_retry_state set circuit_state='closed',circuit_open_until=null where project_key=p_project_key and circuit_state='cooldown' and next_retry_at<=now();
-  return jsonb_build_object('examined',n,'scheduled',scheduled,'blocked',blocked,'obsolete_cleaned',cleaned);
-end $$;
+  return jsonb_build_object('examined',n,'scheduled',scheduled,'blocked',blocked,'obsolete_cleaned',cleaned,'active_run_protected',true,'bootstrap_repair_protected',true);
+end
+$$;
 
 
 --
@@ -2658,65 +3036,56 @@ CREATE FUNCTION public.contentflow_reconcile_runtime_state(p_project_key text DE
     SET search_path TO 'public'
     AS $$
 declare
-  v_fixed_review integer := 0;
-  v_synced_workers integer := 0;
-  r record;
+  v_review_fixed int:=0;
+  v_verify_fixed int:=0;
+  v_workers_synced int:=0;
+  v_workers_released int:=0;
 begin
-  for r in
-    select b.id as backlog_id,b.task_key,br.id as run_id,br.selected_model,br.quality_score
-    from public.contentflow_build_backlog b
-    join lateral (
-      select x.* from public.contentflow_builder_runs x
-      where x.backlog_task_id=b.id
-      order by x.id desc limit 1
-    ) br on true
-    where b.project_key=p_project_key
-      and b.status='running'
-      and br.status='review_required'
-  loop
-    insert into public.director_repair_incidents(
-      project_key,task_key,component,error_class,error_fingerprint,symptom,evidence,status,
-      risk_level,attempts,max_attempts,diagnosis,root_cause,proposed_action,executed_action,
-      validation,outcome,requires_human,resolved_at,updated_at
-    ) values (
-      p_project_key,r.task_key,'runtime_state','worker_backlog_state_mismatch',
-      'worker_backlog_state_mismatch:'||r.task_key,
-      'backlog marked running while latest builder run is review_required',
-      jsonb_build_object('backlog_status','running','run_id',r.run_id,'run_status','review_required','selected_model',r.selected_model,'quality_score',r.quality_score),
-      'resolved','low',1,3,
-      'State reconciliation detected a review gate represented as active execution',
-      'internal_builder_collect mapped review_required to backlog running',
-      'map review_required backlog state to blocked','reconciled_to_blocked',
-      'backlog no longer reports active execution without a live run','resolved',false,now(),now()
-    )
-    on conflict do nothing;
+  if coalesce(auth.role(),'')<>'service_role' and session_user<>'postgres' then raise exception 'privileged_channel_required'; end if;
 
-    update public.contentflow_build_backlog
-      set status='blocked',updated_at=now()
-      where id=r.backlog_id and status='running';
-    get diagnostics v_synced_workers = row_count;
-    v_fixed_review := v_fixed_review + v_synced_workers;
+  -- Canonical backlog state follows any active post-execution gate.
+  update public.contentflow_build_backlog b
+     set status='blocked',selected_model=null,updated_at=now()
+   where b.project_key=p_project_key and b.status<>'completed'
+     and exists(
+       select 1 from public.contentflow_builder_runs r
+       where r.backlog_task_id=b.id and r.status='review_required' and r.finished_at is null
+     )
+     and b.status<>'blocked';
+  get diagnostics v_review_fixed=row_count;
 
-    if r.selected_model is not null then
-      update public.director_worker_queue
-      set status='ready',current_task_key=null,last_task_key=r.task_key,last_outcome='review_required',
-          last_quality_score=r.quality_score,updated_at=now()
-      where model_id=r.selected_model and current_task_key is not distinct from r.task_key;
-    end if;
-  end loop;
+  update public.contentflow_build_backlog b
+     set status='verification_required',selected_model=null,completion_phase='verification_required',updated_at=now()
+   where b.project_key=p_project_key and b.status<>'completed'
+     and exists(
+       select 1 from public.contentflow_builder_runs r
+       where r.backlog_task_id=b.id and r.status='verification_required' and r.finished_at is null
+     )
+     and b.status<>'verification_required';
+  get diagnostics v_verify_fixed=row_count;
 
+  -- Compute-running runs own workers.
   update public.director_worker_queue q
-  set status='running',current_task_key=br.task_key,updated_at=now()
-  from public.contentflow_builder_runs br
-  where br.project_key=p_project_key
-    and br.status in ('claimed','running')
-    and br.finished_at is null
-    and br.selected_model=q.model_id
-    and (q.status is distinct from 'running' or q.current_task_key is distinct from br.task_key);
-  get diagnostics v_synced_workers = row_count;
+     set status='running',current_task_key=r.task_key,updated_at=now()
+    from public.contentflow_builder_runs r
+   where r.project_key=p_project_key and r.status in ('claimed','running') and r.finished_at is null
+     and r.selected_model=q.model_id
+     and (q.status is distinct from 'running' or q.current_task_key is distinct from r.task_key);
+  get diagnostics v_workers_synced=row_count;
 
-  return jsonb_build_object('fixed_review_required',v_fixed_review,'workers_synced_running',v_synced_workers);
-end;
+  -- Review/verification does not consume a production worker.
+  update public.director_worker_queue q
+     set status='ready',current_task_key=null,updated_at=now()
+   where q.status='running'
+     and not exists(
+       select 1 from public.contentflow_builder_runs r
+       where r.project_key=p_project_key and r.status in ('claimed','running') and r.finished_at is null
+         and r.selected_model=q.model_id and r.task_key=q.current_task_key
+     );
+  get diagnostics v_workers_released=row_count;
+
+  return jsonb_build_object('architecture','CANONICAL_RUNTIME_STATE_V2','review_backlogs_fixed',v_review_fixed,'verification_backlogs_fixed',v_verify_fixed,'workers_synced_running',v_workers_synced,'workers_released',v_workers_released);
+end
 $$;
 
 
@@ -3004,7 +3373,7 @@ begin
 
   select count(*) into v_duplicate_active from (
     select backlog_task_id from public.contentflow_builder_runs
-    where project_key=p_project_key and status in ('claimed','running','review_required') and finished_at is null
+    where project_key=p_project_key and status in ('claimed','running','review_required','verification_required') and finished_at is null
     group by backlog_task_id having count(*)>1
   ) x;
 
@@ -3088,17 +3457,67 @@ end $$;
 
 CREATE FUNCTION public.contentflow_review_gate_reconcile(p_project_key text DEFAULT 'contentflow'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    SET search_path TO 'public', 'net'
     AS $$
-declare v_stalled int:=0;
+declare
+  x record;
+  v_secret text;
+  v_req bigint;
+  v_dispatched int:=0;
+  v_stale_claims int:=0;
 begin
- select count(*) into v_stalled from public.contentflow_builder_runs r join public.contentflow_build_backlog b on b.id=r.backlog_task_id where b.project_key=p_project_key and r.status='review_required' and r.finished_at is null and r.created_at<now()-interval '15 minutes';
- if v_stalled>0 then
-   insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at)
-   values(p_project_key,'review_queue_backlog','director_core','observe_only','attention',false,format('stalled_review_required=%s; RARA owns evidence decision; Director will not auto-reject',v_stalled),now());
- end if;
- return jsonb_build_object('stalled',v_stalled,'requeued',0,'policy','rara_evidence_owner');
-end $$;
+  if coalesce(auth.role(),'') <> 'service_role' then raise exception 'service_role_required'; end if;
+
+  -- Recover stale RARA claims without destroying the already-generated artifact.
+  update public.contentflow_review_work_queue q
+     set state='pending',claim_token=null,claimed_at=null,available_at=now(),last_error='stale_review_claim_recovered',updated_at=now()
+   where q.state='claimed' and q.claimed_at<now()-interval '5 minutes'
+     and exists(select 1 from public.contentflow_builder_runs r where r.id=q.builder_run_id and r.project_key=p_project_key and r.status='review_required');
+  get diagnostics v_stale_claims=row_count;
+
+  select runner_secret into v_secret from public.contentflow_internal_runner_config where id=1;
+  if coalesce(v_secret,'')='' then
+    return jsonb_build_object('architecture','JUDGE_ONLY_RECOVERY_V1','judge_recovery_dispatched',0,'stale_claims_recovered',v_stale_claims,'warning','runner_secret_missing');
+  end if;
+
+  -- A missing/unparseable judge must NEVER cause the worker artifact to be regenerated.
+  -- Re-run only the QA judge over the persisted artifact.
+  for x in
+    select r.id,q.builder_run_id
+    from public.contentflow_builder_runs r
+    join public.contentflow_review_work_queue q on q.builder_run_id=r.id
+    where r.project_key=p_project_key
+      and r.status='review_required'
+      and r.result is not null
+      and length(trim(r.result))>=40
+      and coalesce(r.error,'') ilike '%judge_unavailable_or_unparseable%'
+      and q.state='pending'
+      and q.available_at<=now()
+    order by q.updated_at,r.id
+    limit 4
+    for update of q skip locked
+  loop
+    select net.http_post(
+      url:='https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/contentflow-judge-recovery',
+      headers:=jsonb_build_object('Content-Type','application/json','X-ContentFlow-Internal',v_secret),
+      body:=jsonb_build_object('run_id',x.id),
+      timeout_milliseconds:=120000
+    ) into v_req;
+    update public.contentflow_review_work_queue
+       set available_at=now()+interval '45 seconds',last_error='judge_recovery_dispatched:'||v_req::text,updated_at=now()
+     where builder_run_id=x.id and state='pending';
+    v_dispatched:=v_dispatched+1;
+  end loop;
+
+  if v_dispatched>0 or v_stale_claims>0 then
+    insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at)
+    values(p_project_key,'review_queue_reconcile','rara','judge_only_recovery','recovery_dispatched',false,
+           format('judge_only_recovery=%s stale_claims=%s',v_dispatched,v_stale_claims),now());
+  end if;
+
+  return jsonb_build_object('architecture','JUDGE_ONLY_RECOVERY_V1','judge_recovery_dispatched',v_dispatched,'stale_claims_recovered',v_stale_claims);
+end
+$$;
 
 
 --
@@ -3243,7 +3662,6 @@ CREATE FUNCTION public.contentflow_set_execution_lane() RETURNS trigger
     AS $$
 begin
   if new.execution_lane is null
-     or new.execution_lane='evidence_producer'
      or (tg_op='UPDATE' and (new.task_type,new.description,new.acceptance_criteria) is distinct from (old.task_type,old.description,old.acceptance_criteria)) then
     new.execution_lane:=public.contentflow_classify_execution_lane_fields(new.task_type,new.description,new.acceptance_criteria);
   end if;
@@ -3348,27 +3766,19 @@ CREATE FUNCTION public.contentflow_sync_tool_execution_queue(p_project_key text 
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare
-  n int:=0;
-  reactivated int:=0;
-  quarantined int:=0;
-  recovered_failed int:=0;
+declare n int:=0; reactivated int:=0; quarantined int:=0; recovered_failed int:=0;
 begin
-  -- Tool-executor jobs are evidence PRODUCERS. Requiring evidence preflight before
-  -- they can run creates a circular dependency and permanently starves the lane.
   insert into public.contentflow_tool_execution_queue(project_key,backlog_task_id,task_key,state,updated_at)
   select b.project_key,b.id,b.task_key,'pending',now()
   from public.contentflow_build_backlog b
   where b.project_key=p_project_key
-    and b.execution_lane='tool_executor'
+    and b.execution_lane in ('tool_executor','evidence_producer')
     and b.status in ('blocked','ready')
+    and public.contentflow_tool_execution_capability_ready(p_project_key,b.task_key)
     and (b.next_eligible_at is null or b.next_eligible_at<=now())
     and not exists(
       select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
-      where not exists(
-        select 1 from public.contentflow_build_backlog x
-        where x.project_key=b.project_key and x.task_key=d.value and x.status='completed'
-      )
+      where not exists(select 1 from public.contentflow_build_backlog x where x.project_key=b.project_key and x.task_key=d.value and x.status='completed')
     )
   on conflict(project_key,backlog_task_id) do nothing;
   get diagnostics n=row_count;
@@ -3380,62 +3790,42 @@ begin
      and exists(
        select 1 from public.contentflow_build_backlog b
        where b.id=q.backlog_task_id
-         and b.execution_lane='tool_executor'
+         and b.execution_lane in ('tool_executor','evidence_producer')
          and b.status in ('blocked','ready')
+         and public.contentflow_tool_execution_capability_ready(p_project_key,b.task_key)
          and (b.next_eligible_at is null or b.next_eligible_at<=now())
          and not exists(
            select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
-           where not exists(
-             select 1 from public.contentflow_build_backlog x
-             where x.project_key=b.project_key and x.task_key=d.value and x.status='completed'
-           )
+           where not exists(select 1 from public.contentflow_build_backlog x where x.project_key=b.project_key and x.task_key=d.value and x.status='completed')
          )
      );
   get diagnostics reactivated=row_count;
 
   update public.contentflow_tool_execution_queue q
-     set state='blocked',claim_token=null,claimed_at=null,updated_at=now(),
-         last_error='QUARANTINED_OFF_LANE_STALE_CLAIM'
-   where q.project_key=p_project_key
-     and q.state='claimed'
-     and exists(
-       select 1 from public.contentflow_build_backlog b
-       where b.id=q.backlog_task_id
-         and (b.execution_lane<>'tool_executor' or b.status<>'running')
-     );
+     set state='blocked',claim_token=null,claimed_at=null,updated_at=now(),last_error='QUARANTINED_OFF_LANE_STALE_CLAIM'
+   where q.project_key=p_project_key and q.state='claimed'
+     and exists(select 1 from public.contentflow_build_backlog b where b.id=q.backlog_task_id and (b.execution_lane not in ('tool_executor','evidence_producer') or b.status<>'running'));
   get diagnostics quarantined=row_count;
 
   update public.contentflow_tool_execution_queue q
      set state='blocked',updated_at=now(),last_error='NOT_CURRENTLY_EXECUTABLE'
-   where q.project_key=p_project_key
-     and q.state='pending'
+   where q.project_key=p_project_key and q.state='pending'
      and exists(
        select 1 from public.contentflow_build_backlog b
-       where b.id=q.backlog_task_id
-         and (
-           b.execution_lane<>'tool_executor'
-           or b.status not in ('blocked','ready')
-           or (b.next_eligible_at is not null and b.next_eligible_at>now())
-           or exists(
-             select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
-             where not exists(
-               select 1 from public.contentflow_build_backlog x
-               where x.project_key=b.project_key and x.task_key=d.value and x.status='completed'
-             )
-           )
+       where b.id=q.backlog_task_id and (
+         b.execution_lane not in ('tool_executor','evidence_producer')
+         or b.status not in ('blocked','ready')
+         or not public.contentflow_tool_execution_capability_ready(p_project_key,b.task_key)
+         or (b.next_eligible_at is not null and b.next_eligible_at>now())
+         or exists(
+           select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(value)
+           where not exists(select 1 from public.contentflow_build_backlog x where x.project_key=b.project_key and x.task_key=d.value and x.status='completed')
          )
+       )
      );
 
-  return jsonb_build_object(
-    'synced',n,
-    'reactivated',reactivated,
-    'recovered_failed',recovered_failed,
-    'quarantined_claims',quarantined,
-    'pending',(select count(*) from public.contentflow_tool_execution_queue where project_key=p_project_key and state='pending'),
-    'failed_held',(select count(*) from public.contentflow_tool_execution_queue where project_key=p_project_key and state='failed')
-  );
-end;
-$$;
+  return jsonb_build_object('architecture','DETERMINISTIC_EVIDENCE_QUEUE_V2','synced',n,'reactivated',reactivated,'recovered_failed',recovered_failed,'quarantined_claims',quarantined,'pending',(select count(*) from public.contentflow_tool_execution_queue where project_key=p_project_key and state='pending'),'failed_held',(select count(*) from public.contentflow_tool_execution_queue where project_key=p_project_key and state='failed'));
+end $$;
 
 
 --
@@ -3499,6 +3889,44 @@ end $_$;
 
 
 --
+-- Name: director_recovery_learning_decision(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.director_recovery_learning_decision(p_project_key text, p_fingerprint text) RETURNS TABLE(decision text, repair_id text, authority text, reason text)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with candidate as (
+    select m.*
+    from public.director_recovery_learning_memory m
+    where m.project_key = p_project_key
+      and m.incident_fingerprint = p_fingerprint
+      and m.enabled
+      and m.validation = 'pass'
+      and m.certified_passes >= 1
+    order by m.certified_passes desc, m.reuse_count desc, m.updated_at desc
+    limit 1
+  )
+  select
+    case
+      when c.id is null then 'deny'
+      when c.risk_level = 'low' and c.authority = 'rara_autonomous' then 'admit_canary'
+      when c.risk_level = 'medium' and c.authority = 'canary_then_director' and c.rollback_evidence_id is not null then 'admit_canary'
+      else 'escalate_owner'
+    end,
+    c.repair_id,
+    c.authority,
+    case
+      when c.id is null then 'no_exact_certified_repair'
+      when c.risk_level in ('high','critical') or c.authority = 'owner_required' then 'owner_required_by_authority_envelope'
+      when c.risk_level = 'medium' and c.rollback_evidence_id is null then 'rollback_evidence_required'
+      else 'exact_certified_repair_admitted_for_canary'
+    end
+  from (select 1) seed left join candidate c on true;
+$$;
+
+
+--
 -- Name: enforce_backlog_review_gate(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3512,6 +3940,7 @@ declare
 begin
   if new.status='completed'
      and old.status is distinct from 'completed'
+     and coalesce(new.epic,'')<>'evidence_capability'
      and public.contentflow_requires_runtime_evidence(new.task_type,new.title,new.description,new.acceptance_criteria)
      and not coalesce(new.runtime_verified,false) then
     new.status := 'verification_required';
@@ -3521,6 +3950,11 @@ begin
   end if;
 
   if new.task_type='code' and new.status='completed' and old.status is distinct from 'completed' then
+    if coalesce(new.epic,'')='evidence_capability' then
+      new.completion_phase:='artifact_approved';
+      return new;
+    end if;
+
     select count(distinct lower(e.engine)) into v_browser_passes
     from public.director_external_evidence e
     where e.project_key=new.project_key
@@ -3552,7 +3986,7 @@ begin
     where id=v_run_id;
   end if;
   return new;
-end;
+end
 $$;
 
 
@@ -3739,42 +4173,95 @@ CREATE FUNCTION public.internal_builder_dispatch() RETURNS bigint
     SET search_path TO 'public', 'net'
     AS $$
 declare
- v_task public.contentflow_build_backlog%rowtype; v_run_id bigint; v_secret text; v_req bigint; v_token text:=gen_random_uuid()::text;
+ v_task public.contentflow_build_backlog%rowtype;
+ v_run_id bigint; v_secret text; v_req bigint; v_token text:=gen_random_uuid()::text;
  v_anon text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvcXB5ZnZucHJtaXJxdmlhZnpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0OTg2NDksImV4cCI6MjEwMjA3NDY0OX0.eLlFkA9u_ZxPDXIPAp3tC31RLqGCKqNS7B9kYz7BfbI';
  v_prompt text; v_dep_context text; v_runtime_context text; v_worker text; v_reviewer text;
 begin
- select q.model_id into v_worker from public.director_worker_queue q
- where q.status='ready' and not exists(select 1 from public.contentflow_builder_runs ar where ar.selected_model=q.model_id and ar.status in ('claimed','running') and ar.finished_at is null)
- order by ((q.total_completions+1.0)/(q.total_assignments+2.0)) desc,q.last_quality_score desc nulls last,q.updated_at asc for update skip locked limit 1;
+ select q.model_id into v_worker
+ from public.director_worker_queue q
+ where q.status='ready'
+   and not exists(select 1 from public.contentflow_builder_runs ar where ar.selected_model=q.model_id and ar.status in ('claimed','running') and ar.finished_at is null)
+ order by ((q.total_completions+1.0)/(q.total_assignments+2.0)) desc,q.last_quality_score desc nulls last,q.updated_at asc
+ for update skip locked limit 1;
  if v_worker is null then return null; end if;
- select q.model_id into v_reviewer from public.director_worker_queue q where q.status='ready' and q.model_id<>v_worker order by ((q.total_completions+1.0)/(q.total_assignments+2.0)) desc,q.last_quality_score desc nulls last,q.updated_at asc limit 1;
+
+ select q.model_id into v_reviewer
+ from public.director_worker_queue q
+ where q.status='ready' and q.model_id<>v_worker
+ order by ((q.total_completions+1.0)/(q.total_assignments+2.0)) desc,q.last_quality_score desc nulls last,q.updated_at asc limit 1;
  if v_reviewer is null then return null; end if;
- select b.* into v_task from public.contentflow_build_backlog b where b.project_key='contentflow' and b.status in ('planned','ready')
-  and coalesce(b.execution_lane,'llm_artifact') in ('llm_artifact','evidence_producer')
-  and b.task_key not like 'gap_gap_%'
-  and (b.next_eligible_at is null or b.next_eligible_at<=now())
-  and not exists(select 1 from public.contentflow_retry_state rs where rs.backlog_task_id=b.id and rs.circuit_state='open')
-  and not exists(select 1 from public.contentflow_builder_runs ar where ar.backlog_task_id=b.id and ar.status in ('claimed','running','review_required') and ar.finished_at is null)
-  and not exists(select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) dep(value) where not exists(select 1 from public.contentflow_build_backlog d where d.project_key=b.project_key and d.task_key=dep.value and d.status='completed'))
- order by public.contentflow_dependency_impact_score(b.project_key,b.task_key) desc,b.stage asc,b.priority desc,b.id asc for update skip locked limit 1;
+
+ select b.* into v_task
+ from public.contentflow_build_backlog b
+ where b.project_key='contentflow' and b.status in ('planned','ready')
+   and coalesce(b.execution_lane,'llm_artifact')='llm_artifact'
+   and b.task_key not like 'gap_gap_%'
+   and (b.next_eligible_at is null or b.next_eligible_at<=now())
+   and not exists(select 1 from public.contentflow_retry_state rs where rs.backlog_task_id=b.id and rs.circuit_state='open')
+   and not exists(select 1 from public.contentflow_builder_runs ar where ar.backlog_task_id=b.id and ar.status in ('claimed','running','review_required','verification_required') and ar.finished_at is null)
+   and not exists(
+     select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) dep(value)
+     where not exists(select 1 from public.contentflow_build_backlog d where d.project_key=b.project_key and d.task_key=dep.value and d.status='completed')
+   )
+ order by public.contentflow_dependency_impact_score(b.project_key,b.task_key) desc,b.stage asc,b.priority desc,b.id asc
+ for update skip locked limit 1;
  if not found then return null; end if;
- select string_agg(format('DEPENDENCY: %s | title=%s | status=%s | quality=%s\\nVERIFIED RESULT:\\n%s',d.task_key,coalesce(d.title,''),d.status,coalesce(d.quality_score::text,'0'),left(coalesce(d.result,''),3000)),E'\\n---\\n') into v_dep_context
- from jsonb_array_elements_text(coalesce(v_task.depends_on,'[]'::jsonb)) dep(value) join public.contentflow_build_backlog d on d.project_key=v_task.project_key and d.task_key=dep.value;
+
+ if coalesce(v_task.epic,'')='evidence_capability' then
+   select string_agg(
+     format('DEPENDENCY CONTRACT: %s | title=%s | status=%s | quality=%s | IMPORTANT: dependency execution IDs and literal implementation examples are intentionally NOT injected; implement against the abstract contract only.',d.task_key,coalesce(d.title,''),d.status,coalesce(d.quality_score::text,'0')),
+     E'\n---\n'
+   ) into v_dep_context
+   from jsonb_array_elements_text(coalesce(v_task.depends_on,'[]'::jsonb)) dep(value)
+   join public.contentflow_build_backlog d on d.project_key=v_task.project_key and d.task_key=dep.value;
+ else
+   select string_agg(format('DEPENDENCY: %s | title=%s | status=%s | quality=%s\nVERIFIED RESULT:\n%s',d.task_key,coalesce(d.title,''),d.status,coalesce(d.quality_score::text,'0'),left(coalesce(d.result,''),3000)),E'\n---\n') into v_dep_context
+   from jsonb_array_elements_text(coalesce(v_task.depends_on,'[]'::jsonb)) dep(value)
+   join public.contentflow_build_backlog d on d.project_key=v_task.project_key and d.task_key=dep.value;
+ end if;
+
  if v_task.task_key='autocont_v1_runtime_health' then v_runtime_context:=public.contentflow_runtime_health_snapshot(); else v_runtime_context:='NO_DIRECT_RUNTIME_SNAPSHOT'; end if;
- update public.contentflow_build_backlog set status='running',selected_model=v_worker,team='director-core:'||v_worker||'|review:'||v_reviewer,updated_at=now() where id=v_task.id and status in ('planned','ready');
+
+ update public.contentflow_build_backlog
+ set status='running',selected_model=v_worker,team='director-core:'||v_worker||'|review:'||v_reviewer,updated_at=now()
+ where id=v_task.id and status in ('planned','ready');
  if not found then return null; end if;
+
  select id into v_run_id from public.contentflow_builder_runs where backlog_task_id=v_task.id and status='claimed' order by id desc limit 1;
  if v_run_id is null then raise exception 'builder_run_missing_after_atomic_claim'; end if;
- update public.contentflow_builder_runs set selected_model=v_worker,idempotency_key=coalesce(idempotency_key,'contentflow:'||v_task.task_key||':run:'||v_run_id::text),heartbeat_at=now(),lease_expires_at=now()+interval '3 minutes',lease_token=v_token,lease_generation=lease_generation+1,lease_revoked_at=null,runner_instance_id=null,heartbeat_seq=0,control_protocol='fenced-v2' where id=v_run_id;
+ update public.contentflow_builder_runs
+ set selected_model=v_worker,idempotency_key=coalesce(idempotency_key,'contentflow:'||v_task.task_key||':run:'||v_run_id::text),heartbeat_at=now(),lease_expires_at=now()+interval '3 minutes',lease_token=v_token,lease_generation=lease_generation+1,lease_revoked_at=null,runner_instance_id=null,heartbeat_seq=0,control_protocol='fenced-v2'
+ where id=v_run_id;
  insert into public.contentflow_runtime_event_ledger(builder_run_id,task_key,event_type,idempotency_key,actor,payload)
  select v_run_id,v_task.task_key,'claimed',idempotency_key,'director_core',jsonb_build_object('worker',v_worker,'reviewer',v_reviewer,'lease_generation',lease_generation,'lease_expires_at',lease_expires_at) from public.contentflow_builder_runs where id=v_run_id on conflict do nothing;
  update public.director_worker_queue set status='running',current_task_key=v_task.task_key,last_started_at=now(),total_assignments=total_assignments+1,updated_at=now() where model_id=v_worker and status='ready';
- if not found then update public.contentflow_build_backlog set status='ready',selected_model=null,updated_at=now() where id=v_task.id; update public.contentflow_builder_runs set status='deferred',finished_at=now(),error='worker_claim_race_recovered',lease_revoked_at=now() where id=v_run_id; return null; end if;
- select runner_secret into v_secret from public.contentflow_internal_runner_config where id=1; if v_secret is null then raise exception 'runner_secret_missing'; end if;
- v_prompt:=format('PROYECTO: ContentFlow AI\\nTAREA: %s\\nDESCRIPCION: %s\\nTIPO: %s\\nCRITERIO DE ACEPTACION: %s\\n\\nBUILDER_RUN_ID: %s\\nLa evidencia runtime debe estar persistida por la plataforma y correlacionada con este builder_run_id. No inventes UUIDs o eventos en memoria.\\n\\nEVIDENCIA VERIFICADA DE DEPENDENCIAS:\\n%s\\n\\nSNAPSHOT RUNTIME DETERMINISTA:\\n%s\\n\\nProduce el artefacto minimo verificable usando solo evidencia real. No inventes despliegues, pruebas, credenciales, tablas, policies ni resultados.',v_task.title,coalesce(v_task.description,''),coalesce(v_task.task_type,'general'),coalesce(v_task.acceptance_criteria,''),v_run_id,coalesce(v_dep_context,'NO_DEPENDENCIES'),coalesce(v_runtime_context,'NO_DIRECT_RUNTIME_SNAPSHOT'));
- select net.http_post(url:='https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/contentflow-dispatch-executor-v2',headers:=jsonb_build_object('Authorization','Bearer '||v_anon,'Content-Type','application/json','X-ContentFlow-Internal',v_secret),body:=jsonb_build_object('task_type',coalesce(v_task.task_type,'general'),'task',v_prompt,'model_hint',v_worker,'reviewer_hint',v_reviewer,'claim_task_key',v_task.task_key,'builder_run_id',v_run_id,'lease_token',v_token),timeout_milliseconds:=300000) into v_req;
- insert into public.contentflow_builder_dispatches(request_id,builder_run_id,backlog_task_id) values(v_req,v_run_id,v_task.id); perform net.wake(); return v_req;
-exception when others then if v_worker is not null then update public.director_worker_queue set status='ready',current_task_key=null,updated_at=now() where model_id=v_worker and current_task_key=v_task.task_key; end if; raise;
+ if not found then
+   update public.contentflow_build_backlog set status='ready',selected_model=null,updated_at=now() where id=v_task.id;
+   update public.contentflow_builder_runs set status='deferred',finished_at=now(),error='worker_claim_race_recovered',lease_revoked_at=now() where id=v_run_id;
+   return null;
+ end if;
+ select runner_secret into v_secret from public.contentflow_internal_runner_config where id=1;
+ if v_secret is null then raise exception 'runner_secret_missing'; end if;
+
+ if coalesce(v_task.epic,'')='evidence_capability' then
+   v_prompt:=format('PROYECTO: ContentFlow AI\nTAREA: %s\nDESCRIPCION: %s\nTIPO: %s\nCRITERIO DE ACEPTACION: %s\n\nEXECUTION CORRELATION POLICY: The platform tracks this execution internally. The reusable artifact MUST NOT contain, echo, comment, default, fixture, constant, or hardcode the numeric builder_run_id of this or any previous execution. builder_run_id MUST exist only as a runtime-supplied parameter/input in the reusable contract. Do not infer run IDs from dependency examples.\n\nDEPENDENCIAS VERIFICADAS COMO CONTRATOS:\n%s\n\nProduce el artefacto fuente minimo verificable and reusable. No inventes despliegues, pruebas ejecutadas, credenciales, tablas, policies ni resultados.',v_task.title,coalesce(v_task.description,''),coalesce(v_task.task_type,'general'),coalesce(v_task.acceptance_criteria,''),coalesce(v_dep_context,'NO_DEPENDENCIES'));
+ else
+   v_prompt:=format('PROYECTO: ContentFlow AI\nTAREA: %s\nDESCRIPCION: %s\nTIPO: %s\nCRITERIO DE ACEPTACION: %s\n\nBUILDER_RUN_ID: %s\nLa evidencia runtime debe estar persistida por la plataforma y correlacionada con este builder_run_id. No inventes UUIDs o eventos en memoria.\n\nEVIDENCIA VERIFICADA DE DEPENDENCIAS:\n%s\n\nSNAPSHOT RUNTIME DETERMINISTA:\n%s\n\nProduce el artefacto minimo verificable usando solo evidencia real. No inventes despliegues, pruebas, credenciales, tablas, policies ni resultados.',v_task.title,coalesce(v_task.description,''),coalesce(v_task.task_type,'general'),coalesce(v_task.acceptance_criteria,''),v_run_id,coalesce(v_dep_context,'NO_DEPENDENCIES'),coalesce(v_runtime_context,'NO_DIRECT_RUNTIME_SNAPSHOT'));
+ end if;
+
+ select net.http_post(
+   url:='https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/contentflow-dispatch-executor-v2',
+   headers:=jsonb_build_object('Authorization','Bearer '||v_anon,'Content-Type','application/json','X-ContentFlow-Internal',v_secret),
+   body:=jsonb_build_object('task_type',coalesce(v_task.task_type,'general'),'task',v_prompt,'model_hint',v_worker,'reviewer_hint',v_reviewer,'claim_task_key',v_task.task_key,'builder_run_id',v_run_id,'lease_token',v_token),
+   timeout_milliseconds:=300000
+ ) into v_req;
+ insert into public.contentflow_builder_dispatches(request_id,builder_run_id,backlog_task_id) values(v_req,v_run_id,v_task.id);
+ perform net.wake();
+ return v_req;
+exception when others then
+ if v_worker is not null then update public.director_worker_queue set status='ready',current_task_key=null,updated_at=now() where model_id=v_worker and current_task_key=v_task.task_key; end if;
+ raise;
 end
 $$;
 
@@ -3823,7 +4310,10 @@ CREATE FUNCTION public.log_contentflow_autonomy_backlog() RETURNS trigger
     AS $$
 declare v_mode text; v_started timestamptz; v_problem_id bigint;
 begin
-  v_mode := case when coalesce(new.team,'') ~* '^(ranked|auto):|^ranked-v|^auto:' then 'auto' else 'manual' end;
+  v_mode := case
+    when coalesce(new.team,'') ~* '^(ranked|auto|director-core|adaptive):|^ranked-v' then 'auto'
+    else 'manual'
+  end;
   if new.status='running' and old.status is distinct from 'running' then
     insert into director_autonomy_events(project_key,event_type,task_key,source,assignment_mode,assigned_model,outcome,started_at,required_user_intervention,notes)
     values(new.project_key,'task_assigned',new.task_key,'contentflow_build_backlog',v_mode,new.selected_model,'assigned',now(),false,new.team);
@@ -3841,7 +4331,8 @@ begin
     end if;
   end if;
   return new;
-end $$;
+end
+$$;
 
 
 --
@@ -3935,35 +4426,59 @@ CREATE FUNCTION public.rara_apply_review_decision(p_builder_run_id bigint, p_app
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare r public.contentflow_builder_runs%rowtype; b public.contentflow_build_backlog%rowtype; ev_claimed int; ev_started int; ev_artifact int; ev_judge int; ev_done int; ev_finalized int; judge_pass boolean:=false; done_pass boolean:=false;
+declare
+ r public.contentflow_builder_runs%rowtype;
+ b public.contentflow_build_backlog%rowtype;
+ ev_claimed int; ev_started int; ev_artifact int; ev_judge int; ev_done int;
+ judge_pass boolean:=false; done_pass boolean:=false;
+ deps_complete boolean:=true;
+ reject_status text:='ready';
 begin
  if coalesce(auth.role(),'')<>'service_role' then raise exception 'service_role_required'; end if;
- select * into r from public.contentflow_builder_runs where id=p_builder_run_id for update; if not found then raise exception 'builder_run_not_found'; end if;
+ select * into r from public.contentflow_builder_runs where id=p_builder_run_id for update;
+ if not found then raise exception 'builder_run_not_found'; end if;
  select * into b from public.contentflow_build_backlog where id=r.backlog_task_id for update;
  if r.status<>'review_required' then return jsonb_build_object('ok',false,'reason','not_review_required','run_status',r.status); end if;
+
  select count(*) filter(where event_type='claimed'),
-        count(*) filter(where event_type in ('runner_started','runner_v2_started','runner_v4_started','runner_v5_started')),
+        count(*) filter(where event_type in ('runner_started','runner_v2_started','runner_v4_started','runner_v5_started','runner_v6_dual_key_started')),
         count(*) filter(where event_type='artifact_generated'),
         count(*) filter(where event_type='judge_completed'),
         count(*) filter(where event_type='runner_completed'),
-        count(*) filter(where event_type='owner_finalized'),
         coalesce(bool_or((payload->>'pass')::boolean) filter(where event_type='judge_completed'),false),
         coalesce(bool_or((payload->>'pass')::boolean) filter(where event_type='runner_completed'),false)
- into ev_claimed,ev_started,ev_artifact,ev_judge,ev_done,ev_finalized,judge_pass,done_pass
+ into ev_claimed,ev_started,ev_artifact,ev_judge,ev_done,judge_pass,done_pass
  from public.contentflow_runtime_event_ledger where builder_run_id=p_builder_run_id;
+
+ select not exists(
+   select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) d(dep)
+   where not exists(select 1 from public.contentflow_build_backlog x where x.project_key=b.project_key and x.task_key=d.dep and x.status='completed')
+ ) into deps_complete;
+
  if p_approve then
-   if coalesce(r.quality_score,0)<85 or r.result is null or length(trim(r.result))<40 or ev_claimed=0 or ev_started=0 or ev_artifact=0 or ev_judge=0 or ev_done=0 or ev_finalized=0 or not judge_pass or not done_pass then
-     return jsonb_build_object('ok',false,'reason','deterministic_evidence_gate_failed','quality',r.quality_score,'events',jsonb_build_object('claimed',ev_claimed,'started',ev_started,'artifact',ev_artifact,'judge',ev_judge,'done',ev_done,'owner_finalized',ev_finalized,'judge_pass',judge_pass,'done_pass',done_pass));
+   -- Review approval is a PRE-FINALIZATION gate. owner_finalized must never be a prerequisite here.
+   if coalesce(r.quality_score,0)<85 or r.result is null or length(trim(r.result))<40
+      or ev_claimed=0 or ev_started=0 or ev_artifact=0 or ev_judge=0 or ev_done=0
+      or not judge_pass or not done_pass or not deps_complete then
+     return jsonb_build_object('ok',false,'reason','deterministic_evidence_gate_failed','quality',r.quality_score,
+       'events',jsonb_build_object('claimed',ev_claimed,'started',ev_started,'artifact',ev_artifact,'judge',ev_judge,'done',ev_done,'judge_pass',judge_pass,'done_pass',done_pass),
+       'dependencies_complete',deps_complete);
    end if;
    update public.contentflow_builder_runs set review_approved=true,status='completed',finished_at=coalesce(finished_at,now()),error=null where id=p_builder_run_id;
-   update public.contentflow_build_backlog set status='completed',quality_score=r.quality_score,result=r.result,updated_at=now() where id=b.id;
-   insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at) values(b.project_key,'rara_review_approved','rara','durable_review_queue','completed',false,format('run=%s task=%s reason=%s',p_builder_run_id,b.task_key,left(coalesce(p_reason,''),500)),now());
+   update public.contentflow_build_backlog set status='completed',quality_score=r.quality_score,result=r.result,selected_model=r.selected_model,completion_phase=case when completion_phase in ('designed','review_required') then 'artifact_approved' else completion_phase end,updated_at=now() where id=b.id;
+   insert into public.contentflow_runtime_event_ledger(project_key,builder_run_id,task_key,event_type,idempotency_key,actor,payload,trace_id)
+   values(b.project_key,r.id,b.task_key,'review_approved',coalesce(r.idempotency_key,'run:'||r.id)||':review_approved','rara',jsonb_build_object('quality_score',r.quality_score,'dependencies_complete',deps_complete),r.trace_id)
+   on conflict do nothing;
+   insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at)
+   values(b.project_key,'rara_review_approved','rara','durable_review_queue','completed',false,format('run=%s task=%s reason=%s',p_builder_run_id,b.task_key,left(coalesce(p_reason,''),500)),now());
    return jsonb_build_object('ok',true,'decision','approved','task_key',b.task_key,'run_id',p_builder_run_id);
  else
+   reject_status:=case when deps_complete then 'ready' else 'planned' end;
    update public.contentflow_builder_runs set status='failed',finished_at=now(),review_approved=false,error='RARA_REVIEW_REJECTED: '||left(coalesce(p_reason,'evidence or acceptance criteria insufficient'),1200) where id=p_builder_run_id;
-   update public.contentflow_build_backlog set status='ready',selected_model=null,quality_score=0,result=coalesce(r.result,'')||E'\n[RARA REVIEW FEEDBACK] '||left(coalesce(p_reason,'Evidence or acceptance criteria insufficient.'),2000),updated_at=now() where id=b.id;
-   insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at) values(b.project_key,'rara_review_rejected','rara','durable_review_queue','requeued',false,format('run=%s task=%s reason=%s',p_builder_run_id,b.task_key,left(coalesce(p_reason,''),500)),now());
-   return jsonb_build_object('ok',true,'decision','rejected_requeued','task_key',b.task_key,'run_id',p_builder_run_id);
+   update public.contentflow_build_backlog set status=reject_status,selected_model=null,quality_score=0,result=coalesce(r.result,'')||E'\n[RARA REVIEW FEEDBACK] '||left(coalesce(p_reason,'Evidence or acceptance criteria insufficient.'),2000),updated_at=now() where id=b.id;
+   insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at)
+   values(b.project_key,'rara_review_rejected','rara','durable_review_queue','requeued',false,format('run=%s task=%s state=%s reason=%s',p_builder_run_id,b.task_key,reject_status,left(coalesce(p_reason,''),500)),now());
+   return jsonb_build_object('ok',true,'decision','rejected_requeued','task_key',b.task_key,'run_id',p_builder_run_id,'target_status',reject_status);
  end if;
 end
 $$;
@@ -4158,7 +4673,7 @@ begin
   where b.project_key='contentflow' and b.task_key=p_task_key
     and b.status in ('failed','blocked')
     and exists(select 1 from public.contentflow_builder_runs lr where lr.backlog_task_id=b.id and lr.id=(select max(id) from public.contentflow_builder_runs z where z.backlog_task_id=b.id) and lr.status='failed')
-    and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required'));
+    and not exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=b.id and r.status in ('claimed','running','review_required','verification_required'));
   return found;
 end $$;
 
@@ -8194,6 +8709,56 @@ ALTER TABLE public.director_operating_rules ALTER COLUMN id ADD GENERATED BY DEF
 
 
 --
+-- Name: director_recovery_learning_memory; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.director_recovery_learning_memory (
+    id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    project_key text NOT NULL,
+    incident_fingerprint text NOT NULL,
+    root_cause text NOT NULL,
+    repair_id text NOT NULL,
+    evidence_ids text[] DEFAULT '{}'::text[] NOT NULL,
+    validation text NOT NULL,
+    authority text NOT NULL,
+    risk_level text NOT NULL,
+    rollback_evidence_id text,
+    certified_passes integer DEFAULT 0 NOT NULL,
+    reuse_count integer DEFAULT 0 NOT NULL,
+    last_reused_at timestamp with time zone,
+    enabled boolean DEFAULT true NOT NULL,
+    CONSTRAINT director_recovery_learning_memory_authority_check CHECK ((authority = ANY (ARRAY['rara_autonomous'::text, 'canary_then_director'::text, 'owner_required'::text]))),
+    CONSTRAINT director_recovery_learning_memory_certified_passes_check CHECK ((certified_passes >= 0)),
+    CONSTRAINT director_recovery_learning_memory_reuse_count_check CHECK ((reuse_count >= 0)),
+    CONSTRAINT director_recovery_learning_memory_risk_level_check CHECK ((risk_level = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text]))),
+    CONSTRAINT director_recovery_learning_memory_validation_check CHECK ((validation = ANY (ARRAY['pass'::text, 'fail'::text])))
+);
+
+
+--
+-- Name: TABLE director_recovery_learning_memory; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.director_recovery_learning_memory IS 'Certified recovery memory. Exact fingerprints only; autonomous reuse is canary-scoped and fail-closed.';
+
+
+--
+-- Name: director_recovery_learning_memory_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.director_recovery_learning_memory ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.director_recovery_learning_memory_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: director_repair_actions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -9756,6 +10321,22 @@ ALTER TABLE ONLY public.director_operating_rules
 
 
 --
+-- Name: director_recovery_learning_memory director_recovery_learning_me_project_key_incident_fingerpr_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.director_recovery_learning_memory
+    ADD CONSTRAINT director_recovery_learning_me_project_key_incident_fingerpr_key UNIQUE (project_key, incident_fingerprint, repair_id);
+
+
+--
+-- Name: director_recovery_learning_memory director_recovery_learning_memory_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.director_recovery_learning_memory
+    ADD CONSTRAINT director_recovery_learning_memory_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: director_repair_actions director_repair_actions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10666,6 +11247,13 @@ CREATE UNIQUE INDEX director_help_alerts_unique_open_idx ON public.director_help
 
 
 --
+-- Name: director_recovery_learning_memory_lookup_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX director_recovery_learning_memory_lookup_idx ON public.director_recovery_learning_memory USING btree (project_key, incident_fingerprint) WHERE enabled;
+
+
+--
 -- Name: director_repair_incidents_one_active_fingerprint; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11002,6 +11590,13 @@ CREATE INDEX orchestrator_tasks_user_project_idx ON public.orchestrator_tasks US
 
 
 --
+-- Name: uq_contentflow_evidence_semantic_identity; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_contentflow_evidence_semantic_identity ON public.contentflow_evidence_requirements USING btree (project_key, backlog_task_id, requirement_class) WHERE (status <> 'obsolete'::text);
+
+
+--
 -- Name: ix_realtime_subscription_entity; Type: INDEX; Schema: realtime; Owner: -
 --
 
@@ -11149,6 +11744,20 @@ CREATE TRIGGER trg_contentflow_close_incident_on_evidence_verified AFTER UPDATE 
 
 
 --
+-- Name: contentflow_build_backlog trg_contentflow_dynamic_running_cap; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contentflow_dynamic_running_cap BEFORE UPDATE OF status ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_enforce_dynamic_running_cap();
+
+
+--
+-- Name: contentflow_build_backlog trg_contentflow_enforce_learned_evidence_lane; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contentflow_enforce_learned_evidence_lane BEFORE INSERT OR UPDATE OF execution_lane, epic, description, status ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_enforce_learned_evidence_lane();
+
+
+--
 -- Name: contentflow_builder_runs trg_contentflow_guard_active_run_protocol; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11181,13 +11790,6 @@ CREATE TRIGGER trg_contentflow_guard_dependency_graph BEFORE INSERT OR UPDATE OF
 --
 
 CREATE TRIGGER trg_contentflow_incident_learning AFTER INSERT OR UPDATE OF status, attempts, error_class, error_fingerprint, outcome, executed_action, root_cause ON public.director_repair_incidents FOR EACH ROW EXECUTE FUNCTION public.contentflow_incident_learning_trigger();
-
-
---
--- Name: contentflow_build_backlog trg_contentflow_master_running_cap_2; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER trg_contentflow_master_running_cap_2 BEFORE UPDATE OF status ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_enforce_master_running_cap_2();
 
 
 --
@@ -12809,5 +13411,5 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Pmg3TbHXxmlS2Ma2jY1UoJXX5ZR7EQV5rGJYPncS0Hmz8eX9wXtBEEo2oONpXdu
+\unrestrict GRdZRyC6SfH8AWD8OevEhdXiqK4bnjvQswOGXvl6XI3QdW6Z8ZA5e7kb18OTw2b
 
