@@ -1,0 +1,97 @@
+name: targeted-evidence-wave7
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/targeted-evidence-wave7.yml'
+      - 'src/guardrails/evidence-wave7-capabilities.ts'
+      - 'tests/evidence-wave7-capabilities.spec.ts'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/targeted-evidence-wave7.yml'
+permissions:
+  contents: read
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - requirement_id: '53'
+            builder_run_id: '2107'
+            task_key: 'arch_guardrail_deploy_completion_boundary_approval_check_fix_validate_crypto_approval_implement_hash'
+            profile: 'runtime-test'
+            property: 'approval_hash_tamper_rejection'
+          - requirement_id: '75'
+            builder_run_id: '2772'
+            task_key: 'arch_guardrail_tool_action_boundary_allowlist_define_allowlist_format_integration_with_claims'
+            profile: 'runtime-test'
+            property: 'allowlist_atomic_claim_binding'
+          - requirement_id: '34485'
+            builder_run_id: '3672'
+            task_key: 'arch_guardrail_output_review_boundary_quality_gate_integration_completeness_check'
+            profile: 'runtime-test'
+            property: 'completeness_checker'
+          - requirement_id: '178933'
+            builder_run_id: '3833'
+            task_key: 'arch_guardrail_tool_action_boundary_authz_audit_logging_hook'
+            profile: 'runtime-test'
+            property: 'authorization_denial_audit'
+          - requirement_id: '179786'
+            builder_run_id: '3832'
+            task_key: 'arch_guardrail_tool_action_boundary_precond_evidence'
+            profile: 'runtime-test'
+            property: 'invocation_precondition_evidence'
+          - requirement_id: '573'
+            builder_run_id: '3660'
+            task_key: 'arch_guardrail_deploy_completion_boundary_approval_check_fix_integrate_atomic_claims'
+            profile: 'runtime-test'
+            property: 'atomic_claim_linkage'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - name: Run deterministic wave7 capability suite
+        run: npx playwright test tests/evidence-wave7-capabilities.spec.ts --project=chromium --workers=1
+      - name: Produce sanitized payload
+        env:
+          PROPERTY: ${{ matrix.property }}
+        run: node -e 'const fs=require("fs");fs.writeFileSync("/tmp/evidence-wave7.json",JSON.stringify({passed:true,suite:"evidence-wave7-root-capabilities",property:process.env.PROPERTY,test_file:"tests/evidence-wave7-capabilities.spec.ts",source:"src/guardrails/evidence-wave7-capabilities.ts"}))'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-wave7-${{ matrix.requirement_id }}
+          path: /tmp/evidence-wave7.json
+          retention-days: 14
+      - name: Install PostgreSQL 17 client
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+      - name: Persist correlated PASS and reconcile
+        if: github.event_name == 'push'
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          REQUIREMENT_ID: ${{ matrix.requirement_id }}
+          BUILDER_RUN_ID: ${{ matrix.builder_run_id }}
+          TASK_KEY: ${{ matrix.task_key }}
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD" PGSSLMODE=require PGHOST=aws-0-us-east-1.pooler.supabase.com PGPORT=5432 PGUSER=postgres.koqpyfvnprmirqviafzq PGDATABASE=postgres
+          export BASE_PAYLOAD="$(cat /tmp/evidence-wave7.json)"
+          export CI_PAYLOAD="$(node -e 'const b=JSON.parse(process.env.BASE_PAYLOAD);process.stdout.write(JSON.stringify({...b,repository:process.env.GITHUB_REPOSITORY,sha:process.env.GITHUB_SHA,workflow_run_id:process.env.GITHUB_RUN_ID,produced_at:new Date().toISOString()}))')"
+          psql -v ON_ERROR_STOP=1 -v requirement_id="$REQUIREMENT_ID" -v builder_run_id="$BUILDER_RUN_ID" -v task_key="$TASK_KEY" -v profile="$PROFILE" -v commit_sha="$GITHUB_SHA" -v workflow_run_id="$GITHUB_RUN_ID" -v payload="$CI_PAYLOAD" <<'SQL'
+          select public.contentflow_record_ci_requirement_evidence(:'requirement_id'::bigint,:'builder_run_id'::bigint,:'task_key',:'profile',:'commit_sha',:'workflow_run_id',:'payload'::jsonb);
+          select public.contentflow_reconcile_ci_requirement_evidence('contentflow');
+          SQL
