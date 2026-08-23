@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/daily-recovery-snapshot.yml'
       - '.github/scripts/resolve-recovery-db-password.py'
+      - '.github/scripts/verify-recovery-snapshot.mjs'
   schedule:
     - cron: '15 7 * * *'
 
@@ -105,8 +106,16 @@ jobs:
           grep -q "director_control_policy" "$DIR/runtime-control-data.sql"
           (cd "$DIR" && sha256sum schema.sql public-schema.sql runtime-control-data.sql > SHA256SUMS)
           printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"full_schema_inventory_plus_restorable_public_schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","credential_source":"%s","restore_order":["public-schema.sql","runtime-control-data.sql"],"inventory":"schema.sql","integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" "$(cat /tmp/contentflow-recovery-password-source)" > "$DIR/manifest.json"
+          echo "SNAPSHOT_DIR=$DIR" >> "$GITHUB_ENV"
 
-      - name: Upload recovery artifact before git push
+      - name: Fail closed unless snapshot is rollback-viable and fresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEPLOYMENT_START_UTC=$(date -u +%FT%TZ) MAX_BACKUP_AGE_MINUTES=60 node .github/scripts/verify-recovery-snapshot.mjs "$SNAPSHOT_DIR" | tee "$SNAPSHOT_DIR/recovery-verification.json"
+          node -e "const r=require('fs').readFileSync(process.env.SNAPSHOT_DIR+'/recovery-verification.json','utf8'); if(JSON.parse(r).passed!==true) process.exit(1)"
+
+      - name: Upload verified recovery artifact before git push
         uses: actions/upload-artifact@v4
         with:
           name: contentflow-recovery-${{ github.run_id }}
@@ -114,7 +123,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Commit snapshot without stale-SHA conflicts
+      - name: Commit verified snapshot without stale-SHA conflicts
         shell: bash
         run: |
           set -euo pipefail
@@ -131,5 +140,5 @@ jobs:
             echo "No recovery changes to commit."
             exit 0
           fi
-          git commit -m "backup: daily ContentFlow recovery snapshot $(date -u +%Y-%m-%d)"
+          git commit -m "backup: verified ContentFlow recovery snapshot $(date -u +%Y-%m-%d)"
           git push origin HEAD:main
