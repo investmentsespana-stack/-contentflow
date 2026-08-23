@@ -7,12 +7,25 @@ on:
       - '.github/workflows/targeted-evidence-wave4.yml'
       - 'scripts/full-deployment-secret-scan.mjs'
       - 'scripts/validate-allowlist-schema.mjs'
+      - 'scripts/validate-evidence-schema.mjs'
+      - 'scripts/prepare-input-required-fields-coverage.mjs'
+      - 'schemas/tool_allowlist.v1.schema.json'
+      - 'schemas/evidence/v1.json'
+      - 'src/guardrails/input-secrets-pii.ts'
+      - 'src/guardrails/input-required-fields.ts'
+      - 'src/guardrails/input-unverified-assumptions.ts'
+      - 'src/guardrails/output-claim-verifiability.ts'
+      - 'src/guardrails/project-authorization-policy.ts'
+      - 'src/guardrails/tool-action-authz.ts'
+      - 'src/platform/approval-crypto-validator.ts'
       - 'tests/input-secrets-pii.spec.ts'
       - 'tests/full-deployment-secret-scan.test.mjs'
-      - 'schemas/tool_allowlist.v1.schema.json'
-      - 'src/guardrails/input-secrets-pii.ts'
-      - 'supabase/migrations/20260823033000_ci_runtime_evidence_bridge_v2.sql'
+      - 'tests/input-unverified-assumptions-evidence.spec.ts'
+      - 'tests/project-authorization-resolution-evidence.spec.ts'
+      - 'tests/output-claim-verifiability.spec.ts'
+      - 'tests/approval-crypto-validator.spec.ts'
       - 'tests/ci-runtime-evidence-bridge-v2.test.mjs'
+      - 'supabase/migrations/20260823033000_ci_runtime_evidence_bridge_v2.sql'
   push:
     branches: [main]
     paths:
@@ -28,15 +41,20 @@ concurrency:
 jobs:
   certify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         include:
-          - requirement_id: '79'
-            builder_run_id: '2918'
-            task_key: 'arch_guardrail_input_boundary_secrets_pii_scan_implement_scanner'
-            suite: 'input-secrets-pii'
+          - requirement_id: '58'
+            builder_run_id: '2122'
+            task_key: 'arch_guardrail_input_boundary_required_fields_implement_presence_validator'
+            suite: 'input-required-fields-coverage'
+            profile: 'runtime-test'
+          - requirement_id: '70'
+            builder_run_id: '2675'
+            task_key: 'arch_guardrail_deploy_completion_boundary_approval_check_fix_validate_crypto_approval_define_crypto_'
+            suite: 'approval-crypto-interface'
             profile: 'runtime-test'
           - requirement_id: '74'
             builder_run_id: '2768'
@@ -48,6 +66,36 @@ jobs:
             task_key: 'arch_guardrail_deploy_completion_boundary_secrets_safety_fix_static_analysis_secrets_scan'
             suite: 'full-deployment-secret-scan'
             profile: 'static-analysis'
+          - requirement_id: '79'
+            builder_run_id: '2918'
+            task_key: 'arch_guardrail_input_boundary_secrets_pii_scan_implement_scanner'
+            suite: 'input-secrets-pii'
+            profile: 'runtime-test'
+          - requirement_id: '81'
+            builder_run_id: '2923'
+            task_key: 'arch_guardrail_deploy_completion_boundary_post_deploy_evidence_evidence_schema'
+            suite: 'immutable-evidence-source-contract'
+            profile: 'source-contract'
+          - requirement_id: '86'
+            builder_run_id: '3645'
+            task_key: 'arch_guardrail_tool_action_boundary_authz_audit_logging_hook'
+            suite: 'tool-action-authz-audit'
+            profile: 'runtime-test'
+          - requirement_id: '782'
+            builder_run_id: '3664'
+            task_key: 'arch_guardrail_output_review_boundary_claim_verifiability_check_classify_verifiability'
+            suite: 'output-claim-verifiability'
+            profile: 'runtime-test'
+          - requirement_id: '995'
+            builder_run_id: '3663'
+            task_key: 'arch_guardrail_input_boundary_unverified_assumptions_detect_unverified_assumptions'
+            suite: 'input-unverified-assumptions-20-cases'
+            profile: 'runtime-test'
+          - requirement_id: '34711'
+            builder_run_id: '3676'
+            task_key: 'arch_guardrail_tool_action_boundary_authz_atomic_claims_resolver'
+            suite: 'project-authorization-resolution-5-patterns'
+            profile: 'runtime-test'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,9 +110,15 @@ jobs:
         run: |
           set -euo pipefail
           case "$SUITE" in
-            input-secrets-pii)
-              npx playwright test tests/input-secrets-pii.spec.ts --project=chromium --workers=1
-              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"input-secrets-pii",test_file:"tests/input-secrets-pii.spec.ts"}))' > /tmp/evidence-payload.json
+            input-required-fields-coverage)
+              node scripts/prepare-input-required-fields-coverage.mjs > /tmp/required-fields-prepare.json
+              node --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=95 --test-coverage-functions=95 --test .tmp-evidence/input-required-fields.test.mjs | tee /tmp/required-fields-coverage.txt
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"input-required-fields-coverage",source:"src/guardrails/input-required-fields.ts",coverageThresholds:{lines:95,branches:95,functions:95},cases:["missing","null","undefined","complete","assert_reject","assert_allow"]}))' > /tmp/evidence-payload.json
+              ;;
+            approval-crypto-interface)
+              npm run typecheck:approval-crypto
+              npx playwright test tests/approval-crypto-validator.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"approval-crypto-interface",typecheck:"typecheck:approval-crypto",test_file:"tests/approval-crypto-validator.spec.ts",scope:"typed fail-closed interface stub only; does not claim real PKI validation"}))' > /tmp/evidence-payload.json
               ;;
             allowlist-source-contract)
               node scripts/validate-allowlist-schema.mjs > /tmp/allowlist-schema-report.json
@@ -76,11 +130,36 @@ jobs:
               node scripts/full-deployment-secret-scan.mjs > /tmp/full-secret-scan-report.json
               code=$?
               set -e
-              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/full-secret-scan-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"full-deployment-secret-scan",roots:report.roots,scannedFileCount:report.scannedFileCount,findings:report.findings,secretValuesExposed:report.secretValuesExposed}))' > /tmp/evidence-payload.json
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/full-secret-scan-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"full-deployment-secret-scan",roots:report.roots,excludedDirectories:report.excludedDirectories,scannedFileCount:report.scannedFileCount,findings:report.findings,secretValuesExposed:report.secretValuesExposed}))' > /tmp/evidence-payload.json
               test "$code" -eq 0
+              ;;
+            input-secrets-pii)
+              npx playwright test tests/input-secrets-pii.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"input-secrets-pii",test_file:"tests/input-secrets-pii.spec.ts",properties:["secret_detection","pii_detection","redaction","clean_input","deterministic_classification"]}))' > /tmp/evidence-payload.json
+              ;;
+            immutable-evidence-source-contract)
+              node scripts/validate-evidence-schema.mjs > /tmp/evidence-schema-report.json
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("/tmp/evidence-schema-report.json","utf8"));process.stdout.write(JSON.stringify({passed:report.passed,suite:"immutable-evidence-source-contract",artifact:report.path,checks:report.checks}))' > /tmp/evidence-payload.json
+              ;;
+            tool-action-authz-audit)
+              npx playwright test tests/tool-action-authz.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"tool-action-authz-audit",test_file:"tests/tool-action-authz.spec.ts",properties:["deny_before_execution","denial_callback","missing_claims","expired_claims","explicit_allow"]}))' > /tmp/evidence-payload.json
+              ;;
+            output-claim-verifiability)
+              npx playwright test tests/output-claim-verifiability.spec.ts --project=chromium --workers=1
+              node -e 'process.stdout.write(JSON.stringify({passed:true,suite:"output-claim-verifiability",test_file:"tests/output-claim-verifiability.spec.ts",properties:["unsupported_fact_rejected","ungrounded_inference_rejected","stable_id_required","deterministic_refs_allowed"]}))' > /tmp/evidence-payload.json
+              ;;
+            input-unverified-assumptions-20-cases)
+              npx playwright test tests/input-unverified-assumptions-evidence.spec.ts --project=chromium --workers=1
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("certification-evidence/input-unverified-assumptions-evidence.json","utf8"));process.stdout.write(JSON.stringify({passed:report.falseNegatives===0,suite:"input-unverified-assumptions-20-cases",caseCount:report.caseCount,falseNegatives:report.falseNegatives,falseNegativeRate:report.falseNegativeRate,artifact:"certification-evidence/input-unverified-assumptions-evidence.json"}))' > /tmp/evidence-payload.json
+              ;;
+            project-authorization-resolution-5-patterns)
+              npx playwright test tests/project-authorization-resolution-evidence.spec.ts --project=chromium --workers=1
+              node -e 'const fs=require("fs");const report=JSON.parse(fs.readFileSync("certification-evidence/project-authorization-resolution-evidence.json","utf8"));process.stdout.write(JSON.stringify({passed:report.caseCount===5,suite:"project-authorization-resolution-5-patterns",caseCount:report.caseCount,artifact:"certification-evidence/project-authorization-resolution-evidence.json"}))' > /tmp/evidence-payload.json
               ;;
             *) echo 'unsupported suite' >&2; exit 64 ;;
           esac
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("/tmp/evidence-payload.json","utf8"));if(p.passed!==true)process.exit(2)'
 
       - name: Upload sanitized producer report
         if: always()
@@ -91,6 +170,10 @@ jobs:
             /tmp/evidence-payload.json
             /tmp/allowlist-schema-report.json
             /tmp/full-secret-scan-report.json
+            /tmp/evidence-schema-report.json
+            /tmp/required-fields-coverage.txt
+            certification-evidence/input-unverified-assumptions-evidence.json
+            certification-evidence/project-authorization-resolution-evidence.json
           if-no-files-found: ignore
           retention-days: 14
 
