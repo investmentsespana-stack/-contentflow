@@ -1,0 +1,1 @@
+Recovery snapshot contract rebased onto current main to preserve the restorable public-schema artifact while enforcing fail-closed freshness, integrity, project identity, and restore-order verification before publication.
