@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "mode": "fail-closed",
+  "stages": ["canary", "limited", "expanded"],
+  "promotion_requires": [
+    "certified_recovery_fingerprint",
+    "trust_chain_admission_pass",
+    "correlated_evidence_ids",
+    "minimum_successful_executions",
+    "zero_unresolved_failures",
+    "rollback_available",
+    "post_repair_validation_pass",
+    "fencing_token",
+    "idempotency_key"
+  ],
+  "rules": {
+    "skip_stage": "deny",
+    "missing_evidence": "deny",
+    "unknown_fingerprint": "deny",
+    "failed_validation": "demote",
+    "recurrent_incident": "demote",
+    "critical_or_external_effect": "owner_required",
+    "automatic_global_promotion": false
+  },
+  "ledger_entry_requires": [
+    "incident_fingerprint",
+    "recovery_action_id",
+    "from_stage",
+    "to_stage",
+    "successful_executions",
+    "evidence_ids",
+    "rollback_id",
+    "validation_id",
+    "decision_reason",
+    "decided_at"
+  ]
+}
