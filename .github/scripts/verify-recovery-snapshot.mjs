@@ -11,6 +11,7 @@ export function verifyRecoverySnapshot({
   const manifestPath = join(dir, 'manifest.json');
   const sumsPath = join(dir, 'SHA256SUMS');
   const requiredControlFiles = ['schema.sql', 'public-schema.sql', 'runtime-control-data.sql'];
+  const checksumFiles = [...requiredControlFiles, 'manifest.json'];
   const requiredPaths = [manifestPath, sumsPath, ...requiredControlFiles.map((f) => join(dir, f))];
 
   const pathChecks = requiredPaths.map((path) => ({ path, exists: existsSync(path) }));
@@ -25,9 +26,18 @@ export function verifyRecoverySnapshot({
   if (manifest.integrity !== 'SHA256SUMS') {
     return { passed: false, reason: 'integrity_contract_missing', pathChecks };
   }
-  const expectedRestoreOrder = ['public-schema.sql', 'runtime-control-data.sql'];
+  const expectedRestoreOrder = ['public-schema.sql', 'runtime-control-data.sql', 'supabase/migrations after repo_migration_cutoff'];
   if (JSON.stringify(manifest.restore_order) !== JSON.stringify(expectedRestoreOrder)) {
     return { passed: false, reason: 'restore_order_invalid', pathChecks };
+  }
+  if (manifest.migration_replay_contract !== 'REPLAY_SUPABASE_MIGRATIONS_AFTER_CUTOFF_V1') {
+    return { passed: false, reason: 'migration_replay_contract_missing', pathChecks };
+  }
+  if (typeof manifest.repo_migration_cutoff !== 'string' || !/^\d{14}_.+\.sql$/.test(manifest.repo_migration_cutoff)) {
+    return { passed: false, reason: 'repo_migration_cutoff_invalid', pathChecks };
+  }
+  if (typeof manifest.database_migration_head !== 'string' || !/^\d{14}$/.test(manifest.database_migration_head)) {
+    return { passed: false, reason: 'database_migration_head_invalid', pathChecks };
   }
 
   const sumLines = readFileSync(sumsPath, 'utf8').trim().split(/\r?\n/).filter(Boolean);
@@ -37,7 +47,7 @@ export function verifyRecoverySnapshot({
     return [basename(match[2]), match[1].toLowerCase()];
   }));
 
-  const checksumChecks = requiredControlFiles.map((file) => {
+  const checksumChecks = checksumFiles.map((file) => {
     const path = join(dir, file);
     const actual = createHash('sha256').update(readFileSync(path)).digest('hex');
     return { file, expected: expected.get(file) ?? null, actual, matches: expected.get(file) === actual };
@@ -58,17 +68,21 @@ export function verifyRecoverySnapshot({
 
   return {
     passed: true,
-    architecture: 'RECOVERY_SNAPSHOT_CONTRACT_V1',
+    architecture: 'RECOVERY_SNAPSHOT_MIGRATION_REPLAY_CONTRACT_V2',
     projectRef,
     requiredPaths: requiredPaths.map((p) => p),
     pathChecks,
     checksumChecks: checksumChecks.map(({ file, matches }) => ({ file, matches })),
     restoreOrder: manifest.restore_order,
+    repoMigrationCutoff: manifest.repo_migration_cutoff,
+    databaseMigrationHead: manifest.database_migration_head,
+    migrationReplayContract: manifest.migration_replay_contract,
     createdAtUtc: createdAt.toISOString(),
     deploymentStartUtc: deploymentStart.toISOString(),
     ageMinutes,
     maxAgeMinutes,
     rollbackPlanViable: true,
+    deterministicReplayViable: true,
   };
 }
 
