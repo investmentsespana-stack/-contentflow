@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "mode": "fail-closed",
+  "capabilities": [
+    {"id":"evidence.verify","owner":"evidence-layer","authority":"autonomous","risk":"low","requires_evidence":true},
+    {"id":"incident.diagnose","owner":"rara","authority":"autonomous","risk":"low","requires_evidence":true},
+    {"id":"recovery.known_safe","owner":"rara","authority":"canary_only","risk":"medium","requires_evidence":true,"requires_rollback":true},
+    {"id":"recovery.unknown","owner":"director","authority":"owner_required","risk":"high","requires_evidence":true,"requires_rollback":true},
+    {"id":"external.side_effect","owner":"director","authority":"owner_required","risk":"critical","requires_evidence":true}
+  ]
+}
