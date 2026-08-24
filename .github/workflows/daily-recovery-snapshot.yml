@@ -9,6 +9,7 @@ on:
       - '.github/scripts/resolve-recovery-db-password.py'
       - '.github/scripts/verify-recovery-snapshot.mjs'
       - '.github/scripts/restore-recovery-with-migration-replay.sh'
+      - '.github/scripts/verify-migration-lineage.sh'
       - 'supabase/migrations/**'
   schedule:
     - cron: '15 7 * * *'
@@ -73,6 +74,14 @@ jobs:
           psql -h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres -Atqc 'select 1' >/dev/null
           echo 'Session Pooler authentication verified with opaque PGPASSWORD.'
 
+      - name: Fail closed on unversioned production migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
+          export PGSSLMODE=require
+          bash .github/scripts/verify-migration-lineage.sh -h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres
+
       - name: Create dated recovery snapshot
         shell: bash
         run: |
@@ -89,9 +98,7 @@ jobs:
           DATABASE_MIGRATION_HEAD=$(psql "${DB_ARGS[@]}" -Atqc "select coalesce(max(version::text),'') from supabase_migrations.schema_migrations")
           [[ "$DATABASE_MIGRATION_HEAD" =~ ^[0-9]{14}$ ]]
 
-          # Full schema is retained for forensic/inventory purposes.
           pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file "$DIR/schema.sql"
-          # public-schema.sql is the cold-restore artifact for a fresh Supabase project.
           pg_dump "${DB_ARGS[@]}" --schema-only --schema=public --no-owner --no-privileges --file "$DIR/public-schema.sql"
           pg_dump "${DB_ARGS[@]}" --data-only --column-inserts --no-owner --no-privileges \
             --table=public.director_control_policy \
@@ -130,7 +137,8 @@ jobs:
             repo_migration_cutoff: process.env.REPO_MIGRATION_CUTOFF,
             database_migration_head: process.env.DATABASE_MIGRATION_HEAD,
             migration_replay_contract: 'REPLAY_SUPABASE_MIGRATIONS_AFTER_CUTOFF_V1',
-            parity_contract: 'CANONICAL_PUBLIC_SCHEMA_DUMP_SHA256_V1'
+            parity_contract: 'CANONICAL_PUBLIC_SCHEMA_DUMP_SHA256_V1',
+            migration_lineage_gate: 'FAIL_CLOSED_ON_UNVERSIONED_PRODUCTION_MIGRATIONS_V1'
           };
           process.stdout.write(JSON.stringify(m) + '\n');
           NODE
