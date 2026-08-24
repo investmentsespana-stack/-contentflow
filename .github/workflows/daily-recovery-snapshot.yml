@@ -8,6 +8,8 @@ on:
       - '.github/workflows/daily-recovery-snapshot.yml'
       - '.github/scripts/resolve-recovery-db-password.py'
       - '.github/scripts/verify-recovery-snapshot.mjs'
+      - '.github/scripts/restore-recovery-with-migration-replay.sh'
+      - 'supabase/migrations/**'
   schedule:
     - cron: '15 7 * * *'
 
@@ -82,6 +84,11 @@ jobs:
           DIR="backups/${DAY}"
           mkdir -p "$DIR"
 
+          REPO_MIGRATION_CUTOFF=$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | LC_ALL=C sort | tail -n 1)
+          test -n "$REPO_MIGRATION_CUTOFF"
+          DATABASE_MIGRATION_HEAD=$(psql "${DB_ARGS[@]}" -Atqc "select coalesce(max(version::text),'') from supabase_migrations.schema_migrations")
+          [[ "$DATABASE_MIGRATION_HEAD" =~ ^[0-9]{14}$ ]]
+
           # Full schema is retained for forensic/inventory purposes.
           pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file "$DIR/schema.sql"
           # public-schema.sql is the cold-restore artifact for a fresh Supabase project.
@@ -104,11 +111,34 @@ jobs:
           grep -q "CREATE TABLE" "$DIR/schema.sql"
           grep -q "CREATE TABLE public\." "$DIR/public-schema.sql"
           grep -q "director_control_policy" "$DIR/runtime-control-data.sql"
-          (cd "$DIR" && sha256sum schema.sql public-schema.sql runtime-control-data.sql > SHA256SUMS)
-          printf '{"project_ref":"koqpyfvnprmirqviafzq","created_at_utc":"%s","scope":"full_schema_inventory_plus_restorable_public_schema_plus_nonsecret_runtime_control","connection_mode":"supavisor_session_pgpassword","credential_source":"%s","restore_order":["public-schema.sql","runtime-control-data.sql"],"inventory":"schema.sql","integrity":"SHA256SUMS"}\n' "$(date -u +%FT%TZ)" "$(cat /tmp/contentflow-recovery-password-source)" > "$DIR/manifest.json"
+
+          PROJECT_REF=koqpyfvnprmirqviafzq \
+          CREATED_AT_UTC="$(date -u +%FT%TZ)" \
+          CREDENTIAL_SOURCE="$(cat /tmp/contentflow-recovery-password-source)" \
+          REPO_MIGRATION_CUTOFF="$REPO_MIGRATION_CUTOFF" \
+          DATABASE_MIGRATION_HEAD="$DATABASE_MIGRATION_HEAD" \
+          node - <<'NODE' > "$DIR/manifest.json"
+          const m = {
+            project_ref: process.env.PROJECT_REF,
+            created_at_utc: process.env.CREATED_AT_UTC,
+            scope: 'full_schema_inventory_plus_restorable_public_schema_plus_nonsecret_runtime_control_plus_post_snapshot_migration_replay',
+            connection_mode: 'supavisor_session_pgpassword',
+            credential_source: process.env.CREDENTIAL_SOURCE,
+            restore_order: ['public-schema.sql', 'runtime-control-data.sql', 'supabase/migrations after repo_migration_cutoff'],
+            inventory: 'schema.sql',
+            integrity: 'SHA256SUMS',
+            repo_migration_cutoff: process.env.REPO_MIGRATION_CUTOFF,
+            database_migration_head: process.env.DATABASE_MIGRATION_HEAD,
+            migration_replay_contract: 'REPLAY_SUPABASE_MIGRATIONS_AFTER_CUTOFF_V1',
+            parity_contract: 'CANONICAL_PUBLIC_SCHEMA_DUMP_SHA256_V1'
+          };
+          process.stdout.write(JSON.stringify(m) + '\n');
+          NODE
+
+          (cd "$DIR" && sha256sum schema.sql public-schema.sql runtime-control-data.sql manifest.json > SHA256SUMS)
           echo "SNAPSHOT_DIR=$DIR" >> "$GITHUB_ENV"
 
-      - name: Fail closed unless snapshot is rollback-viable and fresh
+      - name: Fail closed unless snapshot and migration replay are viable and fresh
         shell: bash
         run: |
           set -euo pipefail
