@@ -1,0 +1,29 @@
+name: Hyperstack Avatar GPU One-Shot Trigger
+
+on:
+  push:
+    paths:
+      - .github/workflows/hyperstack-avatar-gpu-one-shot-trigger.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch paid restore/probe/hibernate run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$REPO/actions/workflows/hyperstack-avatar-gpu-bridge.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"mode":"restore_probe_hibernate","vm_id":"997313","ssh_user":"ubuntu"}}'
+          echo "Dispatched Hyperstack restore_probe_hibernate for VM 997313."
