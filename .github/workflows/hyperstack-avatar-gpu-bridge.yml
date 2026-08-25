@@ -1,0 +1,248 @@
+name: Hyperstack Avatar GPU Bridge
+
+on:
+  push:
+    paths:
+      - .github/workflows/hyperstack-avatar-gpu-bridge.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Operation mode
+        required: true
+        type: choice
+        default: inspect
+        options:
+          - inspect
+          - restore_probe_hibernate
+      vm_id:
+        description: Hyperstack VM ID
+        required: true
+        default: "997313"
+      ssh_user:
+        description: SSH user for the VM image
+        required: true
+        default: ubuntu
+  repository_dispatch:
+    types: [avatar-hyperstack-gpu]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hyperstack-avatar-gpu-${{ github.event.inputs.vm_id || github.event.client_payload.vm_id || '997313' }}
+  cancel-in-progress: false
+
+env:
+  HYPERSTACK_BASE_URL: https://infrahub-api.nexgencloud.com/v1
+  VM_ID: ${{ github.event.inputs.vm_id || github.event.client_payload.vm_id || '997313' }}
+  MODE: ${{ github.event.inputs.mode || github.event.client_payload.mode || 'inspect' }}
+  SSH_USER: ${{ github.event.inputs.ssh_user || github.event.client_payload.ssh_user || 'ubuntu' }}
+
+jobs:
+  bridge:
+    name: Hyperstack lifecycle bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        env:
+          API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          SSH_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$API_KEY" || { echo "HYPERSTACK_API_KEY is missing"; exit 1; }
+          if [[ "$MODE" == "restore_probe_hibernate" ]]; then
+            test -n "$SSH_KEY" || { echo "HYPERSTACK_SSH_PRIVATE_KEY is missing"; exit 1; }
+          fi
+          case "$MODE" in
+            inspect|restore_probe_hibernate) ;;
+            *) echo "Unsupported MODE=$MODE"; exit 2 ;;
+          esac
+
+      - name: Inspect VM without changing state
+        shell: bash
+        env:
+          API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          curl -fsS \
+            "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID" \
+            -H "api_key: $API_KEY" \
+            -H "accept: application/json" \
+            > evidence/vm-before.json
+          jq '{id:.instance.id,name:.instance.name,status:.instance.status,floating_ip:.instance.floating_ip,power_state:.instance.power_state,vm_state:.instance.vm_state,flavor:(.instance.flavor.name // null),gpu:(.instance.flavor.gpu // null),gpu_count:(.instance.flavor.gpu_count // null)}' evidence/vm-before.json
+          echo "### Hyperstack preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "- VM ID: $VM_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Mode: $MODE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Initial status: $(jq -r '.instance.status // "UNKNOWN"' evidence/vm-before.json)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore, probe GPU, and always hibernate
+        if: env.MODE == 'restore_probe_hibernate'
+        shell: bash
+        env:
+          API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p evidence ~/.ssh
+          KEY_FILE="$HOME/.ssh/hyperstack_avatar"
+          printf '%s' "$SSH_PRIVATE_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          NEED_HIBERNATE=0
+          hibernate_and_wait() {
+            set +e
+            echo "Requesting hibernation fail-safe for VM $VM_ID"
+            curl -fsS \
+              "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID/hibernate?retain_ip=false" \
+              -H "api_key: $API_KEY" \
+              -H "accept: application/json" \
+              > evidence/hibernate-request.json
+
+            for i in $(seq 1 210); do
+              curl -fsS \
+                "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID" \
+                -H "api_key: $API_KEY" \
+                -H "accept: application/json" \
+                > evidence/vm-hibernate-poll.json || true
+              STATUS=$(jq -r '.instance.status // "UNKNOWN"' evidence/vm-hibernate-poll.json 2>/dev/null)
+              echo "Hibernate poll $i: $STATUS"
+              if [[ "$STATUS" == "HIBERNATED" ]]; then
+                cp evidence/vm-hibernate-poll.json evidence/vm-after.json
+                echo "- Final status: HIBERNATED" >> "$GITHUB_STEP_SUMMARY"
+                return 0
+              fi
+              sleep 10
+            done
+            echo "ERROR: VM did not reach HIBERNATED within 35 minutes" >&2
+            return 1
+          }
+
+          cleanup() {
+            rc=$?
+            if [[ "$NEED_HIBERNATE" == "1" ]]; then
+              hibernate_and_wait || true
+            fi
+            exit "$rc"
+          }
+          trap cleanup EXIT
+
+          INITIAL_STATUS=$(jq -r '.instance.status // "UNKNOWN"' evidence/vm-before.json)
+          if [[ "$INITIAL_STATUS" != "HIBERNATED" ]]; then
+            echo "Refusing paid restore mode because VM is not HIBERNATED (status=$INITIAL_STATUS)." >&2
+            echo "This guard prevents accidentally extending an already-active paid session." >&2
+            exit 3
+          fi
+
+          echo "Restoring VM $VM_ID"
+          curl -fsS \
+            "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID/hibernate-restore" \
+            -H "api_key: $API_KEY" \
+            -H "accept: application/json" \
+            > evidence/restore-request.json
+          NEED_HIBERNATE=1
+
+          PUBLIC_IP=""
+          ACTIVE_AT=""
+          for i in $(seq 1 120); do
+            curl -fsS \
+              "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID" \
+              -H "api_key: $API_KEY" \
+              -H "accept: application/json" \
+              > evidence/vm-active-poll.json
+            STATUS=$(jq -r '.instance.status // "UNKNOWN"' evidence/vm-active-poll.json)
+            PUBLIC_IP=$(jq -r '.instance.floating_ip // empty' evidence/vm-active-poll.json)
+            echo "Restore poll $i: status=$STATUS ip=${PUBLIC_IP:-pending}"
+            if [[ "$STATUS" == "ACTIVE" && -n "$PUBLIC_IP" ]]; then
+              ACTIVE_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+              cp evidence/vm-active-poll.json evidence/vm-active.json
+              break
+            fi
+            sleep 10
+          done
+
+          test -n "$PUBLIC_IP" || { echo "VM never became ACTIVE with a public IP" >&2; exit 4; }
+          echo "- Active at: $ACTIVE_AT" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dynamic public IP discovered by API: yes" >> "$GITHUB_STEP_SUMMARY"
+
+          # Cost fail-safe: do not keep the paid ACTIVE state around while retrying indefinitely.
+          # SSH receives a short bounded retry window; cleanup hibernates on any failure.
+          SSH_OK=0
+          for i in $(seq 1 18); do
+            if ssh -i "$KEY_FILE" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=8 \
+              -o StrictHostKeyChecking=accept-new \
+              "$SSH_USER@$PUBLIC_IP" 'echo hyperstack-ssh-ok' > evidence/ssh-probe.txt 2>&1; then
+              SSH_OK=1
+              break
+            fi
+            echo "SSH probe $i not ready"
+            sleep 10
+          done
+          test "$SSH_OK" == "1" || { echo "SSH did not become ready within 3 minutes" >&2; exit 5; }
+
+          ssh -i "$KEY_FILE" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            -o StrictHostKeyChecking=accept-new \
+            "$SSH_USER@$PUBLIC_IP" \
+            'set -e; echo "=== NVIDIA GPU ==="; nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader; echo "=== NVIDIA SMI ==="; nvidia-smi; echo "=== CUDA ==="; nvcc --version || true; echo "=== PYTORCH ==="; python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"NO_GPU\")" 2>/dev/null || echo "PyTorch probe unavailable"' \
+            | tee evidence/gpu-probe.txt
+
+          echo "- SSH probe: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GPU probe: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+          # Explicitly hibernate now; disable EXIT duplicate only after verified completion.
+          hibernate_and_wait
+          NEED_HIBERNATE=0
+          trap - EXIT
+
+      - name: Build sanitized evidence summary
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          mkdir -p evidence
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          def load(name):
+              p = Path('evidence') / name
+              if not p.exists():
+                  return None
+              try:
+                  return json.loads(p.read_text())
+              except Exception:
+                  return None
+
+          before = load('vm-before.json') or {}
+          after = load('vm-after.json') or {}
+          bi = before.get('instance') or {}
+          ai = after.get('instance') or {}
+          out = {
+              'vm_id': os.environ.get('VM_ID'),
+              'mode': os.environ.get('MODE'),
+              'initial_status': bi.get('status'),
+              'initial_floating_ip_present': bool(bi.get('floating_ip')),
+              'final_status': ai.get('status'),
+              'final_floating_ip_present': bool(ai.get('floating_ip')),
+              'gpu_probe_present': Path('evidence/gpu-probe.txt').exists(),
+              'ssh_probe_present': Path('evidence/ssh-probe.txt').exists(),
+          }
+          Path('evidence/summary.json').write_text(json.dumps(out, indent=2) + '\n')
+          print(json.dumps(out, indent=2))
+          PY
+
+      - name: Upload lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperstack-avatar-gpu-evidence-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 14
