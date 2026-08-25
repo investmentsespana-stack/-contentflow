@@ -1,9 +1,8 @@
 name: Hyperstack Avatar Replacement Tonight
 
+# COST GUARDRAIL: paid GPU workflows MUST NOT run on repository push.
+# Director/RARA may invoke this workflow only through an explicit dispatch decision.
 on:
-  push:
-    paths:
-      - .github/workflows/hyperstack-avatar-replacement-tonight.yml
   workflow_dispatch:
 
 permissions:
@@ -13,12 +12,27 @@ env:
   HYPERSTACK_BASE_URL: https://infrahub-api.nexgencloud.com/v1
   SOURCE_VM_ID: "997313"
   SSH_USER: ubuntu
+  # Permanent learned failure signature. Never restore this VM automatically again.
+  KNOWN_BAD_RESTORE_VM_IDS: "997313"
+  INFRA_ACTIVE_WITHOUT_IP_MAX_SECONDS: "180"
+  SSH_READY_MAX_SECONDS: "180"
 
 jobs:
   replace:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
+      - name: Enforce Director RARA GPU guardrails
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Rule 1: no fixed IP configuration is accepted anywhere in this workflow.
+          if grep -En '([0-9]{1,3}\.){3}[0-9]{1,3}' "$GITHUB_WORKFLOW_REF" 2>/dev/null; then
+            echo "Static-IP dependency detected; refusing paid GPU operation." >&2
+            exit 90
+          fi
+          echo "Guardrails active: dynamic-IP-only, learned bad-restore memory, idle-infrastructure cost cutoff."
+
       - name: Provision replacement with public IP and verify GPU
         shell: bash
         env:
@@ -35,7 +49,7 @@ jobs:
 
           api_get() {
             local url="$1" out="$2" code
-            for n in $(seq 1 12); do
+            for n in $(seq 1 8); do
               code=$(curl -sS -o "$out" -w '%{http_code}' "$url" -H "api_key: $API_KEY" -H "accept: application/json" || true)
               [[ "$code" == "200" ]] && return 0
               echo "API GET retry $n http=$code"
@@ -43,6 +57,14 @@ jobs:
             done
             return 1
           }
+
+          # Rule 2: never repeat a restore for a VM that has already demonstrated
+          # ACTIVE + NO FLOATING IP. We only READ the source VM as a template.
+          if [[ ",${KNOWN_BAD_RESTORE_VM_IDS}," == *",${SOURCE_VM_ID},"* ]]; then
+            echo "VM $SOURCE_VM_ID is in learned bad-restore memory; restore path is prohibited."
+          else
+            echo "Source VM is not marked bad, but this replacement workflow still does not restore it."
+          fi
 
           api_get "$HYPERSTACK_BASE_URL/core/virtual-machines/$SOURCE_VM_ID" evidence/source-vm.json
           src_status=$(jq -r '.instance.status // "UNKNOWN"' evidence/source-vm.json)
@@ -55,7 +77,7 @@ jobs:
           [[ -n "$KEY_NAME" && "$KEY_NAME" != "null" ]] || KEY_NAME="hyperstack-canada-key"
           test -n "$ENV_NAME"; test -n "$IMAGE_NAME"; test -n "$FLAVOR_NAME"
 
-          NAME="avatar-tonight-$(date -u +%Y%m%d-%H%M%S)"
+          NAME="avatar-worker-$(date -u +%Y%m%d-%H%M%S)"
           jq -n \
             --arg name "$NAME" \
             --arg env "$ENV_NAME" \
@@ -76,37 +98,59 @@ jobs:
           test -n "$NEW_VM_ID" || { cat evidence/create-response.json; exit 5; }
           echo "$NEW_VM_ID" > evidence/new-vm-id.txt
 
+          hibernate_replacement() {
+            echo "Cost guardrail: hibernating replacement VM $NEW_VM_ID"
+            curl -sS "$HYPERSTACK_BASE_URL/core/virtual-machines/$NEW_VM_ID/hibernate?retain_ip=true" \
+              -H "api_key: $API_KEY" -H "accept: application/json" > evidence/failsafe-hibernate.json || true
+          }
+
           cleanup_new_vm() {
             rc=$?
-            if [[ $rc -ne 0 ]]; then
-              echo "Failure after provisioning; attempting hibernation of replacement VM $NEW_VM_ID"
-              curl -sS "$HYPERSTACK_BASE_URL/core/virtual-machines/$NEW_VM_ID/hibernate?retain_ip=true" \
-                -H "api_key: $API_KEY" -H "accept: application/json" > evidence/failsafe-hibernate.json || true
-            fi
+            if [[ $rc -ne 0 ]]; then hibernate_replacement; fi
             exit $rc
           }
           trap cleanup_new_vm EXIT
 
+          # Rule 3: ACTIVE without usable infrastructure is not useful work.
+          # Once ACTIVE, only 180 seconds are allowed to obtain a dynamic public IP.
           PUBLIC_IP=""
-          for i in $(seq 1 180); do
+          ACTIVE_WITHOUT_IP_STARTED=0
+          for i in $(seq 1 120); do
             if api_get "$HYPERSTACK_BASE_URL/core/virtual-machines/$NEW_VM_ID" evidence/new-vm-poll.json; then
               status=$(jq -r '.instance.status // "UNKNOWN"' evidence/new-vm-poll.json)
               PUBLIC_IP=$(jq -r '.instance.floating_ip // empty' evidence/new-vm-poll.json)
               fip_status=$(jq -r '.instance.floating_ip_status // "UNKNOWN"' evidence/new-vm-poll.json)
               echo "poll $i status=$status fip_status=$fip_status ip=${PUBLIC_IP:-pending}"
+
               if [[ "$status" == "ACTIVE" && -n "$PUBLIC_IP" ]]; then break; fi
+              if [[ "$status" == "ACTIVE" && -z "$PUBLIC_IP" ]]; then
+                now=$(date +%s)
+                [[ "$ACTIVE_WITHOUT_IP_STARTED" == "0" ]] && ACTIVE_WITHOUT_IP_STARTED=$now
+                elapsed=$(( now - ACTIVE_WITHOUT_IP_STARTED ))
+                if (( elapsed >= INFRA_ACTIVE_WITHOUT_IP_MAX_SECONDS )); then
+                  echo "COST_GUARDRAIL: ACTIVE + NO FLOATING IP for ${elapsed}s; refusing to pay for infrastructure wait." >&2
+                  exit 61
+                fi
+              fi
             fi
             sleep 10
           done
-          test -n "$PUBLIC_IP" || { echo "Replacement VM failed to obtain public IP" >&2; exit 6; }
+          test -n "$PUBLIC_IP" || { echo "Replacement VM failed to obtain dynamic public IP" >&2; exit 6; }
 
+          # Dynamic-IP-only: use the address discovered at runtime; never persist it as config.
           SSH_OK=0
-          for i in $(seq 1 30); do
+          ssh_started=$(date +%s)
+          while true; do
             if ssh -i "$KEY_FILE" -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new \
               "$SSH_USER@$PUBLIC_IP" 'echo hyperstack-ssh-ok' > evidence/ssh-probe.txt 2>&1; then
               SSH_OK=1; break
             fi
-            echo "ssh retry $i"
+            now=$(date +%s)
+            elapsed=$(( now - ssh_started ))
+            if (( elapsed >= SSH_READY_MAX_SECONDS )); then
+              echo "COST_GUARDRAIL: public IP exists but SSH is not usable after ${elapsed}s; hibernating." >&2
+              break
+            fi
             sleep 10
           done
           [[ "$SSH_OK" == "1" ]] || { cat evidence/ssh-probe.txt || true; exit 7; }
@@ -116,14 +160,15 @@ jobs:
             'set -e; echo "=== GPU ==="; nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader; echo "=== CUDA ==="; nvcc --version || true; echo "=== PYTORCH ==="; python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"NO_GPU\")" 2>/dev/null || echo "PyTorch probe unavailable"' \
             | tee evidence/gpu-probe.txt
 
-          printf 'VM_ID=%s\nPUBLIC_IP=%s\nNAME=%s\n' "$NEW_VM_ID" "$PUBLIC_IP" "$NAME" > evidence/connection.env
-          echo "### Hyperstack Avatar replacement READY" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Source VM: $SOURCE_VM_ID (HIBERNATED)" >> "$GITHUB_STEP_SUMMARY"
+          # Store only evidence that an IP was assigned; do not persist a fixed IP as runtime config.
+          printf 'VM_ID=%s\nDYNAMIC_PUBLIC_IP_ASSIGNED=true\nNAME=%s\n' "$NEW_VM_ID" "$NAME" > evidence/connection.env
+          echo "### Hyperstack Avatar worker READY" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source VM: $SOURCE_VM_ID (HIBERNATED; restore prohibited by learned guardrail)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Replacement VM: $NEW_VM_ID" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Public IP assigned: yes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dynamic public IP: discovered at runtime" >> "$GITHUB_STEP_SUMMARY"
           echo "- SSH: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- GPU probe: PASS" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Final state: ACTIVE (intentionally left running for tonight)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cost state: ACTIVE because useful work readiness is confirmed" >> "$GITHUB_STEP_SUMMARY"
 
           trap - EXIT
 
@@ -131,7 +176,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hyperstack-avatar-replacement-tonight-${{ github.run_id }}
+          name: hyperstack-avatar-replacement-${{ github.run_id }}
           path: evidence/
-          retention-days: 7
+          retention-days: 14
           if-no-files-found: warn
