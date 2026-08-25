@@ -1,0 +1,137 @@
+name: Hyperstack Avatar Connect Tonight
+
+on:
+  push:
+    paths:
+      - .github/workflows/hyperstack-avatar-connect-tonight.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HYPERSTACK_BASE_URL: https://infrahub-api.nexgencloud.com/v1
+  VM_ID: "997313"
+  SSH_USER: ubuntu
+
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Restore and establish working connection
+        shell: bash
+        env:
+          API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$API_KEY"
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p evidence ~/.ssh
+          KEY_FILE="$HOME/.ssh/hyperstack_avatar"
+          printf '%s' "$SSH_PRIVATE_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          api_get() {
+            local url="$1" out="$2" code
+            for n in $(seq 1 12); do
+              code=$(curl -sS -o "$out" -w '%{http_code}' "$url" -H "api_key: $API_KEY" -H "accept: application/json" || true)
+              if [[ "$code" == "200" ]]; then return 0; fi
+              echo "API GET retry $n http=$code"
+              sleep $(( n < 4 ? 5 : 10 ))
+            done
+            return 1
+          }
+
+          request_hibernate() {
+            echo "Fail-safe hibernation requested"
+            curl -sS "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID/hibernate?retain_ip=false" \
+              -H "api_key: $API_KEY" -H "accept: application/json" > evidence/hibernate-request.json || true
+            for i in $(seq 1 210); do
+              if api_get "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID" evidence/vm-hibernate.json; then
+                s=$(jq -r '.instance.status // "UNKNOWN"' evidence/vm-hibernate.json)
+                echo "hibernate poll $i status=$s"
+                [[ "$s" == "HIBERNATED" ]] && return 0
+              fi
+              sleep 10
+            done
+            return 1
+          }
+
+          NEED_HIBERNATE=0
+          cleanup() {
+            rc=$?
+            if [[ "$NEED_HIBERNATE" == "1" ]]; then request_hibernate || true; fi
+            exit "$rc"
+          }
+          trap cleanup EXIT
+
+          api_get "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID" evidence/vm-before.json
+          initial=$(jq -r '.instance.status // "UNKNOWN"' evidence/vm-before.json)
+          echo "initial=$initial"
+          if [[ "$initial" == "HIBERNATED" ]]; then
+            curl -sS "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID/hibernate-restore" \
+              -H "api_key: $API_KEY" -H "accept: application/json" > evidence/restore.json
+            NEED_HIBERNATE=1
+          elif [[ "$initial" == "ACTIVE" ]]; then
+            NEED_HIBERNATE=1
+          else
+            echo "Unsupported initial state: $initial" >&2
+            exit 3
+          fi
+
+          PUBLIC_IP=""
+          for i in $(seq 1 180); do
+            if api_get "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID" evidence/vm-poll.json; then
+              status=$(jq -r '.instance.status // "UNKNOWN"' evidence/vm-poll.json)
+              PUBLIC_IP=$(jq -r '.instance.floating_ip // empty' evidence/vm-poll.json)
+              fip_status=$(jq -r '.instance.floating_ip_status // "UNKNOWN"' evidence/vm-poll.json)
+              echo "poll $i status=$status fip_status=$fip_status ip=${PUBLIC_IP:-pending}"
+              if [[ "$status" == "ACTIVE" && -n "$PUBLIC_IP" ]]; then break; fi
+            fi
+            sleep 10
+          done
+          test -n "$PUBLIC_IP" || { echo "No public IP after bounded wait" >&2; exit 4; }
+
+          # Ensure SSH ingress exists. Duplicate-rule errors are harmless.
+          curl -sS -X POST "$HYPERSTACK_BASE_URL/core/virtual-machines/$VM_ID/sg-rules" \
+            -H "api_key: $API_KEY" -H "accept: application/json" -H "Content-Type: application/json" \
+            -d '{"remote_ip_prefix":"0.0.0.0/0","direction":"ingress","ethertype":"IPv4","protocol":"tcp","port_range_min":22,"port_range_max":22}' \
+            > evidence/ssh-rule.json || true
+
+          SSH_OK=0
+          for i in $(seq 1 30); do
+            if ssh -i "$KEY_FILE" -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new \
+              "$SSH_USER@$PUBLIC_IP" 'echo hyperstack-ssh-ok' > evidence/ssh-probe.txt 2>&1; then
+              SSH_OK=1; break
+            fi
+            echo "ssh retry $i"
+            sleep 10
+          done
+          test "$SSH_OK" == "1" || { echo "SSH failed" >&2; exit 5; }
+
+          ssh -i "$KEY_FILE" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
+            "$SSH_USER@$PUBLIC_IP" \
+            'set -e; echo "=== GPU ==="; nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader; echo "=== CUDA ==="; nvcc --version || true; echo "=== PYTORCH ==="; python3 -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"NO_GPU\")" 2>/dev/null || echo "PyTorch probe unavailable"' \
+            | tee evidence/gpu-probe.txt
+
+          echo "PUBLIC_IP=$PUBLIC_IP" > evidence/connection.env
+          echo "Connection established; leaving VM ACTIVE for tonight."
+          echo "### Hyperstack Avatar ready" >> "$GITHUB_STEP_SUMMARY"
+          echo "- VM: $VM_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: ACTIVE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public IP assigned: yes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SSH: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GPU probe: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+          NEED_HIBERNATE=0
+          trap - EXIT
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperstack-avatar-connect-tonight-${{ github.run_id }}
+          path: evidence/
+          retention-days: 7
