@@ -40,7 +40,8 @@ begin
  prereq:=public.contentflow_evidence_prerequisite_class(er.requirement_class,er.requirement_text);
  select coalesce(producer_available,false) into producer from public.contentflow_evidence_capability_registry where prerequisite=prereq;
  return coalesce(producer,false);
-end $function$;
+end;
+$function$;
 
 insert into public.contentflow_evidence_capability_registry(prerequisite,verifier_available,producer_available,provider,scope) values
 ('deployment_trace',false,false,null,'no deterministic deployment trace producer/verifier registered'),
