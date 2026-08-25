@@ -1,0 +1,64 @@
+name: Hyperstack SSH Key Fingerprint Check
+
+on:
+  push:
+    paths:
+      - .github/workflows/hyperstack-ssh-key-fingerprint-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HYPERSTACK_BASE_URL: https://infrahub-api.nexgencloud.com/v1
+  KEY_NAME: hyperstack-canada-key
+
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare GitHub private key with Hyperstack public key
+        shell: bash
+        env:
+          API_KEY: ${{ secrets.HYPERSTACK_API_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$API_KEY"
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p evidence ~/.ssh
+          KEY_FILE="$HOME/.ssh/hyperstack_avatar"
+          printf '%s' "$SSH_PRIVATE_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          ssh-keygen -y -f "$KEY_FILE" > evidence/github-derived.pub
+          ssh-keygen -lf evidence/github-derived.pub -E sha256 | awk '{print $2}' > evidence/github-fingerprint.txt
+
+          curl -fsS "$HYPERSTACK_BASE_URL/core/keypairs" \
+            -H "api_key: $API_KEY" -H "accept: application/json" > evidence/hyperstack-keypairs.json
+
+          PUB=$(jq -r --arg n "$KEY_NAME" '(.keypairs // .keys // .data // [])[] | select((.name // .keypair_name)==$n) | (.public_key // .public_key_value // .key // empty)' evidence/hyperstack-keypairs.json | head -n1)
+          test -n "$PUB" || { echo "Hyperstack keypair $KEY_NAME not found or public key unavailable"; exit 4; }
+          printf '%s\n' "$PUB" > evidence/hyperstack.pub
+          ssh-keygen -lf evidence/hyperstack.pub -E sha256 | awk '{print $2}' > evidence/hyperstack-fingerprint.txt
+
+          GH_FP=$(cat evidence/github-fingerprint.txt)
+          HS_FP=$(cat evidence/hyperstack-fingerprint.txt)
+          echo "GitHub fingerprint: $GH_FP"
+          echo "Hyperstack fingerprint: $HS_FP"
+          if [[ "$GH_FP" != "$HS_FP" ]]; then
+            echo "MISMATCH"
+            exit 5
+          fi
+          echo "MATCH"
+
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperstack-ssh-fingerprint-${{ github.run_id }}
+          path: |
+            evidence/github-fingerprint.txt
+            evidence/hyperstack-fingerprint.txt
+          retention-days: 7
+          if-no-files-found: warn
