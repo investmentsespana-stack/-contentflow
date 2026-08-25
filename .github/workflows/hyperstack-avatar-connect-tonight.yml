@@ -1,0 +1,30 @@
+name: Hyperstack Avatar Legacy Restore Guard
+
+# This workflow is intentionally manual-only. VM 997313 demonstrated
+# ACTIVE + NO FLOATING IP repeatedly and MUST NOT be restored by automation.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LEGACY_VM_ID: "997313"
+  FAILURE_SIGNATURE: "ACTIVE + NO FLOATING IP"
+
+jobs:
+  block-known-bad-restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Director RARA learned-failure guard
+        shell: bash
+        run: |
+          echo "BLOCKED_BY_LEARNED_GUARDRAIL"
+          echo "VM $LEGACY_VM_ID previously demonstrated: $FAILURE_SIGNATURE"
+          echo "Automated restore is prohibited. Use replacement provisioning with runtime dynamic-IP discovery."
+          echo "### Director/RARA guardrail" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Legacy VM: $LEGACY_VM_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Learned failure: $FAILURE_SIGNATURE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Restore: PROHIBITED" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Required route: replacement VM + dynamic public IP + useful-work readiness gate" >> "$GITHUB_STEP_SUMMARY"
+          exit 78
