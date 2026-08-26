@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 3d859af37e09a18207e8e38177b0dab2516235c7eb39cd3dda0edc6c06ca828f
+-- original-version: 20260826120456
+-- original-name: tool_executor_direct_contract_admission_v1

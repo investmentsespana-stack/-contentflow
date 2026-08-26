@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 8d32793d5a8a3356eafaac56d355a8842a1d4378ab8887209da3a79943c3b87f
+-- original-version: 20260826130435
+-- original-name: multi_project_control_plane_query_indexes_v1

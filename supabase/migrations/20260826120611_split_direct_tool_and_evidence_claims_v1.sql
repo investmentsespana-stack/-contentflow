@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: d95662f96aa82c8804f6aea88744001d6baa15451c87f32999c8fa6072bedfa0
+-- original-version: 20260826120611
+-- original-name: split_direct_tool_and_evidence_claims_v1

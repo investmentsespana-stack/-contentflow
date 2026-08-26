@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 52017949ececc5aee19494a9043888f4ed1859a5890132cc5d175977c465202e
+-- original-version: 20260826144813
+-- original-name: academy_security_canary_v2_helper

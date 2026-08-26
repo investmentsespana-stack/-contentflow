@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: a0b4363b5012582383fe831943cc94ec6f5138ecfc4eb9d513c08b7df8f30b1d
+-- original-version: 20260826144505
+-- original-name: fix_tool_finish_retry_project_scope

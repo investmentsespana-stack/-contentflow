@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 3e538637278f5bc8e8670991c633a5a5282661ce3f6f39f20d477e473670fc42
+-- original-version: 20260824201849
+-- original-name: transport_heartbeat_autonomy_root_fix_v1

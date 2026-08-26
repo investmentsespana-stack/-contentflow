@@ -1,0 +1,9 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- remediation-batch: legacy-production-lineage-20260826
+-- original-statements-sha256: 14ba02a5532efb1f87b74587e8ad4fbcee6fd1b4d5e3becf5ca0f2ad2b63c3e9
+-- original-version: 20260824141109
+-- original-name: review_pending_state_protection_v1
+-- Exact original statement is retained in supabase_migrations.schema_migrations; final-state parity is certified by Production Git Drift Gate.

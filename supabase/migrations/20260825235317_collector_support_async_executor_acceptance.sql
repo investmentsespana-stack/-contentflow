@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: d3097be09657cadc672a98e4b70cd889bb5be4f64dc566721f9e0b793a89794a
+-- original-version: 20260825235317
+-- original-name: collector_support_async_executor_acceptance

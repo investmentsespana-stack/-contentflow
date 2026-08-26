@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: ed9eb5628897ea63d74319e0e632dcf5122864db5d7827c2f0f5f6c00f4ec115
+-- original-version: 20260826155457
+-- original-name: control_plane_hotpath_indexes_v1

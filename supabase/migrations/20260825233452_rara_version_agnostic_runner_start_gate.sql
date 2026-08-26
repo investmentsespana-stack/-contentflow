@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 9c3ec527f1fb06c2f6c3748846aa485537192110b84829ff2df6af872abb8d94
+-- original-version: 20260825233452
+-- original-name: rara_version_agnostic_runner_start_gate
