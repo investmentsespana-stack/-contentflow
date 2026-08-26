@@ -1,0 +1,64 @@
+name: Persistent Change Provenance Admission
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/persistent-change-provenance-admission.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/persistent-change-provenance-admission.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require provenance contract on every new persistent migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            RANGE="origin/${{ github.base_ref }}...HEAD"
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            RANGE="HEAD^..HEAD"
+          else
+            echo 'No parent commit available; nothing to certify.'
+            exit 0
+          fi
+
+          mapfile -t FILES < <(git diff --name-only --diff-filter=AM "$RANGE" -- 'supabase/migrations/*.sql')
+          if (( ${#FILES[@]} == 0 )); then
+            echo 'No added/modified migrations in this change.'
+            exit 0
+          fi
+
+          failed=0
+          for file in "${FILES[@]}"; do
+            echo "certifying provenance: $file"
+            if ! grep -q '^-- CONTENTFLOW_CHANGE_PROVENANCE_V1$' "$file"; then
+              echo "::error file=$file::Missing CONTENTFLOW_CHANGE_PROVENANCE_V1 marker"
+              failed=1
+            fi
+            if ! grep -Eq '^-- change-class: (control_plane_guardrail|schema|function|policy|trigger|extension|persistent_control|recovery|security|runtime_contract|other)$' "$file"; then
+              echo "::error file=$file::Missing or unsupported change-class provenance marker"
+              failed=1
+            fi
+          done
+
+          if (( failed > 0 )); then
+            echo 'Persistent change provenance admission denied.' >&2
+            exit 1
+          fi
+          echo "Persistent change provenance admission passed for ${#FILES[@]} migration(s)."
