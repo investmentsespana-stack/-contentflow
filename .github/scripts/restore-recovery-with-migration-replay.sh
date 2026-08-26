@@ -11,7 +11,7 @@ if [[ -z "$SNAPSHOT_DIR" || -z "$TARGET_DB_URL" ]]; then
   exit 2
 fi
 
-for cmd in node psql pg_dump sha256sum; do
+for cmd in node psql pg_dump sha256sum python3; do
   command -v "$cmd" >/dev/null || { echo "missing required command: $cmd" >&2; exit 2; }
 done
 
@@ -33,38 +33,23 @@ if [[ "$PUBLIC_OBJECTS" != "0" ]]; then
   exit 4
 fi
 
-# PostgreSQL creates an empty public schema in a fresh database. Snapshot schema dumps
-# include CREATE SCHEMA public, so remove only the verified-empty default schema first.
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE;'
 
-# A public-only Supabase schema dump still references platform-owned Auth objects and
-# API roles. Create the smallest restore-only shim required by the current public
-# schema. None of these objects are part of the public-schema parity fingerprint.
+# Minimal restore-only Supabase platform shim. These objects live outside public and
+# therefore are not included in the public schema fingerprint.
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-    CREATE ROLE anon NOLOGIN;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    CREATE ROLE authenticated NOLOGIN;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
-    CREATE ROLE service_role NOLOGIN;
-  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOLOGIN; END IF;
 END
 $$;
 CREATE SCHEMA IF NOT EXISTS auth;
-CREATE TABLE IF NOT EXISTS auth.users (
-  id uuid PRIMARY KEY
-);
+CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
 CREATE OR REPLACE FUNCTION auth.uid()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
-$$;
+RETURNS uuid LANGUAGE sql STABLE
+AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 SQL
 
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/public-schema.sql"
@@ -87,6 +72,34 @@ canonicalize_dump() {
     "$1"
 }
 
+report_changed_sections() {
+  python3 - "$1" "$2" <<'PY'
+import hashlib, re, sys
+
+def sections(path):
+    text=open(path,encoding='utf-8').read()
+    hits=list(re.finditer(r'^-- Name: (.+)$', text, re.M))
+    out={}
+    if hits:
+        out['<preamble>']=hashlib.sha256(text[:hits[0].start()].encode()).hexdigest()
+    for i,m in enumerate(hits):
+        end=hits[i+1].start() if i+1 < len(hits) else len(text)
+        key=m.group(1).strip()
+        out[key]=hashlib.sha256(text[m.start():end].encode()).hexdigest()
+    return out
+
+src,tgt=sections(sys.argv[1]),sections(sys.argv[2])
+keys=sorted(set(src)|set(tgt))
+changed=[k for k in keys if src.get(k)!=tgt.get(k)]
+print('schema_parity_changed_sections_count='+str(len(changed)), file=sys.stderr)
+for k in changed[:100]:
+    side='changed' if k in src and k in tgt else ('source_only' if k in src else 'target_only')
+    print(f'schema_parity_section[{side}]={k}', file=sys.stderr)
+if len(changed)>100:
+    print(f'schema_parity_sections_truncated={len(changed)-100}', file=sys.stderr)
+PY
+}
+
 PARITY='not_requested'
 SOURCE_SHA=''
 TARGET_SHA=''
@@ -102,6 +115,7 @@ if [[ "$CERTIFY_PARITY" == "1" ]]; then
   TARGET_SHA=$(sha256sum "$TMP/target.canonical.sql" | awk '{print $1}')
   if [[ "$SOURCE_SHA" != "$TARGET_SHA" ]]; then
     echo "schema parity failed: source=$SOURCE_SHA target=$TARGET_SHA" >&2
+    report_changed_sections "$TMP/source.canonical.sql" "$TMP/target.canonical.sql"
     exit 6
   fi
   PARITY='passed'
