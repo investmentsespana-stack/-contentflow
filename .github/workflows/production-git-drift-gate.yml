@@ -1,0 +1,137 @@
+name: Production Git Drift Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/scripts/restore-recovery-with-migration-replay.sh'
+      - '.github/scripts/verify-migration-lineage.sh'
+      - '.github/workflows/production-git-drift-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/scripts/restore-recovery-with-migration-replay.sh'
+      - '.github/scripts/verify-migration-lineage.sh'
+      - '.github/workflows/production-git-drift-gate.yml'
+  schedule:
+    - cron: '45 7 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-git-drift-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  certify-production-git-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: contentflow_replay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d contentflow_replay"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify credential source
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_DB_PASSWORD" ] && [ -z "$SUPABASE_DB_URL" ]; then
+            echo 'SUPABASE_DB_PASSWORD (preferred) or SUPABASE_DB_URL is required.' >&2
+            exit 1
+          fi
+
+      - name: Install and pin PostgreSQL 17 client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo '/usr/lib/postgresql/17/bin' >> "$GITHUB_PATH"
+          psql --version | grep -Eq ' 17\.'
+          pg_dump --version | grep -Eq ' 17\.'
+          pg_restore --version | grep -Eq ' 17\.'
+
+      - name: Resolve production connection without exposing credentials
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            ENCODED_PASSWORD=$(python3 -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["SUPABASE_DB_PASSWORD"], safe=""))')
+            printf '%s' "postgresql://postgres.koqpyfvnprmirqviafzq:${ENCODED_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require" > /tmp/contentflow-source-db-url
+          else
+            printf '%s' "$SUPABASE_DB_URL" > /tmp/contentflow-source-db-url
+          fi
+          chmod 600 /tmp/contentflow-source-db-url
+          psql "$(cat /tmp/contentflow-source-db-url)" -Atqc 'select 1' >/dev/null
+          echo 'Production connection verified.'
+
+      - name: Select latest committed recovery baseline
+        id: baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          SNAPSHOT_DIR=$(find backups -mindepth 2 -maxdepth 2 -name manifest.json -type f -printf '%h\n' 2>/dev/null | LC_ALL=C sort | tail -n 1)
+          test -n "$SNAPSHOT_DIR"
+          for f in manifest.json SHA256SUMS public-schema.sql runtime-control-data.sql; do
+            test -s "$SNAPSHOT_DIR/$f"
+          done
+          echo "snapshot_dir=$SNAPSHOT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Using committed recovery baseline: $SNAPSHOT_DIR"
+
+      - name: Fail closed on unversioned production migration lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_DB_URL=$(cat /tmp/contentflow-source-db-url)
+          bash .github/scripts/verify-migration-lineage.sh "$SOURCE_DB_URL"
+
+      - name: Reconstruct Git-declared schema and certify exact production parity
+        shell: bash
+        env:
+          TARGET_DB_URL: postgresql://postgres:postgres@127.0.0.1:5432/contentflow_replay
+          CERTIFY_PARITY: '1'
+        run: |
+          set -euo pipefail
+          export SOURCE_DB_URL="$(cat /tmp/contentflow-source-db-url)"
+          bash .github/scripts/restore-recovery-with-migration-replay.sh "${{ steps.baseline.outputs.snapshot_dir }}" | tee /tmp/contentflow-production-git-parity.json
+          node -e "const fs=require('fs'); const lines=fs.readFileSync('/tmp/contentflow-production-git-parity.json','utf8').trim().split(/\n/); const r=JSON.parse(lines[lines.length-1]); if(r.passed!==true || r.parity!=='passed') process.exit(1); console.log(JSON.stringify(r));"
+
+      - name: Emit admission evidence
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'PRODUCTION_GIT_DRIFT_GATE_V1=ADMITTED'
+          echo 'Production schema equals committed recovery baseline plus repository migrations.'
