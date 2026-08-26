@@ -37,6 +37,16 @@ fi
 # include CREATE SCHEMA public, so remove only the verified-empty default schema first.
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE;'
 
+# The public-only snapshot legitimately contains foreign keys to Supabase Auth. The
+# parity target intentionally fingerprints only `public`, so create the minimum Auth
+# dependency required to restore those FKs without importing customer/auth data.
+psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.users (
+  id uuid PRIMARY KEY
+);
+SQL
+
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/public-schema.sql"
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/runtime-control-data.sql"
 
