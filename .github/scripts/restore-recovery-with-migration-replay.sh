@@ -33,6 +33,10 @@ if [[ "$PUBLIC_OBJECTS" != "0" ]]; then
   exit 4
 fi
 
+# PostgreSQL creates an empty public schema in a fresh database. Snapshot schema dumps
+# include CREATE SCHEMA public, so remove only the verified-empty default schema first.
+psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA IF EXISTS public CASCADE;'
+
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/public-schema.sql"
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/runtime-control-data.sql"
 
