@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 0cd2a608c56f447e31b26b7d04f9ef13ef9fdfac3e8e27bc6a417b873895231e
+-- original-version: 20260824202230
+-- original-name: progress_stall_eligibility_truth_v1

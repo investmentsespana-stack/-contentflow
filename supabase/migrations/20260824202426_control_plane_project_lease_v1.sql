@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: a4d45de2b46b453722e0d4a0a1813e3e8b749a67eae6c9ecc51acde87e4ee37e
+-- original-version: 20260824202426
+-- original-name: control_plane_project_lease_v1

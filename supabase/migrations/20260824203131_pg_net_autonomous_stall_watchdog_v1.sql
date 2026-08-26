@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 9feb58ebd8daad1f4304ed8cac4d64dd74c4b8bc2da5d917393e796f0d932391
+-- original-version: 20260824203131
+-- original-name: pg_net_autonomous_stall_watchdog_v1

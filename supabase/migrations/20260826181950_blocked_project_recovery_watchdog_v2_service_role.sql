@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 72a644006b0b2e5cdefbfdf41b821f3833b3f275f33ca05ccb951b95951508af
+-- original-version: 20260826181950
+-- original-name: blocked_project_recovery_watchdog_v2_service_role

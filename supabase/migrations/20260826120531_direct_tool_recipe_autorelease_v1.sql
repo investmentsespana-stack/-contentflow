@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 25d7d8cef4057e21ec57fb552b28bff96af7c47b9272864cef7e41e90fb65776
+-- original-version: 20260826120531
+-- original-name: direct_tool_recipe_autorelease_v1

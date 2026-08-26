@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: c38214c07232466cb18e0518df22b5ca762256e53f52471fcfb65b0b8ee297e6
+-- original-version: 20260824202044
+-- original-name: secure_transport_recovery_v1

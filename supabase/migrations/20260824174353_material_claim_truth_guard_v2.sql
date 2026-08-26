@@ -1,0 +1,7 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- original-statements-sha256: 145c83f9b1d12f4421944175b2b62aaed73d59a7cb3deec3b68e88cfa5dd60f4
+-- original-version: 20260824174353
+-- original-name: material_claim_truth_guard_v2
