@@ -107,8 +107,11 @@ if [[ "$CERTIFY_PARITY" == "1" ]]; then
   [[ -n "$SOURCE_DB_URL" ]] || { echo 'SOURCE_DB_URL is required when CERTIFY_PARITY=1' >&2; exit 5; }
   TMP=$(mktemp -d)
   trap 'rm -rf "$TMP"' EXIT
-  pg_dump "$SOURCE_DB_URL" --schema-only --schema=public --no-owner --file "$TMP/source.sql"
-  pg_dump "$TARGET_DB_URL" --schema-only --schema=public --no-owner --file "$TMP/target.sql"
+  # Snapshot creation intentionally excludes ACLs/default privileges. Structural
+  # parity must compare the same contract on both sides; privilege drift is
+  # certified separately by the caller-aware security admission/audit layer.
+  pg_dump "$SOURCE_DB_URL" --schema-only --schema=public --no-owner --no-privileges --file "$TMP/source.sql"
+  pg_dump "$TARGET_DB_URL" --schema-only --schema=public --no-owner --no-privileges --file "$TMP/target.sql"
   canonicalize_dump "$TMP/source.sql" > "$TMP/source.canonical.sql"
   canonicalize_dump "$TMP/target.sql" > "$TMP/target.canonical.sql"
   SOURCE_SHA=$(sha256sum "$TMP/source.canonical.sql" | awk '{print $1}')
@@ -121,4 +124,4 @@ if [[ "$CERTIFY_PARITY" == "1" ]]; then
   PARITY='passed'
 fi
 
-node -e "console.log(JSON.stringify({passed:true,architecture:'RECOVERY_SNAPSHOT_MIGRATION_REPLAY_CONTRACT_V2',cutoff:process.argv[1],replayed:Number(process.argv[2]),targetPublicObjects:Number(process.argv[3]),parity:process.argv[4],sourceSchemaSha256:process.argv[5]||null,targetSchemaSha256:process.argv[6]||null}))" "$CUTOFF" "${#REPLAY_FILES[@]}" "$TARGET_OBJECTS" "$PARITY" "$SOURCE_SHA" "$TARGET_SHA"
+node -e "console.log(JSON.stringify({passed:true,architecture:'RECOVERY_SNAPSHOT_MIGRATION_REPLAY_CONTRACT_V2',cutoff:process.argv[1],replayed:Number(process.argv[2]),targetPublicObjects:Number(process.argv[3]),parity:process.argv[4],sourceSchemaSha256:process.argv[5]||null,targetSchemaSha256:process.argv[6]||null,privilegeScope:'separate-security-gate'}))" "$CUTOFF" "${#REPLAY_FILES[@]}" "$TARGET_OBJECTS" "$PARITY" "$SOURCE_SHA" "$TARGET_SHA"
