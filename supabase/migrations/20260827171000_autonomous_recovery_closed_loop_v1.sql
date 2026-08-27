@@ -18,7 +18,9 @@ declare
   v_before jsonb := '{}'::jsonb;
   v_reconcile_pre jsonb := '{}'::jsonb;
   v_cycle jsonb := '{}'::jsonb;
-  v_reconcile_post jsonb := '{}'::jsonb;
+  v_waits_post jsonb := '{}'::jsonb;
+  v_progress_post jsonb := '{}'::jsonb;
+  v_slo_post jsonb := '{}'::jsonb;
   v_after jsonb := '{}'::jsonb;
   v_ready_before int := 0;
   v_running_before int := 0;
@@ -38,9 +40,17 @@ begin
   begin v_dispatchable_before := public.contentflow_dispatchable_count(p_project_key); exception when others then v_dispatchable_before := 0; end;
   v_before := jsonb_build_object('workers_ready',v_ready_before,'workers_running',v_running_before,'dispatchable',v_dispatchable_before);
 
+  -- Full recovery pass before dispatch. This already performs durable reconciliation, retry repair,
+  -- stall handling, known-repair passes, help-last escalation, SLO enforcement and resilience self-test.
   begin v_reconcile_pre := public.contentflow_master_reconcile(p_project_key); exception when others then v_reconcile_pre := jsonb_build_object('error',sqlerrm); end;
+
+  -- Serialized Director execution.
   begin v_cycle := public.contentflow_director_core_cycle(p_project_key,p_max_dispatch); exception when others then v_cycle := jsonb_build_object('ok',false,'status','failed','error',sqlerrm); end;
-  begin v_reconcile_post := public.contentflow_master_reconcile(p_project_key); exception when others then v_reconcile_post := jsonb_build_object('error',sqlerrm); end;
+
+  -- Lightweight post-dispatch verification: wake state, progress invariants and SLO only.
+  begin v_waits_post := public.contentflow_reconcile_durable_waits_v1(p_project_key); exception when others then v_waits_post := jsonb_build_object('error',sqlerrm); end;
+  begin v_progress_post := public.contentflow_progress_stall_reconcile(p_project_key); exception when others then v_progress_post := jsonb_build_object('error',sqlerrm); end;
+  begin v_slo_post := public.contentflow_enforce_autonomy_slo(p_project_key); exception when others then v_slo_post := jsonb_build_object('error',sqlerrm); end;
 
   select count(*) into v_ready_after from public.director_worker_queue where status='ready';
   select count(*) into v_running_after from public.director_worker_queue where status='running';
@@ -67,7 +77,15 @@ begin
   insert into public.director_autonomy_events(project_key,event_type,source,assignment_mode,outcome,required_user_intervention,notes,finished_at)
   values(p_project_key,'autonomous_recovery_closed_loop','opc_runtime_v1','reconcile_execute_verify',case when v_progress_ok then 'converged_or_progressing' else 'degraded_no_progress' end,false,jsonb_build_object('before',v_before,'after',v_after,'incident_created',v_incident_created)::text,now());
 
-  return jsonb_build_object('architecture','AUTONOMOUS_RECOVERY_CLOSED_LOOP_V1','before',v_before,'reconcile_pre',v_reconcile_pre,'director_cycle',v_cycle,'reconcile_post',v_reconcile_post,'after',v_after,'incident_created',v_incident_created);
+  return jsonb_build_object(
+    'architecture','AUTONOMOUS_RECOVERY_CLOSED_LOOP_V1',
+    'before',v_before,
+    'reconcile_pre',v_reconcile_pre,
+    'director_cycle',v_cycle,
+    'post_verify',jsonb_build_object('durable_waits',v_waits_post,'progress',v_progress_post,'slo',v_slo_post),
+    'after',v_after,
+    'incident_created',v_incident_created
+  );
 end
 $function$;
 
@@ -82,8 +100,8 @@ $function$;
 revoke all on function public.contentflow_autonomy_supervisor(text,integer) from public, anon, authenticated;
 grant execute on function public.contentflow_autonomy_supervisor(text,integer) to service_role;
 
--- The production auto-loop calls this entrypoint. Route it through the same closed-loop controller
--- while preserving canary parallelism and project-context metadata.
+-- Production auto-loop entrypoint: preserve canary parallelism/project context while routing
+-- actual traffic through the closed-loop recovery controller.
 create or replace function public.contentflow_director_core_cycle_auto(p_project_key text default 'contentflow')
 returns jsonb
 language plpgsql
