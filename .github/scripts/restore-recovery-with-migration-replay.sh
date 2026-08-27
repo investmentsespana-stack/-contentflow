@@ -50,6 +50,18 @@ CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
 CREATE OR REPLACE FUNCTION auth.uid()
 RETURNS uuid LANGUAGE sql STABLE
 AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+
+-- pg_net compatibility surface required only to compile functions restored from
+-- the public schema. It intentionally contains only the fields referenced by
+-- ContentFlow and is excluded from the public fingerprint.
+CREATE SCHEMA IF NOT EXISTS net;
+CREATE TABLE IF NOT EXISTS net._http_response (
+  id bigint PRIMARY KEY,
+  status_code integer,
+  content text,
+  timed_out boolean DEFAULT false,
+  error_msg text
+);
 SQL
 
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/public-schema.sql"
