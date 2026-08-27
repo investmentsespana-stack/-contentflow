@@ -25,6 +25,10 @@ begin
  select * into b from public.contentflow_build_backlog where id=r.backlog_task_id for update;
  if not found then return jsonb_build_object('applied',false,'reason','backlog_missing'); end if;
 
+ -- Durable async-ACK race guard: an old collector could mark a run quality=0/failed
+ -- on the HTTP 202 acknowledgement while the async runner was still working.
+ -- If the same run later emitted successful judge+runner completion events, that
+ -- failure is transport/control-plane noise and must never reopen a quality circuit.
  if coalesce(r.error,'') ilike '%quality_or_cost_gate_failed%' then
    select
      coalesce(bool_or((payload->>'pass')::boolean) filter(where event_type='judge_completed'),false),
