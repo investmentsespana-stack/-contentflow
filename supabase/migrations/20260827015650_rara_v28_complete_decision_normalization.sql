@@ -23,7 +23,8 @@ begin
      and normalized_reason ilike '%action=COMPLETE%'
      and normalized_reason ilike '%missing=[]%'
      and normalized_reason ilike '%gate=false%'
-     and normalized_reason ilike '%contract={}%' then
+     and normalized_reason ilike '%contract={}%' 
+  then
     effective_approve := true;
   end if;
   select * into q from public.contentflow_review_work_queue where builder_run_id=p_builder_run_id for update;
