@@ -12,7 +12,8 @@ begin
   if coalesce(new.requirement_text,'') ilike '%RARA_ARTIFACT_REVIEW_REJECTED%'
      and coalesce(new.requirement_text,'') ilike '%class=NONE%'
      and coalesce(new.requirement_text,'') ilike '%action=COMPLETE%'
-     and coalesce(new.requirement_text,'') ilike '%missing=[]%' then
+     and coalesce(new.requirement_text,'') ilike '%missing=[]%'
+  then
     new.status:='obsolete';
   end if;
   return new;
