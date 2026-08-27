@@ -41,6 +41,7 @@ begin
   end if;
   begin v_j:=v_r.content::jsonb; exception when others then v_j:='{}'::jsonb; end;
 
+  -- Any authenticated async executor acknowledgement is not the task result.
   if coalesce((v_j->>'accepted')::boolean,false)=true and v_r.status_code between 200 and 299 then
     update public.contentflow_builder_dispatches set status='collected',collected_at=now(),http_status=v_r.status_code,error=null where request_id=p_request_id;
     insert into public.contentflow_runtime_event_ledger(builder_run_id,task_key,event_type,idempotency_key,actor,payload)
