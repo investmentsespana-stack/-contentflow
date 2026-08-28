@@ -45,7 +45,21 @@ test('verifies a selected Meta Page without exposing access tokens', async () =>
 
 test('fails closed when user access token is missing', async () => {
   await assert.rejects(
-    () => verifyMetaPagesConnection({ pageName: 'Cygnus Academy AI' }, { fetchImpl: fakeFetch() }),
+    () => verifyMetaPagesConnection({ pageName: 'Cygnus Academy AI', graphVersion: 'v23.0' }, { fetchImpl: fakeFetch() }),
     /user_access_token_required/,
   );
+});
+
+test('fails closed when Meta Graph API version is not configured', async () => {
+  const previous = process.env.META_GRAPH_VERSION;
+  delete process.env.META_GRAPH_VERSION;
+  try {
+    await assert.rejects(
+      () => verifyMetaPagesConnection({ userAccessToken: 'user-token', pageName: 'Cygnus Academy AI' }, { fetchImpl: fakeFetch() }),
+      /graph_version_required/,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.META_GRAPH_VERSION;
+    else process.env.META_GRAPH_VERSION = previous;
+  }
 });
