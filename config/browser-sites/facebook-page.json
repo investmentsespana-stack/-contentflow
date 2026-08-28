@@ -1,0 +1,32 @@
+{
+  "site": "facebook",
+  "profile": "managed_page",
+  "allowed_hosts": [
+    "facebook.com",
+    "www.facebook.com",
+    "business.facebook.com"
+  ],
+  "entry_url": "https://www.facebook.com/",
+  "session": {
+    "mode": "persistent_storage_state",
+    "storage_state_env": "NEXO_FACEBOOK_STORAGE_STATE_PATH",
+    "never_commit_session_data": true
+  },
+  "safety": {
+    "require_authenticated_session": true,
+    "require_page_identity_check_before_write": true,
+    "require_admin_or_editor_permission_before_write": true,
+    "capture_before_after_evidence": true,
+    "destructive_actions_require_explicit_task_authorization": true
+  },
+  "capabilities": [
+    "inspect_page",
+    "inventory_posts",
+    "update_profile_text",
+    "upload_profile_image",
+    "upload_cover_image",
+    "create_post",
+    "edit_post",
+    "archive_post"
+  ]
+}
