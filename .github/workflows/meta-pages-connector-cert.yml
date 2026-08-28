@@ -1,0 +1,21 @@
+name: Meta Pages Connector Certification
+
+on:
+  pull_request:
+    paths:
+      - 'src/platform/meta-pages-connector.mjs'
+      - 'tests/meta-pages-connector.test.mjs'
+      - 'package.json'
+      - '.github/workflows/meta-pages-connector-cert.yml'
+  workflow_dispatch:
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Meta Pages connector tests
+        run: npm run test:meta-pages
