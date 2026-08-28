@@ -1,0 +1,50 @@
+name: Nexo Browser Worker Certification
+
+on:
+  pull_request:
+    paths:
+      - 'src/platform/browser-worker.mjs'
+      - 'tests/browser-worker.test.mjs'
+      - 'package.json'
+      - '.github/workflows/nexo-browser-worker-certification.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/platform/browser-worker.mjs'
+      - 'tests/browser-worker.test.mjs'
+      - 'package.json'
+      - '.github/workflows/nexo-browser-worker-certification.yml'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: Public URL for browser smoke inspection
+        required: false
+        default: https://example.com
+
+jobs:
+  certify-browser-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - name: Contract tests
+        run: npm run test:browser-worker
+      - name: Live browser smoke
+        env:
+          BROWSER_WORKER_URL: ${{ github.event.inputs.target_url || 'https://example.com' }}
+          BROWSER_WORKER_TASK_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+        run: npm run run:browser-worker
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-worker-evidence-${{ github.run_id }}
+          path: certification-evidence/browser-worker/
+          if-no-files-found: warn

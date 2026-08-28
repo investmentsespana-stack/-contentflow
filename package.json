@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "test:e2e": "playwright test",
+    "test:browser-worker": "node --test tests/browser-worker.test.mjs",
+    "run:browser-worker": "node src/platform/browser-worker.mjs",
     "test:director-foundation": "node --test tests/director-foundation.test.mjs",
     "test:director-portability": "node --test tests/director-portability.test.mjs",
     "test:sdc-contract-matrix": "node --test tests/sdc-contract-matrix.test.mjs",
