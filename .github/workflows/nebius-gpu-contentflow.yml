@@ -1,0 +1,167 @@
+name: ContentFlow Nebius GPU
+
+on:
+  workflow_dispatch:
+    inputs:
+      nebius_host:
+        description: 'Optional current Nebius public IP/host. Overrides repository variable NEBIUS_HOST.'
+        required: false
+        type: string
+      workload_profile:
+        description: 'Fixed GPU workload profile'
+        required: true
+        default: gpu-smoke
+        type: choice
+        options:
+          - gpu-smoke
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contentflow-nebius-gpu
+  cancel-in-progress: false
+
+jobs:
+  preflight-sync-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEBIUS_USER: ubuntu
+      SSH_OPTS: -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve current Nebius host
+        shell: bash
+        env:
+          INPUT_HOST: ${{ inputs.nebius_host }}
+          CONFIGURED_HOST: ${{ vars.NEBIUS_HOST }}
+        run: |
+          set -euo pipefail
+          host="${INPUT_HOST:-${CONFIGURED_HOST:-}}"
+          if [[ -z "$host" ]]; then
+            echo 'NEBIUS_ERROR_CLASS=HOST_DISCOVERY_REQUIRED' >&2
+            echo 'Set repository variable NEBIUS_HOST or pass workflow_dispatch input nebius_host.' >&2
+            exit 64
+          fi
+          echo "NEBIUS_HOST=$host" >> "$GITHUB_ENV"
+          if [[ -n "${INPUT_HOST:-}" ]]; then
+            echo 'NEBIUS_HOST_SOURCE=workflow_dispatch' >> "$GITHUB_ENV"
+          else
+            echo 'NEBIUS_HOST_SOURCE=repository_variable' >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          test -n "${{ secrets.NEBIUS_SSH_PRIVATE_KEY }}"
+          printf '%s\n' "${{ secrets.NEBIUS_SSH_PRIVATE_KEY }}" > ~/.ssh/nebius_key
+          chmod 600 ~/.ssh/nebius_key
+          ssh-keygen -y -f ~/.ssh/nebius_key >/dev/null
+
+      - name: Preflight SSH + host GPU + Docker GPU
+        shell: bash
+        env:
+          NEBIUS_KEY_PATH: /home/runner/.ssh/nebius_key
+          EVIDENCE_PATH: certification-evidence/nebius-gpu-${{ github.run_id }}.json
+        run: bash ops/nebius/contentflow-gpu-preflight.sh
+
+      - name: Bootstrap isolated ContentFlow workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh $SSH_OPTS -i ~/.ssh/nebius_key "$NEBIUS_USER@$NEBIUS_HOST" \
+            'mkdir -p ~/workspaces/contentflow/{data,evidence,logs,models,cache,runs,runtime}'
+
+      - name: Atomic sync ContentFlow release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf - . | \
+          ssh $SSH_OPTS -i ~/.ssh/nebius_key "$NEBIUS_USER@$NEBIUS_HOST" \
+            'set -euo pipefail
+             root=~/workspaces/contentflow/runtime
+             rm -rf "$root/release.next"
+             mkdir -p "$root/release.next"
+             tar -xzf - -C "$root/release.next"
+             test -f "$root/release.next/package.json"
+             rm -rf "$root/release.previous"
+             if [ -d "$root/release.current" ]; then mv "$root/release.current" "$root/release.previous"; fi
+             mv "$root/release.next" "$root/release.current"'
+
+      - name: Run isolated GPU workload
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          WORKLOAD_PROFILE: ${{ inputs.workload_profile }}
+        run: |
+          set -euo pipefail
+          case "$WORKLOAD_PROFILE" in
+            gpu-smoke) ;;
+            *) echo 'APPLICATION_GPU_FAULT: unsupported workload profile' >&2; exit 65 ;;
+          esac
+          ssh $SSH_OPTS -i ~/.ssh/nebius_key "$NEBIUS_USER@$NEBIUS_HOST" \
+            "RUN_ID='$RUN_ID' bash -se" <<'REMOTE'
+          set -euo pipefail
+          run_dir="$HOME/workspaces/contentflow/runs/$RUN_ID"
+          mkdir -p "$run_dir" "$HOME/workspaces/contentflow/evidence"
+          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if ! sudo docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi >"$run_dir/nvidia-smi.txt" 2>&1; then
+            printf '{"workload":"FAIL","error_class":"APPLICATION_GPU_FAULT","started_at":"%s","finished_at":"%s"}\n' "$started_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$run_dir/workload.json"
+            cp "$run_dir/workload.json" "$HOME/workspaces/contentflow/evidence/gpu-$RUN_ID.json"
+            exit 51
+          fi
+          printf '{"workload":"PASS","profile":"gpu-smoke","run_id":"%s","started_at":"%s","finished_at":"%s"}\n' "$RUN_ID" "$started_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$run_dir/workload.json"
+          cp "$run_dir/workload.json" "$HOME/workspaces/contentflow/evidence/gpu-$RUN_ID.json"
+          REMOTE
+
+      - name: Fetch workload evidence
+        if: always()
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set +e
+          mkdir -p certification-evidence
+          scp $SSH_OPTS -i ~/.ssh/nebius_key \
+            "$NEBIUS_USER@$NEBIUS_HOST:workspaces/contentflow/evidence/gpu-$RUN_ID.json" \
+            "certification-evidence/nebius-gpu-workload-$RUN_ID.json"
+
+      - name: Finalize combined evidence
+        if: always()
+        shell: bash
+        env:
+          PREFLIGHT: certification-evidence/nebius-gpu-${{ github.run_id }}.json
+          WORKLOAD: certification-evidence/nebius-gpu-workload-${{ github.run_id }}-${{ github.run_attempt }}.json
+          HOST_SOURCE: ${{ env.NEBIUS_HOST_SOURCE }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const p = process.env.PREFLIGHT;
+          if (!fs.existsSync(p)) process.exit(0);
+          const pre = JSON.parse(fs.readFileSync(p,'utf8'));
+          let workload = { workload: 'NOT_RUN' };
+          if (fs.existsSync(process.env.WORKLOAD)) workload = JSON.parse(fs.readFileSync(process.env.WORKLOAD,'utf8'));
+          const final = {
+            ...pre,
+            host_source: process.env.HOST_SOURCE || 'unknown',
+            workload: workload.workload || 'NOT_RUN',
+            workload_profile: workload.profile || null,
+            run_id: workload.run_id || null,
+            finished_at: workload.finished_at || pre.finished_at || new Date().toISOString(),
+          };
+          if (final.workload === 'FAIL' && !final.error_class) final.error_class = 'APPLICATION_GPU_FAULT';
+          fs.writeFileSync(p, JSON.stringify(final,null,2)+'\n');
+          NODE
+
+      - name: Upload Nebius GPU evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contentflow-nebius-gpu-${{ github.run_id }}
+          path: certification-evidence/nebius-gpu-*.json
+          if-no-files-found: warn
+          retention-days: 14
