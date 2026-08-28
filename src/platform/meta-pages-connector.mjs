@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 
-const DEFAULT_GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v23.0';
 const DEFAULT_GRAPH_ORIGIN = 'https://graph.facebook.com';
 
 function required(value, name) {
@@ -16,7 +15,7 @@ function redactToken(value) {
 async function graphGet(pathname, params, options) {
   const fetchImpl = options.fetchImpl ?? fetch;
   const graphOrigin = options.graphOrigin ?? DEFAULT_GRAPH_ORIGIN;
-  const graphVersion = options.graphVersion ?? DEFAULT_GRAPH_VERSION;
+  const graphVersion = required(options.graphVersion, 'graph_version');
   const accessToken = required(options.accessToken, 'access_token');
   const url = new URL(`${graphOrigin}/${graphVersion}/${pathname.replace(/^\//, '')}`);
   for (const [key, value] of Object.entries(params ?? {})) {
@@ -38,7 +37,7 @@ export async function verifyMetaPagesConnection(input = {}, deps = {}) {
   const userAccessToken = required(input.userAccessToken ?? process.env.META_USER_ACCESS_TOKEN, 'user_access_token');
   const pageName = input.pageName ?? null;
   const pageId = input.pageId ?? process.env.META_PAGE_ID ?? null;
-  const graphVersion = input.graphVersion ?? process.env.META_GRAPH_VERSION ?? DEFAULT_GRAPH_VERSION;
+  const graphVersion = required(input.graphVersion ?? process.env.META_GRAPH_VERSION, 'graph_version');
 
   const accounts = await graphGet('me/accounts', { fields: 'id,name,access_token,tasks' }, {
     ...deps,
@@ -79,6 +78,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const receipt = await verifyMetaPagesConnection({
     pageId: process.env.META_PAGE_ID ?? null,
     pageName: process.env.META_PAGE_NAME ?? null,
+    graphVersion: process.env.META_GRAPH_VERSION ?? null,
   });
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
 }
