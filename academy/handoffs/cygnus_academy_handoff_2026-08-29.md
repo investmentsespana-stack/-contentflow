@@ -1,5 +1,9 @@
 # Cygnus Academy AI — Handoff diferencial
 
+## CIERRE DIFERENCIAL FACEBOOK/INSTAGRAM
+
+Evidencia posterior y criterios de cierre: `academy/handoffs/conexion_facebook_cygnus_differential_close_2026-08-29.md` (commit `2757d369c133c86d000586104f0d903d92682b42`). C03 es cerrable con excepción P17 documentada; FBIG-09 y C21 permanecen `REQUIRES_HUMAN / FAIL-CLOSED`.
+
 ## ACTUALIZACIÓN PRIORITARIA — OAUTH/API SOCIAL NEXO/CONTENTFLOW
 
 Estado detallado: `academy/handoffs/conexion_social_oauth_nexo_contentflow_2026-08-29.md`.
