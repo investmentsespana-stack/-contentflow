@@ -76,11 +76,22 @@ No se declara PASS global porque FBIG-01, FBIG-02/C13 y FBIG-03/C10 siguen pendi
 - `.github/workflows/meta-pages-connector-cert.yml` certifica tests del conector; no es un workflow de ejecución de cambios sociales.
 - No se usa Work ni Browserbase para estos FBIG.
 
+## PRIVATE EMAIL — INTEGRACIÓN TÉCNICA
+Estado: `CODE_READY / SECRET_REQUIRED / NOT_YET_RUNTIME_VERIFIED`.
+- Mailbox operativo: `social@investmentsespana.space`.
+- Recepción Gmail → Private Email ya comprobada manualmente en webmail.
+- Se añadió `src/platform/private-email-connector.mjs` con contrato fail-closed, configuración por variables de entorno, verificación IMAP/SMTP en paralelo y recibos sin contraseña.
+- Se creó `academy/handoffs/cygnus_private_email_integration_2026-08-29.md` con el gate de certificación y variables requeridas.
+- Configuración oficial Namecheap vigente usada por el conector: `mail.privateemail.com`, IMAP 993 SSL/TLS, SMTP 465 SSL/TLS.
+- La contraseña NO está en GitHub/chat/logs. Falta introducirla directamente en el gestor de secretos del runtime y conectar adapters IMAP/SMTP reales antes de declarar `CONNECTED`.
+- Próxima certificación: leer por IMAP el mensaje de prueba ya recibido y enviar por SMTP desde `social@investmentsespana.space` hacia Gmail; confirmar llegada y persistir evidencia.
+
 ### TAREAS LIBERADAS EN DIRECTOR
 - FBIG-06 → `COMPLETED / READY_FOR_HUMAN_APPROVAL`.
 - FBIG-07 → `PREPARED / NOT_PUBLISHED`.
 - F01 → puede entrar al gate de aprobación humana.
 - F02–F10 → puede avanzar a producción/QA de assets visuales y video.
+- Private Email → `CODE_READY / AWAITING_SECRET_INJECTION_AND_RUNTIME_CERTIFICATION`.
 - FBIG-01/02/03/05 permanecen abiertas hasta disponer de una superficie técnica que soporte la operación concreta sin violar guardrails.
 - FBIG-08 permanece gate final fail-closed.
 
