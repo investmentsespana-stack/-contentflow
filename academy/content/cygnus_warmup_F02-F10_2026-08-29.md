@@ -1,0 +1,33 @@
+# Cygnus Academy AI — Producción F02–F10
+
+Estado global: PRODUCIDO / NO PUBLICADO. Estrategia: 100% orgánica, educativa, demostrativa, sin venta directa ni métricas/costos/clientes inventados.
+
+## F02 — Humano dirige, IA ejecuta
+Objetivo: desmontar el falso dilema humano vs IA. Hook: `¿La IA te va a quitar el trabajo? Mira quién manda aquí.` Formato: Reel 35–45 s. Guion: 0–2 hook; 2–8 humano define misión/reglas; 8–20 IA ejecuta subtareas; 20–30 humano verifica/corrige; 30–40 resultado; cierre `La IA acelera. El humano define qué vale la pena ejecutar.` Caption: `La ventaja no está en dejar a la IA decidirlo todo. Está en diseñar una colaboración donde el humano define propósito, límites y criterio, y la IA ayuda a ejecutar.` CTA: `Compártelo con alguien que todavía ve la IA como humano contra máquina.` Hashtags: #CygnusAcademyAI #IAAplicada #InteligenciaArtificial #AprendiendoHaciendo. Visual: presentador + pantalla + diagrama humano→OPC→agentes→verificación. Facebook: versión 40–50 s con contexto. Instagram: 30–40 s y subtítulos grandes. TikTok/Shorts: 25–35 s, resultado visible antes del segundo 5.
+
+## F03 — ¿La IA es demasiado cara?
+Objetivo: enseñar a medir costo/beneficio sin inventar cifras. Hook: `¿Implementar IA cuesta una fortuna? La pregunta correcta es otra.` Formato: Reel/video. Guion: tarea concreta → recursos consumidos observables → tiempo → resultado → cómo comparar; no mostrar cifra hasta disponer de medición real. Caption: `El costo de IA se mide, no se adivina. Primero definimos tarea, calidad esperada, consumo y supervisión humana.` CTA: `Guárdalo para cuando evalúes una automatización.` Hashtags: #IAParaEmpresas #CygnusAcademyAI #Automatizacion #IAAplicada. Visual: cronómetro, panel de consumo real cuando exista, salida final. FB: explicación 45–60 s. IG: Reel 35–45 s. TikTok/Shorts: 30 s con pregunta-respuesta.
+
+## F04 — No automatices todavía
+Objetivo: introducir Auditoría 360. Hook: `NO automatices tu empresa todavía.` Formato: Reel 40–50 s. Guion: proceso roto → riesgo de automatizarlo → auditoría de operación/datos/costos/personas/riesgos → cuello de botella → decisión. Caption: `Automatizar un proceso roto puede hacer que falle más rápido. Primero entendemos el negocio; después decidimos qué automatizar y qué NO.` CTA: `Guarda esta regla antes de automatizar.` Hashtags: #Auditoria360 #Automatizacion #CygnusAcademyAI #IAAplicada. Visual: before/after, mapa de proceso, zoom a cuello de botella. FB: 50 s. IG: 40 s. TikTok/Shorts: 30–35 s.
+
+## F05 — Checklist: ¿estás preparado para IA?
+Objetivo: dar herramienta guardable. Hook: `Antes de contratar agentes de IA, revisa estas 7 cosas.` Formato: carrusel 8 láminas. Láminas: portada; procesos; datos; herramientas; costos/tiempo; personas; riesgos/compliance; cierre `Sin datos = SIN DATOS. No inventes.` Caption: `Prepararse para IA empieza por entender el sistema que ya existe.` CTA: `Guarda este checklist.` Hashtags: #ChecklistIA #TransformacionDigital #CygnusAcademyAI. Visual: iconos simples Cygnus, una idea por lámina. FB: álbum/carrusel con texto contextual. IG: carrusel 8. TikTok/Shorts: derivado video 25 s recorriendo checklist.
+
+## F06 — Varios agentes, un objetivo
+Objetivo: explicar especialización multiagente. Hook: `Un agente no tiene que hacerlo todo.` Formato: Reel 35–45 s. Guion: misión → investigador → analista → ejecutor → verificador → resultado integrado. Caption: `Dividir bien el trabajo permite asignar especialistas y controles diferentes a cada etapa.` CTA: `¿Qué proceso dividirías entre especialistas?` Hashtags: #AgentesIA #Multiagente #CygnusAcademyAI #OPC. Visual: cuatro paneles trabajando en paralelo, convergen en resultado. FB: 45 s. IG: 35 s. TikTok/Shorts: 25–30 s.
+
+## F07 — ¿Quién dirige a los agentes?
+Objetivo: introducir OPC gradualmente. Hook: `¿Quién dirige a todos esos agentes?` Formato: Reel. Guion: misión humana → OPC descompone → asigna → controla dependencias → reúne/verifica → humano decide. Caption: `Orquestar no es soltar agentes. Es convertir una misión humana en trabajo coordinado y verificable.` CTA: `Guárdalo: pronto mostramos un flujo completo.` Hashtags: #OPC #OrquestacionIA #AgentesIA #CygnusAcademyAI. Visual: OPC central + nodos especializados. FB: 45 s con definición. IG/TikTok/Shorts: 30–35 s.
+
+## F08 — Cuando la IA se equivoca
+Objetivo: normalizar controles y reparación. Hook: `¿Qué pasa cuando la IA se equivoca?` Formato: Reel 35–45 s. Guion: error observable → detector → verificador → corrección → rerun → resultado. Caption: `Un sistema serio no presume que la IA nunca falla. Diseña cómo detectar, corregir y volver a verificar.` CTA: `Compártelo: fallar bien también se diseña.` Hashtags: #CalidadIA #AIAgents #CygnusAcademyAI #RARA. Visual: logs anonimizados, alerta, corrección, check final. No mostrar datos sensibles. FB 45 s; IG 35 s; TikTok/Shorts 30 s.
+
+## F09 — Antes y después
+Objetivo: mostrar transformación sin métricas inventadas. Hook: `Esto se hacía así. Ahora mira esto.` Formato: Reel split-screen. Guion: pasos manuales → puntos de intervención → sistema asistido por IA → pasos humanos conservados → resultado comparable. Caption: `La automatización útil se demuestra comparando procesos, no prometiendo magia.` CTA: `¿Qué proceso quieres que analicemos después?` Hashtags: #AntesYDespues #AutomatizacionIA #CygnusAcademyAI. Visual: split screen y contador de pasos; tiempo solo si se mide realmente. FB 45–60 s; IG 35–45; TikTok/Shorts 30.
+
+## F10 — Cygnus practica lo que enseña
+Objetivo: convertir la marca en caso de estudio. Hook: `Este contenido también es parte del experimento.` Formato: Reel 45 s. Guion: investigación → planificación → producción → QA → distribución → aprendizaje, señalando intervención humana. Caption: `Lo que enseñamos, lo practicamos. Nuestro sistema de IA ayuda a investigar, planificar, producir, verificar y distribuir; el humano dirige propósito y criterio.` CTA: `Síguenos para ver el sistema evolucionar en público.` Hashtags: #BuiltWithAI #DirectedByHumans #CygnusAcademyAI #AprendiendoHaciendo. Visual: pipeline real, storyboard, QA, salida; sello `BUILT WITH AI · DIRECTED BY HUMANS`. FB 50–60 s; IG 40–45; TikTok/Shorts 30–40.
+
+## Reglas de producción comunes
+Hook 1–2 s; open loop; pattern interrupt por cambio de idea; subtítulos; resultado visible; 9:16 para Reels/TikTok/Shorts; 4:5 para carruseles; identidad azul marino/cian, cisne/constelación; cero Escuela EnDigital; cero publicación hasta aprobación.
