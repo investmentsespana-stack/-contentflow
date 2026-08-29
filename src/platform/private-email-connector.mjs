@@ -9,17 +9,23 @@ function required(value, name) {
   return value;
 }
 
+function first(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '');
+}
+
 function fingerprint(value) {
   if (!value) return null;
   return `sha256:${crypto.createHash('sha256').update(value).digest('hex').slice(0, 16)}`;
 }
 
 export function getPrivateEmailConfig(env = process.env) {
-  const address = required(env.CYGNUS_EMAIL_ADDRESS, 'address');
-  const password = required(env.CYGNUS_EMAIL_PASSWORD, 'password');
-  const host = env.CYGNUS_EMAIL_HOST || DEFAULT_HOST;
-  const imapPort = Number(env.CYGNUS_EMAIL_IMAP_PORT || DEFAULT_IMAP_PORT);
-  const smtpPort = Number(env.CYGNUS_EMAIL_SMTP_PORT || DEFAULT_SMTP_PORT);
+  const address = required(first(env.PRIVATE_EMAIL_ADDRESS, env.CYGNUS_EMAIL_ADDRESS), 'address');
+  const password = required(first(env.PRIVATE_EMAIL_PASSWORD, env.CYGNUS_EMAIL_PASSWORD), 'password');
+
+  const imapHost = first(env.PRIVATE_EMAIL_IMAP_HOST, env.CYGNUS_EMAIL_HOST, DEFAULT_HOST);
+  const smtpHost = first(env.PRIVATE_EMAIL_SMTP_HOST, env.CYGNUS_EMAIL_HOST, DEFAULT_HOST);
+  const imapPort = Number(first(env.PRIVATE_EMAIL_IMAP_PORT, env.CYGNUS_EMAIL_IMAP_PORT, DEFAULT_IMAP_PORT));
+  const smtpPort = Number(first(env.PRIVATE_EMAIL_SMTP_PORT, env.CYGNUS_EMAIL_SMTP_PORT, DEFAULT_SMTP_PORT));
 
   if (!Number.isInteger(imapPort) || imapPort <= 0) throw new Error('private_email_invalid_imap_port');
   if (!Number.isInteger(smtpPort) || smtpPort <= 0) throw new Error('private_email_invalid_smtp_port');
@@ -27,9 +33,9 @@ export function getPrivateEmailConfig(env = process.env) {
   return {
     address,
     password,
-    host,
-    imap: { host, port: imapPort, secure: true, username: address },
-    smtp: { host, port: smtpPort, secure: true, username: address },
+    host: imapHost === smtpHost ? imapHost : null,
+    imap: { host: imapHost, port: imapPort, secure: true, username: address },
+    smtp: { host: smtpHost, port: smtpPort, secure: true, username: address },
   };
 }
 
@@ -38,8 +44,8 @@ export function safePrivateEmailReceipt(config) {
     schema: 'nexo.private_email.connection.v1',
     address: config.address,
     host: config.host,
-    imap: { port: config.imap.port, secure: config.imap.secure },
-    smtp: { port: config.smtp.port, secure: config.smtp.secure },
+    imap: { host: config.imap.host, port: config.imap.port, secure: config.imap.secure },
+    smtp: { host: config.smtp.host, port: config.smtp.port, secure: config.smtp.secure },
     passwordFingerprint: fingerprint(config.password),
   };
 }
