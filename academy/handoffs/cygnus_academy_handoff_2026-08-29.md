@@ -1,66 +1,64 @@
 # Cygnus Academy AI — Handoff diferencial
 
 Fecha: 2026-08-29
+Referencia anterior: `efd8332f7173700de45e5229235212a6ec1592de`
 
-## Actualización incremental — ronda de ejecución solicitada
-Esta actualización NO sustituye ni contradice la evidencia anterior. Se conserva el estado canónico y se registra únicamente lo que puede ejecutarse/verificarse reproduciblemente desde las herramientas disponibles en esta conversación.
+## RONDA MULTICANAL / CONTENT PRODUCTION
+Actualización incremental. No se repitieron auditorías certificadas ni se reintentaron en bucle bloqueos de Facebook.
 
-### Facebook — 3 fotos residuales
-| ID | Acción autorizada | Estado | Evidencia / bloqueo |
-|---|---|---|---|
-| 117870841103952 | Solo yo / ocultamiento reversible | PENDIENTE | No existe en este chat una herramienta con control de la sesión autenticada de Facebook; no se simula el clic ni el antes/después |
-| 102578735973525 | Solo yo / ocultamiento reversible | PENDIENTE | Mismo bloqueo de superficie autenticada |
-| 102575999307132 | Solo yo / ocultamiento reversible | PENDIENTE | Mismo bloqueo de superficie autenticada |
-| 117870831103953 | NO TOCAR | VERIFICADO intacta según estado heredado | Sin acción |
-| 102650375966361 | NO TOCAR | VERIFICADO intacta según estado heredado | Sin acción |
+### EJECUTADO / PRODUCIDO
+- F01 permanece NO PUBLICADO. Se materializó el carrusel como 5 archivos PNG 1080×1350 y preview conjunto Facebook/Instagram. QA local: dimensiones correctas; ortografía y legibilidad revisadas; identidad Cygnus consistente; no contiene identidad Escuela EnDigital. Estado: `LISTO PARA APROBACIÓN HUMANA`.
+- F02–F10: paquete editorial multicanal completo producido en `academy/content/cygnus_warmup_F02-F10_2026-08-29.md`: objetivo, hook, formato, guion/texto, caption, CTA, hashtags, instrucciones visuales y adaptaciones Facebook/Instagram/TikTok/Shorts.
+- Identidad multicanal + arquitectura Instagram + calendario 4 semanas producidos en `academy/content/cygnus_multichannel_identity_calendar_2026-08-29.md`.
+- Ninguna pieza F01–F10 fue publicada.
 
-Guardrail aplicado: nunca `Eliminar foto`. No se declara EJECUTADO sin evidencia reproducible antes/después.
+### F01 — archivos generados
+Paquete descargable de trabajo: `Cygnus_F01_final_para_aprobacion.zip` generado en el entorno de producción de esta ronda. Contiene `F01_01.png` … `F01_05.png`, `F01_preview_FB_IG.png` y `manifest.json`. Los PNG son 1080×1350. El ZIP/PNG no se subió al repositorio mediante el conector GitHub disponible porque su escritura soporta texto UTF-8, no binarios; el handoff conserva la referencia y el manifiesto.
 
-### C13 — Archivo P01–P16
-Estado: PENDIENTE DE EVIDENCIA REPRODUCIBLE. La evidencia canónica previa solo certifica P01 en Archivo; la ausencia pública de P02–P16 NO se acepta como prueba de archivado. Esta ronda no puede abrir el Archivo de Facebook porque no dispone de control de esa sesión autenticada. C13 permanece FAIL-CLOSED hasta listar P01–P16 directamente en Archivo o producir evidencia equivalente reproducible.
+### INSTAGRAM — @cygnusacademyai
+Conexión Facebook/Instagram: VERIFICADA previamente y no reauditada. Se preparó arquitectura inicial: orden F01→F02→F04→F05→F06→F03→F07→F08→F09→F10; Stories derivadas; Highlights `Empieza aquí`, `IA aplicada`, `Auditoría 360`, `Agentes`, `OPC`, `Detrás`, `FAQ`; respuestas institucionales básicas sin promesas comerciales ni tiempos de respuesta. No se modificaron permisos, personas, seguridad, 2FA ni portfolio. Cualquier configuración detrás de `Verificación necesaria` permanece BLOQUEADA sin intento de evasión. `@escuelaendigital`: NO TOCAR / NO ELIMINAR / NO DESVINCULAR.
 
-### C10 — botón Messenger
-Estado: PENDIENTE DE PRUEBA FUNCIONAL EN SUPERFICIE AUTENTICADA/PÚBLICA CONTROLABLE. El estado anterior certifica que el botón principal está configurado a Enviar mensaje/Messenger, pero no existe aquí una ejecución reproducible del clic que demuestre apertura del flujo. No se envió ningún mensaje.
+### TIKTOK / YOUTUBE / LINKEDIN / X — verificación de existencia
+Se ejecutó búsqueda web abierta de variantes `Cygnus Academy AI`, `CygnusAcademyAI`, `cygnusacademyai` por plataforma. La búsqueda no produjo evidencia suficientemente fiable para atribuir una cuenta oficial/controlable. TikTok además bloqueó acceso automatizado por robots.txt. Clasificación conservadora:
+- TikTok: `NO VERIFICABLE` (búsqueda directa automatizada bloqueada; no crear duplicado).
+- YouTube: `NO LOCALIZADA` con evidencia pública fiable en esta ronda; control no verificable.
+- LinkedIn: `NO LOCALIZADA` con evidencia pública fiable en esta ronda; control no verificable.
+- X: `NO LOCALIZADA` con evidencia pública fiable en esta ronda; control no verificable.
+No se creó ninguna cuenta. Antes de creación, comprobar directamente dentro de cada plataforma y resolver autenticación humana legítima si corresponde.
 
-### Superficies Fotos / Videos / Reels / publicaciones técnicas automáticas
-Estado heredado conservado. No se repite auditoría general. No se modifica contenido dudoso. Las tres fotos inequívocas continúan siendo el residuo accionable conocido hasta que puedan ocultarse con evidencia; las otras dos referencias quedan intactas. No se declara una nueva inspección UI que no pudo ejecutarse.
+### IDENTIDAD MULTICANAL
+Identidad maestra terminada para Facebook, Instagram, TikTok, YouTube, LinkedIn y X. Nombre visible `CYGNUS ACADEMY AI`; handle preferido `cygnusacademyai`, alternativas `cygnusacademy.ai` cuando admita punto y `cygnusacademy_ai`; sin números. Bio corta: `Aprendiendo Haciendo 🚀 | IA y tecnología aplicada | Formación para el trabajo`. Avatar: cisne cian/azul marino. Banners y tamaños master definidos por plataforma. CTA orgánico: `Mira la IA trabajando en situaciones reales.` Enlace Cygnus: PENDIENTE; no se inventó dominio.
 
-### C21 — gate recalculado
-Estado: PENDIENTE / FAIL-CLOSED.
-- Identidad principal escritorio: VERIFICADO previamente.
-- Conexión Meta/Instagram: VERIFICADA previamente; no se reaudita.
-- 3 fotos antiguas: PENDIENTE de ocultamiento real + antes/después.
-- C13 P01–P16: PENDIENTE de prueba directa en Archivo.
-- C10 botón Messenger: PENDIENTE de prueba funcional directa.
-- Username Facebook: REQUIERE HUMANO si Facebook exige contraseña.
+### CALENDARIO EDITORIAL — 4 SEMANAS
+Plan producido en archivo multicanal: 28 días, distribuyendo F01–F10 y derivados con separación de 12–48 h entre reutilizaciones, alternando carruseles/Reels/Stories y adaptaciones para TikTok/Shorts/LinkedIn/X solo cuando las cuentas queden verificadas/controlables. Objetivo: presencia, autoridad, educación y señales orgánicas antes de promoción comercial.
+
+### FACEBOOK — BLOQUEOS CONSERVADOS SIN REINTENTO
+- 3 fotos antiguas: PENDIENTE de control UI + evidencia antes/después.
+- C13: PENDIENTE de evidencia directa de Archivo P01–P16.
+- C10: PENDIENTE de prueba funcional Messenger.
+- C06 username: REQUIERE HUMANO si exige contraseña.
 - QA móvil auténtico: REQUIERE HUMANO.
-- P17: excepción histórica documentada, sin modificar.
+No se detuvo producción independiente por estos bloqueos.
 
-### Instagram — @cygnusacademyai
-Conexión Facebook + Instagram: VERIFICADA y conservada, sin reauditoría. Evidencia posterior directa de bio/avatar/categoría/botones/configuración profesional permanece condicionada a la superficie de Meta que previamente mostró `Verificación necesaria`. No se evade ese bloqueo ni se inventa evidencia. @escuelaendigital permanece intacta: no tocar, eliminar ni desvincular.
+### VERIFICADO
+- Estado canónico anterior preservado.
+- Conexión Meta/Instagram no modificada.
+- F01–F10 continúan NO PUBLICADOS.
+- Cero eliminación permanente; cero cuentas duplicadas creadas; cero credenciales solicitadas/almacenadas.
 
-## F01 — VISUAL DEFINITIVO PRODUCIDO PARA APROBACIÓN; NO PUBLICADO
-Se produjo una propuesta visual definitiva en formato carrusel 1080×1350, 5 láminas, identidad azul marino/cian, cisne/constelación y una idea principal por lámina. Estado: PENDIENTE DE APROBACIÓN HUMANA antes de publicar.
+### BLOQUEADO / REQUIERE HUMANO
+- Aprobar visual F01.
+- Facebook: los cinco puntos UI registrados arriba según corresponda.
+- Instagram: cualquier configuración que siga detrás de `Verificación necesaria`.
+- Verificación directa/autenticada de existencia/control para TikTok/YouTube/LinkedIn/X antes de crear o conectar cuentas.
 
-Contenido aprobado de las láminas:
-1. `¿Crees que la IA solo sirve para conversar?`
-2. `También puede analizar información y detectar patrones.`
-3. `Puede organizar procesos y apoyar decisiones.`
-4. `El humano define objetivo, contexto, límites y criterio.`
-5. `No te contamos lo que la IA puede hacer. Te lo mostramos. · Aprendiendo Haciendo`
+### TAREAS QUE ESTA RONDA PERMITE LIBERAR EN DIRECTOR
+- `F01_content_package`: pasar a `READY_FOR_HUMAN_APPROVAL`, no `PUBLISHED`.
+- `F02-F10_content_production`: marcar `PRODUCED / AWAITING_VISUAL_PRODUCTION_OR_APPROVAL` según pieza.
+- `academy_multichannel_identity`: marcar `PRODUCED`, con URL oficial Cygnus todavía pendiente.
+- `academy_warmup_calendar_4w`: marcar `PRODUCED / NOT_SCHEDULED`.
+- `academy_social_account_discovery`: mantener abierta para verificación autenticada de TikTok/YouTube/LinkedIn/X; no crear duplicados.
+- Facebook C10/C13/C21 y limpieza 3 fotos permanecen abiertas.
 
-Caption:
-> La inteligencia artificial es más que conversar con una herramienta. También puede analizar información, organizar procesos, detectar patrones y apoyar decisiones. La diferencia no está solo en la tecnología: está en el objetivo, el contexto y el criterio humano. En Cygnus Academy AI aprendemos explorando aplicaciones reales y verificando cada resultado. **Aprendiendo Haciendo – Formación para el trabajo.**
-
-CTA: **Guárdalo y acompáñanos a ver la IA trabajando en situaciones reales.**
-
-Hashtags: `#CygnusAcademyAI #InteligenciaArtificial #AprendiendoHaciendo #IAAplicada #FormacionDigital`
-
-## Estado de esta ronda
-- EJECUTADO: producción del visual F01 para aprobación; actualización incremental del handoff.
-- VERIFICADO: se preserva conexión Meta/Instagram previamente certificada; las dos fotos no autorizadas continúan bajo regla NO TOCAR.
-- PENDIENTE: ocultamiento real de las 3 fotos; evidencia C13; prueba funcional C10; evidencia Instagram posterior si Meta permite acceso.
-- REQUIERE HUMANO: username si exige contraseña; QA móvil real; aprobación del visual F01.
-
-## Guardrails
-Cero eliminación permanente. Cero contraseñas/tokens. No administradores/2FA/portfolio. No tocar @escuelaendigital. F01 no publicado. Cero evidencia inventada.
+## Guardrails permanentes
+Cero eliminación permanente. Cero contraseñas/tokens. No modificar administradores, 2FA o portfolio. No tocar @escuelaendigital. No publicar F01–F10. No crear cuentas duplicadas. No inventar evidencia, métricas, URLs, clientes ni estados. No detener trabajo independiente por bloqueo externo.
