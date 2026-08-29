@@ -24,6 +24,35 @@ No hacer retries automáticos sobre esos pasos mientras la plataforma siga exigi
 6. Instagram `@cygnusacademyai`: conservar conexión verificada; `@escuelaendigital` NO TOCAR / NO ELIMINAR / NO DESVINCULAR.
 7. Persistir cualquier evidencia nueva con IDs, timestamps, before/after y resultado reproducible. No inferir PASS por ausencia visual solamente.
 
+## EJECUCIÓN TÉCNICA NUEVA — 2026-08-29 16:08 ET
+Se detectó trabajo nuevo y ejecutable en `main` posterior al handoff anterior.
+
+### Reparación aplicada
+Commit: `499c308ccd460fedd1a4b137150ccadf4290aab7`
+Mensaje: `Meta: add direct expected-page fallback and safe 403 diagnostics`
+Archivo modificado: `api/meta/oauth/callback.js`
+
+Cambios verificados:
+- conserva `/me/accounts` como ruta primaria de descubrimiento;
+- si la Page esperada no aparece, intenta lookup directo y limitado de `102575905973808` con el mismo user token;
+- no persiste token si el lookup directo tampoco produce Page access token;
+- registra de forma segura IDs de páginas retornadas y scopes concedidos para diagnóstico 403;
+- verifica `instagram_business_account` contra el ID esperado antes de persistir;
+- mantiene comportamiento fail-closed y no expone access tokens en la respuesta.
+
+### Evidencia de despliegue reproducible
+Vercel project: `contentflow-ai`
+Deployment: `dpl_HYeitJfB9NuWh9scCsZ72Y6QJht8`
+Estado observado: `READY`
+Target: `production`
+Commit desplegado: `499c308ccd460fedd1a4b137150ccadf4290aab7`
+URL de deployment: `contentflow-6qd3ujbsz-content-flow3.vercel.app`
+
+Resultado: la reparación técnica está desplegada en producción. No se inició un nuevo ciclo OAuth desde esta automatización porque el siguiente intento requiere interacción/autorización humana en Meta y los guardrails prohíben reintentos UI en bucle.
+
+### Estado del gate
+`C21` permanece `PARTIAL / FAIL-CLOSED` hasta recibir una nueva autorización humana real y observar evidencia de runtime del callback actualizado. No marcar PASS por el despliegue solamente.
+
 ## REGLA DE EJECUCIÓN
 Un bloqueo humano en Meta NO debe detener otras ramas de Academy. Continuar contenido, QA, web, GPU, Nexo, Director y preparación social en paralelo.
 
