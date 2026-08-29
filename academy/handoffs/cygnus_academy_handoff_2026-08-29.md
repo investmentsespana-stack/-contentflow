@@ -107,3 +107,34 @@ Estado: `CODE_READY / SECRET_REQUIRED / NOT_YET_RUNTIME_VERIFIED`.
 
 ## Guardrails permanentes
 Cero eliminación permanente. Cero contraseñas/tokens. No modificar administradores, 2FA o portfolio. No tocar @escuelaendigital. No publicar F01–F10. No crear cuentas duplicadas. No inventar evidencia, métricas, URLs, clientes ni estados. No detener trabajo independiente por bloqueo externo.
+
+## ACTUALIZACIÓN AUTOMÁTICA — META OAUTH DIAGNÓSTICO SEGURO — 2026-08-29 17:16 ET
+
+Se detectó y verificó una nueva mejora técnica en `main`, posterior a la última evidencia del handoff, sin repetir auditorías certificadas ni reintentar el bloqueo humano/UI de Meta.
+
+### Cambio nuevo ejecutado y desplegado
+- Commit: `3b345c34cafa29d06707302b9ecc71442ff7dbe1` — `Meta: add safe OAuth preflight diagnostics`.
+- Archivo: `api/meta/oauth/callback.js`.
+- El callback ahora registra únicamente diagnósticos sanitizados para: autorización Meta no completada, código ausente, `META_APP_SECRET` ausente y `state` inválido/expirado.
+- No imprime ni persiste tokens, secretos, cookies, contraseñas ni códigos 2FA.
+- Mantiene comportamiento fail-closed y no habilita escritura social.
+
+### Evidencia de producción reproducible
+- Vercel project: `contentflow-ai` (`prj_zdruVxq7fTPFNsrC14ZZYLJB6QY2`).
+- Deployment: `dpl_C6r5DDGiBTi675wmdQhVSqc98uYy`.
+- Estado observado: `READY`.
+- Target: `production`.
+- Commit desplegado: `3b345c34cafa29d06707302b9ecc71442ff7dbe1`.
+- Deployment URL: `contentflow-p9ys34he0-content-flow3.vercel.app`.
+- Consulta de runtime `meta-oauth` para los 30 minutos posteriores al despliegue: sin eventos. Esto confirma que esta ronda NO disparó un nuevo consentimiento OAuth/UI.
+
+### Estado de tareas tras esta tanda
+- FBIG-01: `PENDING / BLOCKED_BY_WRITE_SURFACE` — sin cambio; no se ejecuta ocultamiento sin superficie reversible autorizada.
+- FBIG-02: `PENDING` — sin superficie verificable de archivo individual P01–P16; P17 preservada.
+- FBIG-03: `PENDING / BLOCKED_BY_FUNCTIONAL_SURFACE` — no se reintenta Messenger por UI.
+- FBIG-05: `PARTIAL / REQUIRES_HUMAN_FOR_OAUTH` — no se repite autorización humana ni verificación Meta.
+- FBIG-06: sigue `COMPLETED / READY_FOR_HUMAN_APPROVAL / NOT_PUBLISHED`.
+- FBIG-07: sigue `COMPLETED_PREPARATION / NOT_PUBLISHED`.
+- FBIG-08/C21: `PENDING / FAIL-CLOSED` hasta evidencia end-to-end real.
+
+Resultado de esta tanda: infraestructura OAuth diagnóstica más observable y segura en producción; ningún cambio destructivo, ninguna publicación, ninguna modificación de administradores/2FA/portfolio y ningún reintento humano/UI.
