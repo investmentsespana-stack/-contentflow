@@ -1,6 +1,7 @@
 import { verifyPrivateEmailConnection } from '../../src/platform/private-email-connector.mjs';
 import { verifyImap, verifySmtp } from '../../src/platform/private-email-node-adapters.mjs';
 
+// Production verification endpoint for the Cygnus private mailbox.
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET') {
