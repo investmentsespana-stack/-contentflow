@@ -1,21 +1,196 @@
-export default async function handler(req, res) {
-  const { code, state, error, error_description: errorDescription } = req.query || {};
+import crypto from 'node:crypto';
 
+const APP_ID = process.env.META_APP_ID || '1784797469372306';
+const REDIRECT_URI = process.env.META_OAUTH_REDIRECT_URI || 'https://contentflow-ai-tan.vercel.app/api/meta/oauth/callback';
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v23.0';
+const EXPECTED_PAGE_ID = process.env.META_PAGE_ID || '102575905973808';
+const EXPECTED_INSTAGRAM_ID = process.env.META_INSTAGRAM_ID || '17841455070447156';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://koqpyfvnprmirqviafzq.supabase.co';
+
+export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
 
-  if (error) {
-    return res.status(400).send(`<!doctype html><html><body><h1>Meta authorization not completed</h1><p>${escapeHtml(errorDescription || error)}</p></body></html>`);
-  }
+  if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
 
-  if (!code) {
-    return res.status(400).send('<!doctype html><html><body><h1>Missing authorization code</h1><p>Return to the Meta authorization flow and try again.</p></body></html>');
-  }
+  const { code, state, error, error_description: errorDescription } = req.query || {};
+  if (error) return res.status(400).send(page('Meta authorization not completed', escapeHtml(errorDescription || error)));
+  if (!code) return res.status(400).send(page('Missing authorization code', 'Return to the Meta authorization flow and try again.'));
 
-  // Token exchange is intentionally not performed here until META_APP_ID,
-  // META_APP_SECRET and state validation are configured securely in runtime.
-  const safeState = state ? 'received' : 'missing';
-  return res.status(200).send(`<!doctype html><html><body><h1>Meta callback reached</h1><p>Authorization code received securely.</p><p>State: ${safeState}</p><p>You may close this window.</p></body></html>`);
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret) return res.status(503).send(page('Runtime configuration incomplete', 'META_APP_SECRET is not configured.'));
+  if (!validateState(state, appSecret)) return res.status(400).send(page('Invalid or expired OAuth state', 'Start the authorization flow again from ContentFlow.'));
+
+  try {
+    const shortToken = await exchangeCode(code, appSecret);
+    const userToken = await exchangeLongLived(shortToken, appSecret).catch(() => shortToken);
+    const [me, permissions, accounts] = await Promise.all([
+      graphGet('/me', userToken, { fields: 'id,name' }),
+      graphGet('/me/permissions', userToken),
+      graphGet('/me/accounts', userToken, { fields: 'id,name,tasks,access_token' }),
+    ]);
+
+    const pageAsset = (accounts.data || []).find((item) => String(item.id) === EXPECTED_PAGE_ID);
+    if (!pageAsset?.access_token) {
+      return res.status(403).send(page('Cygnus page not authorized', `Expected Page ${EXPECTED_PAGE_ID} was not returned by Meta. No token was persisted.`));
+    }
+
+    const igInfo = await graphGet(`/${EXPECTED_PAGE_ID}`, pageAsset.access_token, {
+      fields: 'instagram_business_account{id,username}',
+    });
+    const instagram = igInfo.instagram_business_account || null;
+    if (!instagram || String(instagram.id) !== EXPECTED_INSTAGRAM_ID) {
+      return res.status(403).send(page('Instagram asset mismatch', `Expected Instagram ${EXPECTED_INSTAGRAM_ID} was not returned by Meta. No token was persisted.`));
+    }
+
+    const grantedScopes = (permissions.data || [])
+      .filter((p) => p.status === 'granted')
+      .map((p) => p.permission)
+      .sort();
+    const tasks = Array.isArray(pageAsset.tasks) ? pageAsset.tasks : [];
+    const fingerprint = crypto.createHash('sha256').update(pageAsset.access_token).digest('hex').slice(0, 16);
+
+    const persistence = await persistEncryptedPageToken({
+      appSecret,
+      userId: String(me.id || ''),
+      pageId: EXPECTED_PAGE_ID,
+      instagramId: EXPECTED_INSTAGRAM_ID,
+      scopes: grantedScopes,
+      tasks,
+      token: pageAsset.access_token,
+      fingerprint,
+    });
+
+    const receipt = {
+      schema: 'nexo.meta.oauth.connection.v1',
+      status: persistence.persisted ? 'connected_persisted' : 'connected_not_persisted',
+      appId: APP_ID,
+      page: { id: EXPECTED_PAGE_ID, name: pageAsset.name || null },
+      instagram: { id: String(instagram.id), username: instagram.username || null },
+      scopes: grantedScopes,
+      tasks,
+      tokenFingerprint: fingerprint,
+      tokenPersisted: persistence.persisted,
+      persistenceReason: persistence.reason || null,
+      checkedAt: new Date().toISOString(),
+    };
+
+    return res.status(persistence.persisted ? 200 : 206).send(page(
+      persistence.persisted ? 'Meta OAuth connected' : 'Meta OAuth verified; vault pending',
+      `<pre>${escapeHtml(JSON.stringify(receipt, null, 2))}</pre>`,
+    ));
+  } catch (err) {
+    return res.status(502).send(page('Meta OAuth verification failed', escapeHtml(err?.message || 'Unknown error')));
+  }
+}
+
+async function exchangeCode(code, appSecret) {
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token`);
+  url.searchParams.set('client_id', APP_ID);
+  url.searchParams.set('client_secret', appSecret);
+  url.searchParams.set('redirect_uri', REDIRECT_URI);
+  url.searchParams.set('code', String(code));
+  const data = await fetchJson(url);
+  if (!data.access_token) throw new Error('Meta did not return an access token.');
+  return data.access_token;
+}
+
+async function exchangeLongLived(token, appSecret) {
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token`);
+  url.searchParams.set('grant_type', 'fb_exchange_token');
+  url.searchParams.set('client_id', APP_ID);
+  url.searchParams.set('client_secret', appSecret);
+  url.searchParams.set('fb_exchange_token', token);
+  const data = await fetchJson(url);
+  if (!data.access_token) throw new Error('Long-lived token exchange failed.');
+  return data.access_token;
+}
+
+async function graphGet(path, token, params = {}) {
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  url.searchParams.set('access_token', token);
+  return fetchJson(url);
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.error) {
+    const message = data?.error?.message || `HTTP ${response.status}`;
+    throw new Error(`Meta API: ${message}`);
+  }
+  return data;
+}
+
+function validateState(state, appSecret) {
+  if (!state || typeof state !== 'string' || !state.includes('.')) return false;
+  const [payload, signature] = state.split('.', 2);
+  const expected = signState(payload, appSecret);
+  try {
+    const a = Buffer.from(signature, 'base64url');
+    const b = Buffer.from(expected, 'base64url');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return Number.isFinite(parsed.iat) && Date.now() - parsed.iat >= 0 && Date.now() - parsed.iat <= 10 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function signState(payload, appSecret) {
+  return crypto.createHmac('sha256', `contentflow-meta-state:${appSecret}`)
+    .update(payload)
+    .digest('base64url');
+}
+
+async function persistEncryptedPageToken({ appSecret, userId, pageId, instagramId, scopes, tasks, token, fingerprint }) {
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRole) return { persisted: false, reason: 'SUPABASE_SERVICE_ROLE_KEY missing in runtime' };
+
+  const key = deriveEncryptionKey(appSecret);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/upsert_meta_oauth_token`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRole,
+      Authorization: `Bearer ${serviceRole}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      p_app_id: APP_ID,
+      p_user_id: userId || null,
+      p_page_id: pageId,
+      p_instagram_id: instagramId,
+      p_scopes: scopes,
+      p_tasks: tasks,
+      p_token_ciphertext: ciphertext.toString('base64'),
+      p_token_iv: iv.toString('base64'),
+      p_token_tag: tag.toString('base64'),
+      p_token_fingerprint: fingerprint,
+      p_expires_at: null,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Token vault persistence failed: HTTP ${response.status}${body ? ` ${body.slice(0, 160)}` : ''}`);
+  }
+  return { persisted: true };
+}
+
+function deriveEncryptionKey(appSecret) {
+  return crypto.createHash('sha256')
+    .update(`contentflow-meta-token-v1:${appSecret}`)
+    .digest();
+}
+
+function page(title, body) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)}</title></head><body><h1>${escapeHtml(title)}</h1><div>${body}</div><p>No access token is displayed on this page.</p></body></html>`;
 }
 
 function escapeHtml(value) {
