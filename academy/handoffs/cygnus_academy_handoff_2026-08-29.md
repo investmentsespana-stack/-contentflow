@@ -1,5 +1,11 @@
 # Cygnus Academy AI — Handoff diferencial
 
+## ACTUALIZACIÓN PRIORITARIA — OAUTH/API SOCIAL NEXO/CONTENTFLOW
+
+Estado detallado: `academy/handoffs/conexion_social_oauth_nexo_contentflow_2026-08-29.md`.
+
+Se identificó como candidata oficial recuperable la app Meta `Cygnus Academy AI-Nexo` ID `1784797469372306`, única del inventario visible vinculada al negocio existente y con la URI OAuth de ContentFlow configurada. Existen cuatro apps duplicadas que no se usarán ni eliminarán sin decisión humana. OAuth operativo sigue `REQUIRES_HUMAN`: acceso avanzado, producto Instagram, secretos de runtime, consentimiento y persistencia cifrada aún no están completados. No se declararon scopes/token concedidos sin recibo Graph real.
+
 Fecha: 2026-08-29
 Referencia anterior: `efd8332f7173700de45e5229235212a6ec1592de`
 
