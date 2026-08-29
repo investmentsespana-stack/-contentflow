@@ -35,25 +35,54 @@ export default async function handler(req, res) {
       graphGet('/me/accounts', userToken, { fields: 'id,name,tasks,access_token' }),
     ]);
 
-    stage = 'select_expected_page';
-    const pageAsset = (accounts.data || []).find((item) => String(item.id) === EXPECTED_PAGE_ID);
-    if (!pageAsset?.access_token) {
-      return res.status(403).send(page('Cygnus page not authorized', `Expected Page ${EXPECTED_PAGE_ID} was not returned by Meta. No token was persisted.`));
-    }
-
-    stage = 'verify_instagram_asset';
-    const igInfo = await graphGet(`/${EXPECTED_PAGE_ID}`, pageAsset.access_token, {
-      fields: 'instagram_business_account{id,username}',
-    });
-    const instagram = igInfo.instagram_business_account || null;
-    if (!instagram || String(instagram.id) !== EXPECTED_INSTAGRAM_ID) {
-      return res.status(403).send(page('Instagram asset mismatch', `Expected Instagram ${EXPECTED_INSTAGRAM_ID} was not returned by Meta. No token was persisted.`));
-    }
-
     const grantedScopes = (permissions.data || [])
       .filter((p) => p.status === 'granted')
       .map((p) => p.permission)
       .sort();
+
+    stage = 'select_expected_page';
+    let pageAsset = (accounts.data || []).find((item) => String(item.id) === EXPECTED_PAGE_ID) || null;
+
+    // New Pages Experience / Business Portfolio setups can occasionally omit an
+    // otherwise authorized Page from /me/accounts. Safely try the exact expected
+    // Page with the same user token before declaring the asset unauthorized.
+    if (!pageAsset?.access_token) {
+      stage = 'direct_expected_page_lookup';
+      try {
+        const directPage = await graphGet(`/${EXPECTED_PAGE_ID}`, userToken, {
+          fields: 'id,name,tasks,access_token,instagram_business_account{id,username}',
+        });
+        if (String(directPage?.id || '') === EXPECTED_PAGE_ID && directPage?.access_token) {
+          pageAsset = directPage;
+          console.info(`[meta-oauth] expected_page_source=direct_lookup page=${EXPECTED_PAGE_ID}`);
+        }
+      } catch (lookupErr) {
+        console.warn(`[meta-oauth] expected_page_direct_lookup_failed error=${sanitizeError(lookupErr?.message || 'Unknown error')}`);
+      }
+    }
+
+    if (!pageAsset?.access_token) {
+      const returnedPageIds = (accounts.data || []).map((item) => String(item.id || '')).filter(Boolean).slice(0, 25);
+      console.warn(`[meta-oauth] expected_page_missing expected=${EXPECTED_PAGE_ID} returned_pages=${returnedPageIds.join(',') || 'none'} granted_scopes=${grantedScopes.join(',') || 'none'}`);
+      return res.status(403).send(page(
+        'Cygnus page not authorized',
+        `Expected Page ${EXPECTED_PAGE_ID} was not returned by Meta and direct verification did not produce a Page token. No token was persisted.`
+      ));
+    }
+
+    stage = 'verify_instagram_asset';
+    let instagram = pageAsset.instagram_business_account || null;
+    if (!instagram) {
+      const igInfo = await graphGet(`/${EXPECTED_PAGE_ID}`, pageAsset.access_token, {
+        fields: 'instagram_business_account{id,username}',
+      });
+      instagram = igInfo.instagram_business_account || null;
+    }
+    if (!instagram || String(instagram.id) !== EXPECTED_INSTAGRAM_ID) {
+      console.warn(`[meta-oauth] instagram_mismatch expected=${EXPECTED_INSTAGRAM_ID} actual=${instagram?.id || 'none'}`);
+      return res.status(403).send(page('Instagram asset mismatch', `Expected Instagram ${EXPECTED_INSTAGRAM_ID} was not returned by Meta. No token was persisted.`));
+    }
+
     const tasks = Array.isArray(pageAsset.tasks) ? pageAsset.tasks : [];
     const fingerprint = crypto.createHash('sha256').update(pageAsset.access_token).digest('hex').slice(0, 16);
 
