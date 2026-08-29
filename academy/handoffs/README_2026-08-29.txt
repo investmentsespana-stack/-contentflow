@@ -1,0 +1,9 @@
+Academy handoff pointer
+
+Canonical report:
+academy/handoffs/cygnus_academy_handoff_2026-08-29.md
+
+Commit:
+52b01b5c5e52c14f7c802279c13773ee8a78f2bc
+
+The ZIP generated in ChatGPT remains a supplemental local artifact; the Markdown report above is the shared repository handoff intended for Academy/Director consumption.
