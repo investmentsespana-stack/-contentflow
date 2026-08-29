@@ -21,20 +21,27 @@ export default async function handler(req, res) {
   if (!appSecret) return res.status(503).send(page('Runtime configuration incomplete', 'META_APP_SECRET is not configured.'));
   if (!validateState(state, appSecret)) return res.status(400).send(page('Invalid or expired OAuth state', 'Start the authorization flow again from ContentFlow.'));
 
+  let stage = 'exchange_code';
   try {
     const shortToken = await exchangeCode(code, appSecret);
+
+    stage = 'exchange_long_lived_token';
     const userToken = await exchangeLongLived(shortToken, appSecret).catch(() => shortToken);
+
+    stage = 'read_user_permissions_and_pages';
     const [me, permissions, accounts] = await Promise.all([
       graphGet('/me', userToken, { fields: 'id,name' }),
       graphGet('/me/permissions', userToken),
       graphGet('/me/accounts', userToken, { fields: 'id,name,tasks,access_token' }),
     ]);
 
+    stage = 'select_expected_page';
     const pageAsset = (accounts.data || []).find((item) => String(item.id) === EXPECTED_PAGE_ID);
     if (!pageAsset?.access_token) {
       return res.status(403).send(page('Cygnus page not authorized', `Expected Page ${EXPECTED_PAGE_ID} was not returned by Meta. No token was persisted.`));
     }
 
+    stage = 'verify_instagram_asset';
     const igInfo = await graphGet(`/${EXPECTED_PAGE_ID}`, pageAsset.access_token, {
       fields: 'instagram_business_account{id,username}',
     });
@@ -50,6 +57,7 @@ export default async function handler(req, res) {
     const tasks = Array.isArray(pageAsset.tasks) ? pageAsset.tasks : [];
     const fingerprint = crypto.createHash('sha256').update(pageAsset.access_token).digest('hex').slice(0, 16);
 
+    stage = 'persist_encrypted_page_token';
     const persistence = await persistEncryptedPageToken({
       appSecret,
       userId: String(me.id || ''),
@@ -75,12 +83,15 @@ export default async function handler(req, res) {
       checkedAt: new Date().toISOString(),
     };
 
+    console.info(`[meta-oauth] status=${receipt.status} page=${EXPECTED_PAGE_ID} instagram=${EXPECTED_INSTAGRAM_ID} persisted=${receipt.tokenPersisted}`);
     return res.status(persistence.persisted ? 200 : 206).send(page(
       persistence.persisted ? 'Meta OAuth connected' : 'Meta OAuth verified; vault pending',
       `<pre>${escapeHtml(JSON.stringify(receipt, null, 2))}</pre>`,
     ));
   } catch (err) {
-    return res.status(502).send(page('Meta OAuth verification failed', escapeHtml(err?.message || 'Unknown error')));
+    const safeMessage = sanitizeError(err?.message || 'Unknown error');
+    console.error(`[meta-oauth] stage=${stage} error=${safeMessage}`);
+    return res.status(502).send(page('Meta OAuth verification failed', `${escapeHtml(stage)}: ${escapeHtml(safeMessage)}`));
   }
 }
 
@@ -187,6 +198,13 @@ function deriveEncryptionKey(appSecret) {
   return crypto.createHash('sha256')
     .update(`contentflow-meta-token-v1:${appSecret}`)
     .digest();
+}
+
+function sanitizeError(value) {
+  return String(value)
+    .replace(/EA[A-Za-z0-9_-]{20,}/g, '[redacted-token]')
+    .replace(/access_token=[^&\s]+/gi, 'access_token=[redacted]')
+    .slice(0, 500);
 }
 
 function page(title, body) {
