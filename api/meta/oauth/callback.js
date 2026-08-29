@@ -14,12 +14,24 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
 
   const { code, state, error, error_description: errorDescription } = req.query || {};
-  if (error) return res.status(400).send(page('Meta authorization not completed', escapeHtml(errorDescription || error)));
-  if (!code) return res.status(400).send(page('Missing authorization code', 'Return to the Meta authorization flow and try again.'));
+  if (error) {
+    console.warn(`[meta-oauth] preflight=meta_authorization_not_completed error=${sanitizeError(error)} description=${sanitizeError(errorDescription || '')}`);
+    return res.status(400).send(page('Meta authorization not completed', escapeHtml(errorDescription || error)));
+  }
+  if (!code) {
+    console.warn('[meta-oauth] preflight=missing_authorization_code');
+    return res.status(400).send(page('Missing authorization code', 'Return to the Meta authorization flow and try again.'));
+  }
 
   const appSecret = process.env.META_APP_SECRET;
-  if (!appSecret) return res.status(503).send(page('Runtime configuration incomplete', 'META_APP_SECRET is not configured.'));
-  if (!validateState(state, appSecret)) return res.status(400).send(page('Invalid or expired OAuth state', 'Start the authorization flow again from ContentFlow.'));
+  if (!appSecret) {
+    console.error('[meta-oauth] preflight=meta_app_secret_missing');
+    return res.status(503).send(page('Runtime configuration incomplete', 'META_APP_SECRET is not configured.'));
+  }
+  if (!validateState(state, appSecret)) {
+    console.warn(`[meta-oauth] preflight=invalid_or_expired_state state_present=${Boolean(state)}`);
+    return res.status(400).send(page('Invalid or expired OAuth state', 'Start the authorization flow again from ContentFlow.'));
+  }
 
   let stage = 'exchange_code';
   try {
