@@ -34,7 +34,7 @@ test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=
   ['Arranca un ciclo de Skool','project_cycle',true],
   ['Revisa el Director','chat',false],
   ['Continúa con Avatar','chat',false],
-  ['Ejecuta tareas del Director','chat',false]
+  ['Ejecuta tareas del Director','project_information',false]
  ];
  for(const [text,type,execute] of cases){const got=await classify(text);assert.equal(got.type,type,text);assert.equal(got.execute,execute,text)}
 
