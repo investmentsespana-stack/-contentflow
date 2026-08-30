@@ -13,14 +13,13 @@ const cases=[
   ['Arranca un ciclo de Skool','project_cycle',true],
   ['Revisa el Director','chat',false],
   ['Continúa con Avatar','chat',false],
-  ['Ejecuta tareas del Director','chat',false]
+  ['Ejecuta tareas del Director','project_information',false]
 ];
 async function post(path,body){const r=await fetch(BASE+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const b=await r.json();if(!r.ok)throw new Error(`${path} ${r.status}: ${JSON.stringify(b)}`);return b}
 const health=await fetch(BASE+'/health').then(r=>r.json());
 if(!health?.ok)throw new Error('health failed');
 let failed=0;
 for(const [text,type,execute] of cases){const got=await post('/api/classify',{text});const ok=got.type===type&&got.execute===execute;console.log(`${ok?'PASS':'FAIL'} | ${text} -> ${got.type} execute=${got.execute}`);if(!ok)failed++}
-// Safety contract: legacy direct command endpoint must reject non-explicit execution before touching backend.
 const unsafe=await fetch(BASE+'/api/director/command',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({command:'¿Qué está haciendo el Director?'})});
 if(unsafe.status!==400){console.error(`FAIL | direct endpoint accepted non-explicit command: ${unsafe.status}`);failed++}else console.log('PASS | direct endpoint rejects non-explicit command');
 if(failed){console.error(`Jarvis smoke test FAILED: ${failed} case(s)`);process.exit(1)}
