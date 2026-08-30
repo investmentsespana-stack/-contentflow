@@ -1,0 +1,22 @@
+{
+  "schema": "cygnus.youtube.short.draft.v1",
+  "status": "DRAFT_NOT_UPLOADED",
+  "sourcePiece": "F02",
+  "title": "La IA acelera. El humano dirige.",
+  "description": "Una demostración breve del principio humano-dirige / IA-ejecuta de Cygnus Academy AI. Aprendiendo Haciendo – Formación para el trabajo.",
+  "format": {
+    "width": 1080,
+    "height": 1920,
+    "aspectRatio": "9:16",
+    "durationSeconds": 30,
+    "videoCodec": "h264",
+    "audio": "none_pending_voice_approval",
+    "captions": "cygnus_youtube_short_test_v1.srt",
+    "burnInTemplate": "cygnus_youtube_short_test_v1.ass"
+  },
+  "audience": "not_made_for_kids_pending_final_human_confirmation",
+  "privacyOnApprovedUpload": "private",
+  "uploadGate": "HUMAN_APPROVAL_REQUIRED",
+  "publishGate": "SEPARATE_HUMAN_APPROVAL_REQUIRED",
+  "secretsIncluded": false
+}

@@ -1,0 +1,24 @@
+1
+00:00:00,000 --> 00:00:04,000
+¿La IA te va a quitar el trabajo?
+
+2
+00:00:04,000 --> 00:00:09,000
+El humano define misión, reglas y criterio.
+
+3
+00:00:09,000 --> 00:00:15,000
+La IA ejecuta subtareas.
+
+4
+00:00:15,000 --> 00:00:21,000
+El humano verifica y corrige.
+
+5
+00:00:21,000 --> 00:00:27,000
+La IA acelera.
+
+6
+00:00:27,000 --> 00:00:30,000
+El humano decide qué vale la pena ejecutar.
+

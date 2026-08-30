@@ -1,0 +1,18 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Cygnus,DejaVu Sans,62,&H00FFFFFF,&H000000FF,&H00102040,&H80000000,-1,0,0,0,100,100,0,0,1,4,0,2,90,90,250,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:04.00,Cygnus,,0,0,0,,¿La IA te va a quitar el trabajo?
+Dialogue: 0,0:00:04.00,0:00:09.00,Cygnus,,0,0,0,,El humano define misión, reglas y criterio.
+Dialogue: 0,0:00:09.00,0:00:15.00,Cygnus,,0,0,0,,La IA ejecuta subtareas.
+Dialogue: 0,0:00:15.00,0:00:21.00,Cygnus,,0,0,0,,El humano verifica y corrige.
+Dialogue: 0,0:00:21.00,0:00:27.00,Cygnus,,0,0,0,,La IA acelera.
+Dialogue: 0,0:00:27.00,0:00:30.00,Cygnus,,0,0,0,,El humano decide qué vale la pena ejecutar.
