@@ -49,14 +49,35 @@ async function persistVerifiedSession({ session, secret, res }) {
   if (!session?.access_token || !session?.channel_id) return res.status(400).send(page('YouTube verified session incomplete', '<p>No token was persisted.</p>'));
 
   try {
-    const channel = await getMyChannel(session.access_token);
+    let accessToken = session.access_token;
+    let accessExpiresAt = session.expires_at ? Number(session.expires_at) : null;
+
+    const shouldRefresh = Boolean(session.refresh_token) && (!accessExpiresAt || Date.now() >= accessExpiresAt - 60_000);
+    if (shouldRefresh) {
+      const refreshed = await refreshAccessToken(session.refresh_token);
+      accessToken = refreshed.access_token;
+      accessExpiresAt = Date.now() + Number(refreshed.expires_in || 3600) * 1000;
+    }
+
+    let channel;
+    try {
+      channel = await getMyChannel(accessToken);
+    } catch (err) {
+      const authFailure = /invalid authentication credentials|invalid credentials|unauthorized|401/i.test(String(err?.message || err));
+      if (!authFailure || !session.refresh_token) throw err;
+      const refreshed = await refreshAccessToken(session.refresh_token);
+      accessToken = refreshed.access_token;
+      accessExpiresAt = Date.now() + Number(refreshed.expires_in || 3600) * 1000;
+      channel = await getMyChannel(accessToken);
+    }
+
     if (!channel?.id || String(channel.id) !== String(session.channel_id)) {
       return res.status(403).send(page('YouTube channel verification mismatch', '<p>No token was persisted.</p>'));
     }
 
-    const fingerprint = crypto.createHash('sha256').update(session.access_token).digest('hex').slice(0, 16);
+    const fingerprint = crypto.createHash('sha256').update(accessToken).digest('hex').slice(0, 16);
     const key = deriveEncryptionKey(secret);
-    const access = encryptValue(session.access_token, key);
+    const access = encryptValue(accessToken, key);
     const refresh = session.refresh_token ? encryptValue(session.refresh_token, key) : null;
 
     const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/upsert_youtube_oauth_token`, {
@@ -77,7 +98,7 @@ async function persistVerifiedSession({ session, secret, res }) {
         p_refresh_token_iv: refresh?.iv || null,
         p_refresh_token_tag: refresh?.tag || null,
         p_token_fingerprint: fingerprint,
-        p_access_expires_at: session.expires_at ? new Date(Number(session.expires_at)).toISOString() : null,
+        p_access_expires_at: accessExpiresAt ? new Date(accessExpiresAt).toISOString() : null,
         p_refresh_token_received: Boolean(session.refresh_token),
       }),
     });
@@ -99,6 +120,28 @@ async function persistVerifiedSession({ session, secret, res }) {
     console.error(`[youtube-oauth] persistence_bridge=failed error=${sanitizeError(err?.message || err)}`);
     return res.status(502).send(page('YouTube persistence failed', `<p>${escapeHtml(sanitizeError(err?.message || 'Unknown error'))}</p>`));
   }
+}
+
+async function refreshAccessToken(refreshToken) {
+  const clientId = process.env.YOUTUBE_CLIENT_ID;
+  const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error('YouTube OAuth runtime credentials are incomplete');
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.access_token) {
+    throw new Error(`Google token refresh: ${data?.error_description || data?.error || `HTTP ${response.status}`}`);
+  }
+  return data;
 }
 
 async function getMyChannel(accessToken) {
