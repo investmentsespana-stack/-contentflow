@@ -3,6 +3,9 @@ Academy handoff pointer
 Canonical report:
 academy/handoffs/cygnus_academy_handoff_2026-08-29.md
 
+Cross-channel social OAuth status:
+academy/handoffs/SOCIAL_OAUTH_SHARED_STATUS_2026-08-30.md
+
 Director priority certification:
 academy/handoffs/DIRECTOR_PRIVATE_EMAIL_CERTIFIED_2026-08-29.md
 
@@ -12,4 +15,7 @@ IMAP: connected
 SMTP: connected
 Runtime verification: HTTP 200
 
-The ZIP generated in ChatGPT remains a supplemental local artifact; the Markdown reports above are the shared repository handoffs intended for Academy/Director consumption.
+Cross-channel continuation rule:
+Read SOCIAL_OAUTH_SHARED_STATUS_2026-08-30.md before changing TikTok, YouTube, Meta/Facebook or Instagram OAuth configuration. Verify live runtime diagnostics first and continue only the next unresolved gate; do not repeat completed setup.
+
+The ZIP generated in ChatGPT remains a supplemental local artifact; the Markdown reports above are the shared repository handoffs intended for Academy/Director/ContentFlow consumption.
