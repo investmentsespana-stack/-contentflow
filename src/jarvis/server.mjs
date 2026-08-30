@@ -11,6 +11,7 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-sol';
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://koqpyfvnprmirqviafzq.supabase.co').replace(/\/$/, '');
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_KTxRW4wca-AcvP2tDve6Lw_PDI7WG_8';
 const DIRECTOR_PROJECT_KEY = process.env.DIRECTOR_PROJECT_KEY || 'contentflow';
+const BUILD = '2026-08-30-director-router-v3';
 const stateDir = path.join(os.homedir(), '.jarvis');
 const deviceTokenFile = path.join(stateDir, 'director-device-token');
 
@@ -46,7 +47,7 @@ async function openaiChat(messages) {
     body:JSON.stringify({
       model:OPENAI_MODEL,
       store:false,
-      instructions:'Eres Jarvis Desktop, asistente operativo en español. Sé breve, claro y orientado a ejecución. Distingue conversación de órdenes al Director. No inventes estado de tareas ni ejecuciones. El texto de input contiene una transcripción de la conversación; responde únicamente al último mensaje del Usuario.',
+      instructions:'Eres Jarvis Desktop, asistente operativo en español. Sé breve, claro y orientado a ejecución. No inventes estado de tareas ni ejecuciones. El texto de input contiene una transcripción de la conversación; responde únicamente al último mensaje del Usuario.',
       input:transcript
     })
   });
@@ -75,7 +76,32 @@ async function realDirectorCommand(command) {
   if(!safeCycle) return {ok:false,accepted:false,error:'command_requires_director_adapter',detail:'Por seguridad, este bridge sólo permite solicitar un ciclo seguro del Director.'};
   const result=await bridge('cycle'); return {ok:Boolean(result?.ok),accepted:true,source:'jarvis-director-bridge',command,result};
 }
-function healthState(){return {ok:true,service:'jarvis-desktop',build:'2026-08-30-chat-input-v2',openaiConfigured:Boolean(runtimeOpenAIKey),directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',projectKey:DIRECTOR_PROJECT_KEY,openaiModel:OPENAI_MODEL};}
+function stripWakeWord(text='') {
+  return String(text).trim().replace(/^jarvis\s*[,;:]?\s*/i,'').trim();
+}
+function classifyJarvisIntent(text='') {
+  const clean=stripWakeWord(text).toLowerCase();
+  const directorMention=/\bdirector\b|\borquestador\b/i.test(clean);
+  const statusIntent=directorMention && /(estado|status|conectad|conexi[oó]n|c[oó]mo va|qu[eé] pasa|reporte|reporta)/i.test(clean);
+  const cycleIntent=directorMention && /(ejecuta|ejecutar|corre|correr|haz|hacer|inicia|iniciar|arranca|arrancar|contin[uú]a|revisa|ciclo|run)/i.test(clean);
+  if (statusIntent) return {type:'director_status',clean};
+  if (cycleIntent) return {type:'director_cycle',clean};
+  return {type:'chat',clean};
+}
+async function jarvisRoute(text, messages=[]) {
+  const intent=classifyJarvisIntent(text);
+  if (intent.type==='director_status') {
+    const status=await bridge('status');
+    return {type:'director_status',reply:'Director conectado. Estado actualizado.',director:status};
+  }
+  if (intent.type==='director_cycle') {
+    const result=await realDirectorCommand('ejecuta ciclo');
+    return {type:'director_cycle',reply:result.ok?'Ciclo del Director solicitado correctamente.':'El Director recibió la solicitud, pero reportó un problema.',director:result};
+  }
+  const safeMessages=Array.isArray(messages)&&messages.length?messages:[{role:'user',content:text}];
+  return {type:'chat',reply:await openaiChat(safeMessages),model:OPENAI_MODEL};
+}
+function healthState(){return {ok:true,service:'jarvis-desktop',build:BUILD,openaiConfigured:Boolean(runtimeOpenAIKey),directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',projectKey:DIRECTOR_PROJECT_KEY,openaiModel:OPENAI_MODEL};}
 
 const server=http.createServer(async(req,res)=>{try{
   const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);
@@ -83,9 +109,10 @@ const server=http.createServer(async(req,res)=>{try{
   if(req.method==='POST'&&url.pathname==='/api/setup/openai'){const b=await readJson(req); if(!String(b.openaiApiKey||'').trim()) return json(res,400,{error:'openai_key_required'}); runtimeOpenAIKey=String(b.openaiApiKey).trim(); return json(res,200,{ok:true,health:healthState()});}
   if(req.method==='POST'&&url.pathname==='/api/setup/pair'){const b=await readJson(req); await pairDirector(b.pairingCode); return json(res,200,{ok:true,health:healthState()});}
   if(req.method==='POST'&&url.pathname==='/api/chat'){const b=await readJson(req); const messages=Array.isArray(b.messages)?b.messages.slice(-24):[]; if(!messages.length)return json(res,400,{error:'messages_required'}); return json(res,200,{reply:await openaiChat(messages),model:OPENAI_MODEL});}
+  if(req.method==='POST'&&url.pathname==='/api/jarvis'){const b=await readJson(req); const text=String(b.text||'').trim(); const messages=Array.isArray(b.messages)?b.messages.slice(-24):[]; if(!text)return json(res,400,{error:'text_required'}); return json(res,200,await jarvisRoute(text,messages));}
   if(req.method==='GET'&&url.pathname==='/api/director/status') return json(res,200,await bridge('status'));
   if(req.method==='POST'&&url.pathname==='/api/director/command'){const b=await readJson(req); const command=String(b.command||'').trim(); if(!command)return json(res,400,{error:'command_required'}); const result=await realDirectorCommand(command); return json(res,result?.accepted===false?409:200,result);}
   if(req.method==='GET'&&(url.pathname==='/'||url.pathname==='/index.html')){const html=await readFile(path.join(__dirname,'ui.html'),'utf8'); res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'}); return res.end(html);}
   return json(res,404,{error:'not_found'});
 }catch(error){const status=error?.message==='payload_too_large'?413:(Number.isInteger(error?.status)?error.status:500); return json(res,status,{error:String(error?.message||error),status,details:error?.apiBody||undefined});}});
-server.listen(PORT,HOST,()=>console.log(`Jarvis Desktop: http://${HOST}:${PORT}`));
+server.listen(PORT,HOST,()=>console.log(`Jarvis Desktop: http://${HOST}:${PORT} · ${BUILD}`));
