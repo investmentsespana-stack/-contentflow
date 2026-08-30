@@ -11,14 +11,19 @@ export default async function handler(req, res) {
   const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
   if (!clientKey || !clientSecret) return res.status(503).send('TikTok runtime credentials are not configured.');
 
-  const state = crypto.randomBytes(24).toString('base64url');
-  const sig = crypto.createHmac('sha256', `contentflow-tiktok-state:${clientSecret}`).update(state).digest('base64url');
-  const cookie = `${state}.${sig}`;
+  const payload = Buffer.from(JSON.stringify({
+    iat: Date.now(),
+    nonce: crypto.randomBytes(24).toString('base64url'),
+  })).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', `contentflow-tiktok-state:${clientSecret}`)
+    .update(payload)
+    .digest('base64url');
+  const state = `${payload}.${signature}`;
 
-  res.setHeader('Set-Cookie', [
-    `tiktok_oauth_state=${cookie}; Path=/api/tiktok; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
-  ]);
-
+  // The state is cryptographically self-verifying so the OAuth callback remains
+  // valid even when the authorization flow starts on a Vercel alias and returns
+  // on the configured custom redirect domain. No cross-domain cookie is required.
   const url = new URL('https://www.tiktok.com/v2/auth/authorize/');
   url.searchParams.set('client_key', clientKey);
   url.searchParams.set('scope', SCOPES.join(','));
