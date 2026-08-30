@@ -44,7 +44,10 @@ async function openaiChat(messages) {
     method:'POST', headers:{authorization:`Bearer ${runtimeOpenAIKey}`,'content-type':'application/json'},
     body:JSON.stringify({model:OPENAI_MODEL,store:false,input:[
       {role:'system',content:[{type:'input_text',text:'Eres Jarvis Desktop, asistente operativo en español. Sé breve, claro y orientado a ejecución. Distingue conversación de órdenes al Director. No inventes estado de tareas ni ejecuciones.'}]},
-      ...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:[{type:'input_text',text:String(m.content||'')}]}))
+      ...messages.map(m=>({
+        role:m.role==='assistant'?'assistant':'user',
+        content:[{type:m.role==='assistant'?'output_text':'input_text',text:String(m.content||'')}]
+      }))
     ]})
   });
   return body.output_text || body.output?.flatMap(o=>o.content||[]).map(c=>c.text).filter(Boolean).join('\n') || '';
