@@ -40,15 +40,15 @@ async function fetchJson(url, options={}) {
 }
 async function openaiChat(messages) {
   if (!runtimeOpenAIKey) throw new Error('OPENAI_API_KEY_missing');
+  const transcript = messages.map(m => `${m.role === 'assistant' ? 'Jarvis' : 'Usuario'}: ${String(m.content || '')}`).join('\n');
   const body = await fetchJson('https://api.openai.com/v1/responses', {
     method:'POST', headers:{authorization:`Bearer ${runtimeOpenAIKey}`,'content-type':'application/json'},
-    body:JSON.stringify({model:OPENAI_MODEL,store:false,input:[
-      {role:'system',content:[{type:'input_text',text:'Eres Jarvis Desktop, asistente operativo en español. Sé breve, claro y orientado a ejecución. Distingue conversación de órdenes al Director. No inventes estado de tareas ni ejecuciones.'}]},
-      ...messages.map(m=>({
-        role:m.role==='assistant'?'assistant':'user',
-        content:[{type:m.role==='assistant'?'output_text':'input_text',text:String(m.content||'')}]
-      }))
-    ]})
+    body:JSON.stringify({
+      model:OPENAI_MODEL,
+      store:false,
+      instructions:'Eres Jarvis Desktop, asistente operativo en español. Sé breve, claro y orientado a ejecución. Distingue conversación de órdenes al Director. No inventes estado de tareas ni ejecuciones. El texto de input contiene una transcripción de la conversación; responde únicamente al último mensaje del Usuario.',
+      input:transcript
+    })
   });
   return body.output_text || body.output?.flatMap(o=>o.content||[]).map(c=>c.text).filter(Boolean).join('\n') || '';
 }
@@ -75,7 +75,7 @@ async function realDirectorCommand(command) {
   if(!safeCycle) return {ok:false,accepted:false,error:'command_requires_director_adapter',detail:'Por seguridad, este bridge sólo permite solicitar un ciclo seguro del Director.'};
   const result=await bridge('cycle'); return {ok:Boolean(result?.ok),accepted:true,source:'jarvis-director-bridge',command,result};
 }
-function healthState(){return {ok:true,service:'jarvis-desktop',openaiConfigured:Boolean(runtimeOpenAIKey),directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',projectKey:DIRECTOR_PROJECT_KEY,openaiModel:OPENAI_MODEL};}
+function healthState(){return {ok:true,service:'jarvis-desktop',build:'2026-08-30-chat-input-v2',openaiConfigured:Boolean(runtimeOpenAIKey),directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',projectKey:DIRECTOR_PROJECT_KEY,openaiModel:OPENAI_MODEL};}
 
 const server=http.createServer(async(req,res)=>{try{
   const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);
