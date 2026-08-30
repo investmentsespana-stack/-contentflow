@@ -222,7 +222,7 @@ async function persistSnapshot(serviceRole, inventory) {
       environment: 'production',
       engine: 'youtube-data-api-v3',
       version: 'v1',
-      status: 'verified',
+      status: 'pass',
       evidence: inventory,
       source: 'nexo.youtube.inventory.v1',
       verified: true,
