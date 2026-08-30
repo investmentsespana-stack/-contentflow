@@ -18,7 +18,9 @@ test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=
  assert.equal(body.directorConfigured,false);
  assert.equal(body.directorMode,'pairing-required');
  assert.equal(body.active.projectKey,'contentflow');
- assert.match(body.build,/conversation-router-v5\.1$/);
+ assert.equal(body.build,'2026-08-31-conversation-router-v5.2');
+ assert.equal(body.openaiModel,'gpt-5.6-sol');
+ assert.equal(body.availableProjects.length,3);
 
  const cases=[
   ['¿Qué está haciendo el Director?','project_information',false],
@@ -26,9 +28,11 @@ test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=
   ['¿Cómo va Avatar?','project_information',false],
   ['Reporte de Skool','project_information',false],
   ['Hablar con Sol','switch_sol',false],
+  ['Comunícame con ChatGPT','switch_sol',false],
   ['Pásame con el Director','switch_project',false],
   ['Entra a Avatar','switch_project',false],
   ['Hablar con Skool','switch_project',false],
+  ['Vuelve a Jarvis','switch_jarvis',false],
   ['Ejecuta un ciclo del Director','project_cycle',true],
   ['Corre un run de Avatar','project_cycle',true],
   ['Arranca un ciclo de Skool','project_cycle',true],
@@ -37,6 +41,13 @@ test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=
   ['Ejecuta tareas del Director','project_information',false]
  ];
  for(const [text,type,execute] of cases){const got=await classify(text);assert.equal(got.type,type,text);assert.equal(got.execute,execute,text)}
+
+ const self=await fetch(`${base}/api/selftest`);
+ assert.equal(self.status,200);
+ const selfBody=await self.json();
+ assert.equal(selfBody.ok,true);
+ assert.equal(selfBody.passed,selfBody.total);
+ assert.ok(selfBody.total>=20);
 
  const unsafe=await fetch(`${base}/api/director/command`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({command:'¿Qué está haciendo el Director?'})});
  assert.equal(unsafe.status,400);
@@ -48,4 +59,10 @@ test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=
  assert.equal(switchBody.type,'switch');
  assert.equal(switchBody.active.mode,'sol');
  assert.equal(switchBody.active.projectName,'Director / ContentFlow');
+
+ const back=await fetch(`${base}/api/jarvis`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text:'Vuelve a Jarvis',messages:[]})});
+ assert.equal(back.status,200);
+ const backBody=await back.json();
+ assert.equal(backBody.type,'switch');
+ assert.equal(backBody.active.mode,'jarvis');
 });
