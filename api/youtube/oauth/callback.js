@@ -20,9 +20,11 @@ export default async function handler(req, res) {
     return res.status(400).send(page('YouTube authorization not completed', escapeHtml(errorDescription || error)));
   }
   if (!code || !state) {
+    console.error(`[youtube-oauth] preflight=missing_oauth_response code_present=${Boolean(code)} state_present=${Boolean(state)}`);
     return res.status(400).send(page('Missing OAuth response', 'Authorization code or state is missing.'));
   }
   if (!validateSignedState(state, clientSecret)) {
+    console.error('[youtube-oauth] preflight=invalid_or_expired_state');
     return res.status(400).send(page('Invalid or expired OAuth state', 'Start the YouTube authorization flow again.'));
   }
 
