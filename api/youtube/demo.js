@@ -4,7 +4,7 @@ import inventoryHandler from '../../src/platform/youtube-channel-inventory.mjs';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://koqpyfvnprmirqviafzq.supabase.co';
 
 export default async function handler(req, res) {
-  if (req.method === 'POST' && String(req.query?.action || '') === 'inventory') {
+  if (['GET', 'POST'].includes(req.method) && String(req.query?.action || '') === 'inventory') {
     return inventoryHandler(req, res);
   }
   res.setHeader('Cache-Control', 'no-store');
