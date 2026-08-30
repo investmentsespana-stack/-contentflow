@@ -1,6 +1,6 @@
 # Jarvis Desktop MVP
 
-Jarvis Desktop es una capa local de mando para conversar con OpenAI y enviar instrucciones al Director/Orquestador existente de ContentFlow sin duplicar su lógica.
+Jarvis Desktop es una capa local de mando para conversar con OpenAI y operar el Director/Orquestador existente de ContentFlow sin duplicar su lógica.
 
 ## Arranque local
 
@@ -9,37 +9,48 @@ Requiere Node.js 18+.
 ```bash
 export OPENAI_API_KEY="..."
 export OPENAI_MODEL="gpt-5"
+
+# Modo recomendado cuando exista adaptador dedicado:
 export DIRECTOR_BASE_URL="http://127.0.0.1:8787"
-# opcional, si el Director exige bearer token
-export DIRECTOR_TOKEN="..."
+export DIRECTOR_TOKEN="..." # opcional
+
+# Modo directo al control plane real de ContentFlow:
+export SUPABASE_URL="https://<project-ref>.supabase.co"
+export SUPABASE_ACCESS_TOKEN="..." # credencial privada del proceso local; nunca en navegador
+export DIRECTOR_PROJECT_KEY="contentflow"
+
 node src/jarvis/server.mjs
 ```
 
 Abrir `http://127.0.0.1:4317`.
 
-Por defecto el servidor escucha únicamente en `127.0.0.1`; no se expone a la LAN. Para cambiar puerto use `JARVIS_PORT`. No guardar claves en `ui.html`, repositorio ni localStorage.
+El servidor escucha por defecto únicamente en `127.0.0.1`. Las credenciales viven sólo en el proceso servidor; no deben guardarse en `ui.html`, repositorio ni localStorage.
 
-## Contrato mínimo del adaptador Director
+## Integración real con el Director
 
-Jarvis no reemplaza al Director. Espera que el runtime del Director exponga dos rutas configurables bajo `DIRECTOR_BASE_URL`:
+Jarvis usa dos modos, en este orden:
 
-- `GET /status`: devuelve JSON con estado, trabajadores, tareas o métricas disponibles.
-- `POST /command`: recibe `{ "command": "...", "source": "jarvis-desktop" }` y devuelve JSON con el recibo/resultado de aceptación.
+1. `DIRECTOR_BASE_URL`: adaptador dedicado con `GET /status` y `POST /command`.
+2. Si no existe adaptador, usa el control plane Supabase real. Lee `director_cycle_runs`, backlog y `director_autonomy_events`, y puede solicitar un ciclo seguro mediante la Edge Function existente `contentflow-director-control`.
 
-Si el runtime actual usa otro transporte, implementar un adaptador pequeño detrás de estas dos rutas manteniendo intacto el contrato interno del Director.
+El modo directo no convierte a Jarvis en un shell. Sólo acepta órdenes generales de ciclo como revisar/continuar/ejecutar. Una orden específica o destructiva se rechaza hasta que exista un adaptador autorizado que preserve los guardrails del Director.
+
+## Estado mostrado
+
+`/api/director/status` devuelve estado del último ciclo, tareas observadas por estado, tareas activas, bloqueadas, último evento RARA y eventos recientes. No se fabrican trabajadores, bloqueos ni porcentajes.
 
 ## Seguridad
 
-- `OPENAI_API_KEY` y `DIRECTOR_TOKEN` viven sólo en variables de entorno del proceso servidor.
+- `OPENAI_API_KEY`, `DIRECTOR_TOKEN` y `SUPABASE_ACCESS_TOKEN` viven sólo en variables de entorno del proceso servidor.
 - La llamada OpenAI usa `store: false`.
-- No hay endpoint genérico de shell, SSH ni ejecución arbitraria en Jarvis.
+- No hay endpoint genérico de shell, SSH ni ejecución arbitraria.
 - El Director sigue siendo responsable de autorización, guardrails, RARA, recuperación y evidencia.
-- Las órdenes no se marcan como ejecutadas por Jarvis: la UI muestra únicamente lo que devuelva el Director real.
+- Jarvis muestra únicamente resultados devueltos por el runtime real.
 
 ## Voz
 
-El MVP usa Web Speech Recognition cuando está disponible en el navegador para dictado. Una segunda fase puede cambiar el canal de voz a OpenAI Realtime sin alterar el contrato con el Director.
+El MVP usa Web Speech Recognition cuando está disponible para dictado. La siguiente fase puede cambiar el canal de voz a OpenAI Realtime sin alterar el contrato con el Director.
 
-## Siguiente integración
+## GPU
 
-Conectar el adaptador real del runtime del Director y mapear en `/status` las métricas de trabajadores activos, tareas en curso, bloqueos, RARA y uso GPU. Después añadir notificaciones y voz full-duplex.
+La conexión Director/Jarvis no requiere GPU. La GPU se reserva para cargas que realmente la aprovechen, como Avatar/voz/modelos locales, evitando consumo ocioso.
