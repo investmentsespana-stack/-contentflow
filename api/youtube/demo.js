@@ -1,8 +1,12 @@
 import crypto from 'node:crypto';
+import inventoryHandler from '../../src/platform/youtube-channel-inventory.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://koqpyfvnprmirqviafzq.supabase.co';
 
 export default async function handler(req, res) {
+  if (req.method === 'POST' && String(req.query?.action || '') === 'inventory') {
+    return inventoryHandler(req, res);
+  }
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
