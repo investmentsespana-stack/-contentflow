@@ -10,7 +10,7 @@ const HOST = process.env.JARVIS_HOST || '127.0.0.1';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-sol';
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://koqpyfvnprmirqviafzq.supabase.co').replace(/\/$/, '');
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_KTxRW4wca-AcvP2tDve6Lw_PDI7WG_8';
-const BUILD = '2026-08-31-multiproject-router-v4';
+const BUILD = '2026-08-31-multiproject-web-v4.1';
 const stateDir = path.join(os.homedir(), '.jarvis');
 const deviceTokenFile = path.join(stateDir, 'director-device-token');
 
@@ -49,7 +49,13 @@ async function openaiChat(messages) {
   const transcript = messages.map(m => `${m.role === 'assistant' ? 'Jarvis' : 'Usuario'}: ${String(m.content || '')}`).join('\n');
   const body = await fetchJson('https://api.openai.com/v1/responses', {
     method:'POST', headers:{authorization:`Bearer ${runtimeOpenAIKey}`,'content-type':'application/json'},
-    body:JSON.stringify({model:OPENAI_MODEL,store:false,instructions:'Eres Jarvis Desktop, asistente operativo en español. Sé breve, claro y orientado a ejecución. No inventes estado de tareas ni ejecuciones. Si el usuario habla de proyectos, recuerda que las operaciones reales de ContentFlow, Avatar y Cygnus Academy se enrutan localmente antes de llegar a ti. Responde únicamente al último mensaje del Usuario.',input:transcript})
+    body:JSON.stringify({
+      model:OPENAI_MODEL,
+      store:false,
+      tools:[{type:'web_search'}],
+      instructions:'Eres Jarvis Desktop, asistente operativo en español. Sé breve, claro y orientado a ejecución. Puedes usar búsqueda web en vivo cuando la pregunta dependa de información actual o externa. No inventes estado de tareas ni ejecuciones. Si el usuario habla de proyectos, recuerda que las operaciones reales de ContentFlow, Avatar y Cygnus Academy se enrutan localmente antes de llegar a ti. Responde únicamente al último mensaje del Usuario.',
+      input:transcript
+    })
   });
   return body.output_text || body.output?.flatMap(o=>o.content||[]).map(c=>c.text).filter(Boolean).join('\n') || '';
 }
@@ -110,16 +116,16 @@ async function jarvisRoute(text, messages=[]) {
     return {type:'project_cycle',reply:result?.ok?`Ciclo de ${p.name} solicitado correctamente.`:`${p.name} recibió la solicitud, pero reportó un problema.`,project:result};
   }
   const safeMessages=Array.isArray(messages)&&messages.length?messages:[{role:'user',content:text}];
-  return {type:'chat',reply:await openaiChat(safeMessages),model:OPENAI_MODEL};
+  return {type:'chat',reply:await openaiChat(safeMessages),model:OPENAI_MODEL,webEnabled:true};
 }
-function healthState(){const p=projectInfo();return {ok:true,service:'jarvis-desktop',build:BUILD,openaiConfigured:Boolean(runtimeOpenAIKey),directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',activeProject:{id:activeProject,key:p.key,name:p.name},availableProjects:Object.entries(PROJECTS).map(([id,v])=>({id,key:v.key,name:v.name})),openaiModel:OPENAI_MODEL};}
+function healthState(){const p=projectInfo();return {ok:true,service:'jarvis-desktop',build:BUILD,openaiConfigured:Boolean(runtimeOpenAIKey),webSearchEnabled:true,directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',activeProject:{id:activeProject,key:p.key,name:p.name},availableProjects:Object.entries(PROJECTS).map(([id,v])=>({id,key:v.key,name:v.name})),openaiModel:OPENAI_MODEL};}
 
 const server=http.createServer(async(req,res)=>{try{
   const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);
   if(req.method==='GET'&&url.pathname==='/health') return json(res,200,healthState());
   if(req.method==='POST'&&url.pathname==='/api/setup/openai'){const b=await readJson(req); if(!String(b.openaiApiKey||'').trim()) return json(res,400,{error:'openai_key_required'}); runtimeOpenAIKey=String(b.openaiApiKey).trim(); return json(res,200,{ok:true,health:healthState()});}
   if(req.method==='POST'&&url.pathname==='/api/setup/pair'){const b=await readJson(req); await pairDirector(b.pairingCode); return json(res,200,{ok:true,health:healthState()});}
-  if(req.method==='POST'&&url.pathname==='/api/chat'){const b=await readJson(req); const messages=Array.isArray(b.messages)?b.messages.slice(-24):[]; if(!messages.length)return json(res,400,{error:'messages_required'}); return json(res,200,{reply:await openaiChat(messages),model:OPENAI_MODEL});}
+  if(req.method==='POST'&&url.pathname==='/api/chat'){const b=await readJson(req); const messages=Array.isArray(b.messages)?b.messages.slice(-24):[]; if(!messages.length)return json(res,400,{error:'messages_required'}); return json(res,200,{reply:await openaiChat(messages),model:OPENAI_MODEL,webEnabled:true});}
   if(req.method==='POST'&&url.pathname==='/api/jarvis'){const b=await readJson(req); const text=String(b.text||'').trim(); const messages=Array.isArray(b.messages)?b.messages.slice(-24):[]; if(!text)return json(res,400,{error:'text_required'}); return json(res,200,await jarvisRoute(text,messages));}
   if(req.method==='GET'&&url.pathname==='/api/projects') return json(res,200,await bridge('projects'));
   if(req.method==='GET'&&url.pathname==='/api/director/status') return json(res,200,await bridge('project_status',{project_key:'contentflow'}));
