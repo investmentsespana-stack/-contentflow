@@ -6,6 +6,12 @@ academy/handoffs/cygnus_academy_handoff_2026-08-29.md
 Cross-channel social OAuth status:
 academy/handoffs/SOCIAL_OAUTH_SHARED_STATUS_2026-08-30.md
 
+YouTube migration audit and production package:
+academy/handoffs/YOUTUBE_CYGNUS_MIGRATION_AUDIT_2026-08-30.md
+
+YouTube next-instructions request for Director/workers:
+academy/handoffs/YOUTUBE_NEXT_INSTRUCTIONS_REQUEST_2026-08-30.md
+
 Director priority certification:
 academy/handoffs/DIRECTOR_PRIVATE_EMAIL_CERTIFIED_2026-08-29.md
 
@@ -17,5 +23,8 @@ Runtime verification: HTTP 200
 
 Cross-channel continuation rule:
 Read SOCIAL_OAUTH_SHARED_STATUS_2026-08-30.md before changing TikTok, YouTube, Meta/Facebook or Instagram OAuth configuration. Verify live runtime diagnostics first and continue only the next unresolved gate; do not repeat completed setup.
+
+YouTube continuation rule:
+Read YOUTUBE_NEXT_INSTRUCTIONS_REQUEST_2026-08-30.md. Do not repeat OAuth or the initial channel audit. Await/record D1 before public renaming and preserve the separate upload/publication approval gates.
 
 The ZIP generated in ChatGPT remains a supplemental local artifact; the Markdown reports above are the shared repository handoffs intended for Academy/Director/ContentFlow consumption.
