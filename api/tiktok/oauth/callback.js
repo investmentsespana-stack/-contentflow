@@ -7,11 +7,10 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
 
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+  const { clientKey, clientSecret, mode } = getCredentials();
   if (!clientKey || !clientSecret) {
-    console.error('[tiktok-oauth] preflight=runtime_configuration_incomplete');
-    return res.status(503).send(page('TikTok runtime configuration incomplete', 'Client credentials are not configured.'));
+    console.error(`[tiktok-oauth] preflight=runtime_configuration_incomplete mode=${mode}`);
+    return res.status(503).send(page('TikTok runtime configuration incomplete', `${escapeHtml(mode)} credentials are not configured.`));
   }
 
   const { code, state, error, error_description: errorDescription } = req.query || {};
@@ -23,8 +22,8 @@ export default async function handler(req, res) {
     console.error(`[tiktok-oauth] preflight=missing_oauth_response code=${Boolean(code)} state=${Boolean(state)}`);
     return res.status(400).send(page('Missing OAuth response', 'Authorization code or state is missing.'));
   }
-  if (!validateSignedState(state, clientSecret)) {
-    console.error('[tiktok-oauth] preflight=invalid_or_expired_state');
+  if (!validateSignedState(state, clientSecret, mode)) {
+    console.error(`[tiktok-oauth] preflight=invalid_or_expired_state mode=${mode}`);
     return res.status(400).send(page('Invalid or expired OAuth state', 'Start the TikTok authorization flow again.'));
   }
 
@@ -44,6 +43,7 @@ export default async function handler(req, res) {
       refresh_expires_at: Date.now() + Number(token.refresh_expires_in || 0) * 1000,
       open_id: token.open_id,
       scope: grantedScopes,
+      mode,
     }, clientSecret);
 
     const fingerprint = crypto.createHash('sha256').update(token.access_token).digest('hex').slice(0, 16);
@@ -54,6 +54,7 @@ export default async function handler(req, res) {
     const receipt = {
       schema: 'nexo.tiktok.oauth.connection.v1',
       status: 'connected_demo_session',
+      mode,
       openId: token.open_id || null,
       displayName: user?.data?.user?.display_name || null,
       scopes: grantedScopes,
@@ -61,15 +62,32 @@ export default async function handler(req, res) {
       checkedAt: new Date().toISOString(),
     };
 
-    console.info(`[tiktok-oauth] status=${receipt.status} scopes=${grantedScopes.join(',') || 'none'}`);
+    console.info(`[tiktok-oauth] status=${receipt.status} mode=${mode} scopes=${grantedScopes.join(',') || 'none'}`);
     return res.status(200).send(page(
       'TikTok OAuth connected',
       `<pre>${escapeHtml(JSON.stringify(receipt, null, 2))}</pre><p><a href="/api/tiktok/demo">Continue to Content Posting demo</a></p>`
     ));
   } catch (err) {
-    console.error(`[tiktok-oauth] stage=${stage} error=${sanitizeError(err?.message || err)}`);
+    console.error(`[tiktok-oauth] stage=${stage} mode=${mode} error=${sanitizeError(err?.message || err)}`);
     return res.status(502).send(page('TikTok OAuth verification failed', `${escapeHtml(stage)}: ${escapeHtml(sanitizeError(err?.message || 'Unknown error'))}`));
   }
+}
+
+function getCredentials() {
+  const requestedMode = String(process.env.TIKTOK_OAUTH_MODE || 'production').toLowerCase();
+  const mode = requestedMode === 'sandbox' ? 'sandbox' : 'production';
+  if (mode === 'sandbox') {
+    return {
+      mode,
+      clientKey: process.env.TIKTOK_SANDBOX_CLIENT_KEY,
+      clientSecret: process.env.TIKTOK_SANDBOX_CLIENT_SECRET,
+    };
+  }
+  return {
+    mode,
+    clientKey: process.env.TIKTOK_CLIENT_KEY,
+    clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+  };
 }
 
 async function exchangeCode({ code, clientKey, clientSecret }) {
@@ -103,7 +121,7 @@ async function getUserInfo(accessToken) {
   return data;
 }
 
-function validateSignedState(value, secret) {
+function validateSignedState(value, secret, expectedMode) {
   if (!value || typeof value !== 'string' || !value.includes('.')) return false;
   const [payload, signature] = value.split('.', 2);
   const expected = crypto
@@ -116,7 +134,7 @@ function validateSignedState(value, secret) {
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     const age = Date.now() - Number(parsed.iat);
-    return Number.isFinite(Number(parsed.iat)) && age >= 0 && age <= 10 * 60 * 1000 && typeof parsed.nonce === 'string' && parsed.nonce.length >= 16;
+    return Number.isFinite(Number(parsed.iat)) && age >= 0 && age <= 10 * 60 * 1000 && typeof parsed.nonce === 'string' && parsed.nonce.length >= 16 && String(parsed.mode || 'production') === expectedMode;
   } catch {
     return false;
   }
@@ -133,7 +151,7 @@ function encryptSession(payload, secret) {
 
 function sanitizeError(value) {
   return String(value)
-    .replace(/(access_token|refresh_token)=[^&\s]+/gi, '$1=[redacted]')
+    .replace(/(access_token|refresh_token|client_secret)=[^&\s]+/gi, '$1=[redacted]')
     .replace(/(?:act|rft)\.[A-Za-z0-9._-]+/g, '[redacted-token]')
     .slice(0, 500);
 }
