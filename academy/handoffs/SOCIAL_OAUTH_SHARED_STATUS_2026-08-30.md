@@ -35,11 +35,6 @@ Implemented behavior:
 - Callback validates the same credential family/mode before token exchange.
 - Safe runtime diagnostics do not expose secrets or tokens.
 
-Canonical runtime files:
-- api/tiktok/oauth/start.js
-- api/tiktok/oauth/callback.js
-- TikTok diagnostic endpoint under /api/tiktok
-
 Important: do NOT mark TikTok Sandbox connected yet. Current runtime is still mode=production.
 
 Next legitimate gate for TikTok:
@@ -52,35 +47,33 @@ Next legitimate gate for TikTok:
 7. Verify user.info.basic + video.upload were actually granted.
 8. Only then record Sandbox as connected and proceed to the real review demo video.
 
-## YouTube — current verified state
+## YouTube — DURABLY CONNECTED AND CERTIFIED
 
-Status: RUNTIME READY / OAuth AUTHORIZATION OF EXACT CHANNEL STILL PENDING
+Status: CONNECTED_PERSISTED / CERTIFIED 2026-08-30
 
-Verified runtime diagnostic:
-- HTTP 200
-- schema: nexo.youtube.runtime.preflight.v1
-- status: ready
-- clientIdConfigured: true
-- clientSecretConfigured: true
-- redirectUri: https://investmentsespana.space/api/youtube/oauth/callback
+Verified end-to-end evidence:
+- Real Google OAuth authorization completed against the intended YouTube account.
+- Exact YouTube channel was discovered and verified by YouTube Data API before persistence.
+- Verified channel title: ruben espana.
+- Granted scopes verified: https://www.googleapis.com/auth/youtube and https://www.googleapis.com/auth/youtube.upload.
+- Refresh token was received and durable persistence succeeded.
+- Final runtime schema: nexo.youtube.oauth.persistence.v1.
+- Final runtime status: connected_persisted.
+- refreshTokenPersisted: true.
+- Final persistence check: 2026-08-30T17:56:05.305Z.
+- No Google/YouTube access token or refresh token was displayed or committed to GitHub.
 
-Google Cloud state already completed:
-- Project: Cygnus Academy AI-YouTube
-- YouTube Data API v3 enabled
-- Google Auth Platform configured for External users
-- OAuth web client created
-- Authorized JavaScript origin: https://investmentsespana.space
-- Authorized redirect URI: https://investmentsespana.space/api/youtube/oauth/callback
-- YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET are now present in Production runtime
+Durable storage:
+- Server-side vault: Supabase project ContentFlow AI.
+- Vault table: public.youtube_oauth_token_vault.
+- RLS enabled; anon/authenticated access revoked.
+- Persistence RPC restricted to service_role.
+- OAuth credentials/tokens are encrypted before database persistence.
+- Vercel production runtime holds the required server-side Supabase secret; the secret value is not recorded here.
 
-Implemented runtime behavior:
-- Secure signed OAuth state
-- Google authorization-code exchange server-side
-- access_type=offline and prompt=consent for refresh-token eligibility
-- channel verification through YouTube Data API channels.list mine=true
-- granted scopes captured
-- tokens are not displayed
-- encrypted demo session only after channel verification
+Recovery behavior:
+- The runtime can refresh an expired Google access token using the persisted refresh-token path before channel verification/persistence.
+- OAuth callback and persistence remain fail-closed on verification/storage failure.
 
 Canonical runtime files:
 - api/youtube/oauth/start.js
@@ -88,25 +81,16 @@ Canonical runtime files:
 - api/youtube/diagnostic.js
 - api/youtube/demo.js
 
-Current requested scopes in code:
-- https://www.googleapis.com/auth/youtube
-- https://www.googleapis.com/auth/youtube.upload
+Current granted capabilities:
+- YouTube account management under the granted `youtube` scope.
+- Video upload under `youtube.upload`.
+- Permanent deletion is NOT certified or authorized by this handoff; project no-permanent-deletion guardrail remains in force.
 
-Permission note:
-- Upload capability is covered by youtube.upload.
-- Before certifying explicit delete-video capability, align the final scope set with current Google documentation and the exact operation contract. Do not claim deletion certification until a real authorized channel and the final granted scopes are verified.
-
-Next legitimate gate for YouTube:
-1. Run real OAuth authorization from the intended Google account/channel.
-2. Verify the exact returned YouTube channel ID/title before persistence.
-3. Verify granted scopes.
-4. Confirm refresh token receipt/secure storage strategy.
-5. Only then declare durable YouTube connection.
-6. No upload/delete test should be performed unless separately authorized.
+Continuation rule for all workers: DO NOT redo YouTube OAuth setup. Treat YouTube as durably connected unless a fresh runtime/vault check proves otherwise. Never request or expose OAuth client secrets, Supabase service keys, access tokens, or refresh tokens.
 
 ## Meta / Facebook / Instagram
 
-No new runtime evidence was produced during this TikTok/YouTube pass. Preserve previous certified state and do not reopen or redo Meta work from this handoff alone.
+Preserve previous certified state and do not reopen or redo Meta work from this handoff alone.
 
 Known canonical Meta assets from prior handoffs:
 - Facebook Page: Cygnus Academy AI
@@ -115,8 +99,6 @@ Known canonical Meta assets from prior handoffs:
 - Instagram ID: 17841455070447156
 - Canonical Meta app: Cygnus Academy AI-Nexo
 - App ID: 1784797469372306
-
-Meta remains separate from the TikTok/YouTube work described here.
 
 ## Director / agent execution state
 
@@ -130,7 +112,7 @@ Latest reported Academy control-plane state during this pass:
 
 Do not force artificial retries or work when dispatchable=0 and blockers are external.
 
-## Recent implementation commits to preserve
+## Relevant implementation/evidence commits
 
 TikTok sandbox/production separation and diagnostics:
 - 300ce8324b3dc92f44eefea1c1213174afe515ee
@@ -140,14 +122,12 @@ TikTok sandbox/production separation and diagnostics:
 Research / operational handoff:
 - ac0e58efa2045d5272e75266f9f0a7067dbab9be
 
-Latest runtime-status evidence handoff:
-- 96e2fa87aa90b1ccfc17ae35399451c04af69b46
-
-YouTube OAuth implementation commits already deployed earlier:
+YouTube OAuth implementation/certification history:
 - 39d31e44af27c6862ae87e3121c280e97b54ee46
 - 4609c8d44b27333405a95f1bf46db11dc026aece
 - 8b8c9ee33877878fe9a6ea2ce2e2ed7f0376141b
-- 7ba2eefcbc067004ffbc3a833a6a93a57e60fd19
+- ca8795f921d5a75854425c1f47c705b75f85def9
+- a6ee9b1556f1fa6ca42335433836c694dfc6d0a6
 
 ## Cross-channel continuation rule
 
