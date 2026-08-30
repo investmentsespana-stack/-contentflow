@@ -29,9 +29,8 @@ if not exist "src\jarvis\ui.html" (
 
 for /f "delims=" %%V in ('node --version 2^>nul') do set "NODE_VERSION=%%V"
 echo [OK] Node.js %NODE_VERSION%
-echo [OK] Iniciando Jarvis en http://127.0.0.1:4317
+echo [OK] Iniciando Jarvis...
 echo.
-start "" "http://127.0.0.1:4317"
 node "src\jarvis\server.mjs"
 
 echo.
