@@ -7,7 +7,7 @@ import os from 'node:os';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.JARVIS_PORT || 4317);
 const HOST = process.env.JARVIS_HOST || '127.0.0.1';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-sol';
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://koqpyfvnprmirqviafzq.supabase.co').replace(/\/$/, '');
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_KTxRW4wca-AcvP2tDve6Lw_PDI7WG_8';
 const DIRECTOR_PROJECT_KEY = process.env.DIRECTOR_PROJECT_KEY || 'contentflow';
@@ -26,10 +26,16 @@ async function readJson(req) {
   let data=''; for await (const chunk of req) { data += chunk; if (data.length > 1_000_000) throw new Error('payload_too_large'); }
   return data ? JSON.parse(data) : {};
 }
+function apiErrorMessage(body, status) {
+  const candidate = body?.error?.message ?? body?.error_description ?? body?.message ?? body?.error ?? body?.raw;
+  if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  try { if (candidate != null) return JSON.stringify(candidate); } catch {}
+  return `http_${status}`;
+}
 async function fetchJson(url, options={}) {
   const response = await fetch(url, options); const text = await response.text();
   let body; try { body = text ? JSON.parse(text) : {}; } catch { body = {raw:text}; }
-  if (!response.ok) throw new Error(body?.error_description || body?.error || body?.message || `http_${response.status}`);
+  if (!response.ok) { const error = new Error(apiErrorMessage(body, response.status)); error.status = response.status; error.apiBody = body; throw error; }
   return body;
 }
 async function openaiChat(messages) {
@@ -66,7 +72,7 @@ async function realDirectorCommand(command) {
   if(!safeCycle) return {ok:false,accepted:false,error:'command_requires_director_adapter',detail:'Por seguridad, este bridge sólo permite solicitar un ciclo seguro del Director.'};
   const result=await bridge('cycle'); return {ok:Boolean(result?.ok),accepted:true,source:'jarvis-director-bridge',command,result};
 }
-function healthState(){return {ok:true,service:'jarvis-desktop',openaiConfigured:Boolean(runtimeOpenAIKey),directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',projectKey:DIRECTOR_PROJECT_KEY};}
+function healthState(){return {ok:true,service:'jarvis-desktop',openaiConfigured:Boolean(runtimeOpenAIKey),directorConfigured:Boolean(directorDeviceToken),directorMode:directorDeviceToken?'paired-device':'pairing-required',projectKey:DIRECTOR_PROJECT_KEY,openaiModel:OPENAI_MODEL};}
 
 const server=http.createServer(async(req,res)=>{try{
   const url=new URL(req.url||'/',`http://${req.headers.host||'localhost'}`);
@@ -78,5 +84,5 @@ const server=http.createServer(async(req,res)=>{try{
   if(req.method==='POST'&&url.pathname==='/api/director/command'){const b=await readJson(req); const command=String(b.command||'').trim(); if(!command)return json(res,400,{error:'command_required'}); const result=await realDirectorCommand(command); return json(res,result?.accepted===false?409:200,result);}
   if(req.method==='GET'&&(url.pathname==='/'||url.pathname==='/index.html')){const html=await readFile(path.join(__dirname,'ui.html'),'utf8'); res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'}); return res.end(html);}
   return json(res,404,{error:'not_found'});
-}catch(error){return json(res,error?.message==='payload_too_large'?413:500,{error:String(error?.message||error)});}});
+}catch(error){const status=error?.message==='payload_too_large'?413:(Number.isInteger(error?.status)?error.status:500); return json(res,status,{error:String(error?.message||error),status,details:error?.apiBody||undefined});}});
 server.listen(PORT,HOST,()=>console.log(`Jarvis Desktop: http://${HOST}:${PORT}`));
