@@ -9,23 +9,34 @@ export default async function handler(req, res) {
 
   const clientKey = process.env.TIKTOK_CLIENT_KEY;
   const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-  if (!clientKey || !clientSecret) return res.status(503).send(page('TikTok runtime configuration incomplete', 'Client credentials are not configured.'));
+  if (!clientKey || !clientSecret) {
+    console.error('[tiktok-oauth] preflight=runtime_configuration_incomplete');
+    return res.status(503).send(page('TikTok runtime configuration incomplete', 'Client credentials are not configured.'));
+  }
 
   const { code, state, error, error_description: errorDescription } = req.query || {};
-  if (error) return res.status(400).send(page('TikTok authorization not completed', escapeHtml(errorDescription || error)));
-  if (!code || !state) return res.status(400).send(page('Missing OAuth response', 'Authorization code or state is missing.'));
-
-  const cookies = parseCookies(req.headers.cookie || '');
-  const expectedState = cookies.tiktok_oauth_state;
-  if (!expectedState || !validateStateCookie(expectedState, state, clientSecret)) {
+  if (error) {
+    console.error(`[tiktok-oauth] preflight=authorization_not_completed error=${sanitizeError(errorDescription || error)}`);
+    return res.status(400).send(page('TikTok authorization not completed', escapeHtml(errorDescription || error)));
+  }
+  if (!code || !state) {
+    console.error(`[tiktok-oauth] preflight=missing_oauth_response code=${Boolean(code)} state=${Boolean(state)}`);
+    return res.status(400).send(page('Missing OAuth response', 'Authorization code or state is missing.'));
+  }
+  if (!validateSignedState(state, clientSecret)) {
+    console.error('[tiktok-oauth] preflight=invalid_or_expired_state');
     return res.status(400).send(page('Invalid or expired OAuth state', 'Start the TikTok authorization flow again.'));
   }
 
+  let stage = 'exchange_code';
   try {
     const token = await exchangeCode({ code, clientKey, clientSecret });
     const grantedScopes = String(token.scope || '').split(',').map((s) => s.trim()).filter(Boolean).sort();
 
+    stage = 'read_user_info';
     const user = await getUserInfo(token.access_token);
+
+    stage = 'create_encrypted_demo_session';
     const encrypted = encryptSession({
       access_token: token.access_token,
       refresh_token: token.refresh_token,
@@ -38,7 +49,6 @@ export default async function handler(req, res) {
     const fingerprint = crypto.createHash('sha256').update(token.access_token).digest('hex').slice(0, 16);
     res.setHeader('Set-Cookie', [
       `tiktok_demo_session=${encrypted}; Path=/api/tiktok; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`,
-      'tiktok_oauth_state=; Path=/api/tiktok; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
     ]);
 
     const receipt = {
@@ -51,13 +61,14 @@ export default async function handler(req, res) {
       checkedAt: new Date().toISOString(),
     };
 
+    console.info(`[tiktok-oauth] status=${receipt.status} scopes=${grantedScopes.join(',') || 'none'}`);
     return res.status(200).send(page(
       'TikTok OAuth connected',
       `<pre>${escapeHtml(JSON.stringify(receipt, null, 2))}</pre><p><a href="/api/tiktok/demo">Continue to Content Posting demo</a></p>`
     ));
   } catch (err) {
-    console.error(`[tiktok-oauth] ${sanitizeError(err?.message || err)}`);
-    return res.status(502).send(page('TikTok OAuth verification failed', escapeHtml(sanitizeError(err?.message || 'Unknown error'))));
+    console.error(`[tiktok-oauth] stage=${stage} error=${sanitizeError(err?.message || err)}`);
+    return res.status(502).send(page('TikTok OAuth verification failed', `${escapeHtml(stage)}: ${escapeHtml(sanitizeError(err?.message || 'Unknown error'))}`));
   }
 }
 
@@ -92,14 +103,20 @@ async function getUserInfo(accessToken) {
   return data;
 }
 
-function validateStateCookie(cookieValue, returnedState, secret) {
-  const [state, sig] = String(cookieValue).split('.', 2);
-  if (!state || !sig || state !== returnedState) return false;
-  const expected = crypto.createHmac('sha256', `contentflow-tiktok-state:${secret}`).update(state).digest('base64url');
+function validateSignedState(value, secret) {
+  if (!value || typeof value !== 'string' || !value.includes('.')) return false;
+  const [payload, signature] = value.split('.', 2);
+  const expected = crypto
+    .createHmac('sha256', `contentflow-tiktok-state:${secret}`)
+    .update(payload)
+    .digest('base64url');
   try {
-    const a = Buffer.from(sig, 'base64url');
+    const a = Buffer.from(signature, 'base64url');
     const b = Buffer.from(expected, 'base64url');
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const age = Date.now() - Number(parsed.iat);
+    return Number.isFinite(Number(parsed.iat)) && age >= 0 && age <= 10 * 60 * 1000 && typeof parsed.nonce === 'string' && parsed.nonce.length >= 16;
   } catch {
     return false;
   }
@@ -112,14 +129,6 @@ function encryptSession(payload, secret) {
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return [iv, tag, ciphertext].map((b) => b.toString('base64url')).join('.');
-}
-
-function parseCookies(header) {
-  return header.split(';').reduce((acc, item) => {
-    const index = item.indexOf('=');
-    if (index > -1) acc[item.slice(0, index).trim()] = item.slice(index + 1).trim();
-    return acc;
-  }, {});
 }
 
 function sanitizeError(value) {
