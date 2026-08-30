@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "run:jarvis": "node src/jarvis/server.mjs",
+    "test:jarvis": "node --test tests/jarvis-desktop.test.mjs",
     "test:e2e": "playwright test",
     "test:browser-worker": "node --test tests/browser-worker.test.mjs",
     "run:browser-worker": "node src/platform/browser-worker.mjs",
