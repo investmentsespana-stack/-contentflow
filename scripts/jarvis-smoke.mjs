@@ -4,7 +4,7 @@ import process from 'node:process';
 
 const PORT = 44317;
 const BASE = `http://127.0.0.1:${PORT}`;
-const EXPECTED_BUILD = '2026-08-31-conversation-router-v5.2';
+const EXPECTED_BUILD = '2026-08-31-conversation-router-v5.3';
 const server = spawn(process.execPath, ['src/jarvis/server.mjs'], {
   env: { ...process.env, JARVIS_PORT: String(PORT), JARVIS_HOST: '127.0.0.1' },
   stdio: ['ignore', 'pipe', 'pipe']
@@ -60,6 +60,7 @@ try {
   assert(ui.includes('SpeechRecognition') || ui.includes('webkitSpeechRecognition'), 'UI sin reconocimiento de voz');
   assert(ui.includes('speechSynthesis'), 'UI sin síntesis de voz');
   assert(ui.includes('Interlocutor'), 'UI sin indicador de interlocutor');
+  assert(ui.includes('/api/selftest'), 'UI sin indicador de self-test del router');
 
   const launcher = await readFile('JARVIS-WINDOWS.cmd','utf8');
   assert(launcher.includes('node "src\\jarvis\\server.mjs"'), 'launcher no inicia el servidor correcto');
