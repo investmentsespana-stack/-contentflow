@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
   try {
     const latest = await getLatestSnapshot(serviceRole);
-    const latestAt = latest?.created_at ? Date.parse(latest.created_at) : 0;
+    const latestAt = latest?.updated_at || latest?.created_at ? Date.parse(latest.updated_at || latest.created_at) : 0;
     if (latestAt && Date.now() - latestAt < 15 * 60 * 1000) {
       return res.status(200).json(receipt('already_current', latest));
     }
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
       throw new Error('YouTube channel verification mismatch');
     }
 
-    const snapshot = await persistSnapshot(serviceRole, inventory);
+    const snapshot = await persistSnapshot(serviceRole, inventory, latest);
     console.info(`[youtube-inventory] status=verified channel=${inventory.channel.id} videos=${inventory.videos.length} playlists=${inventory.playlists.length}`);
     return res.status(200).json(receipt('verified', snapshot));
   } catch (error) {
@@ -201,35 +201,51 @@ async function getLatestVaultRow(serviceRole) {
 }
 
 async function getLatestSnapshot(serviceRole) {
-  const url = `${SUPABASE_URL}/rest/v1/director_external_evidence?select=id,created_at,status,evidence&project_key=eq.${PROJECT_KEY}&task_key=eq.${TASK_KEY}&order=created_at.desc&limit=1`;
+  const url = `${SUPABASE_URL}/rest/v1/director_external_evidence?select=id,created_at,updated_at,status,evidence&project_key=eq.${PROJECT_KEY}&task_key=eq.${TASK_KEY}&evidence_type=eq.youtube_api_inventory&engine=eq.youtube-data-api-v3&environment=eq.production&limit=1`;
   const rows = await supabaseRequest(url, serviceRole);
   return rows?.[0] || null;
 }
 
-async function persistSnapshot(serviceRole, inventory) {
+async function persistSnapshot(serviceRole, inventory, existing) {
+  const payload = {
+    project_key: PROJECT_KEY,
+    task_key: TASK_KEY,
+    evidence_type: 'youtube_api_inventory',
+    environment: 'production',
+    engine: 'youtube-data-api-v3',
+    version: 'v1',
+    status: 'pass',
+    evidence: inventory,
+    source: 'nexo.youtube.inventory.v1',
+    verified: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const headers = {
+    apikey: serviceRole,
+    Authorization: `Bearer ${serviceRole}`,
+    'Content-Type': 'application/json',
+    Prefer: 'return=representation',
+  };
+
+  if (existing?.id) {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/director_external_evidence?id=eq.${encodeURIComponent(existing.id)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const rows = await response.json().catch(() => []);
+    if (!response.ok) throw new Error(`YouTube inventory persistence update failed: HTTP ${response.status}`);
+    if (rows?.[0]) return rows[0];
+  }
+
   const response = await fetch(`${SUPABASE_URL}/rest/v1/director_external_evidence`, {
     method: 'POST',
-    headers: {
-      apikey: serviceRole,
-      Authorization: `Bearer ${serviceRole}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    },
-    body: JSON.stringify({
-      project_key: PROJECT_KEY,
-      task_key: TASK_KEY,
-      evidence_type: 'youtube_api_inventory',
-      environment: 'production',
-      engine: 'youtube-data-api-v3',
-      version: 'v1',
-      status: 'pass',
-      evidence: inventory,
-      source: 'nexo.youtube.inventory.v1',
-      verified: true,
-    }),
+    headers,
+    body: JSON.stringify(payload),
   });
   const rows = await response.json().catch(() => []);
-  if (!response.ok) throw new Error(`YouTube inventory persistence failed: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`YouTube inventory persistence insert failed: HTTP ${response.status}`);
   return rows?.[0] || null;
 }
 
@@ -281,7 +297,7 @@ function receipt(status, snapshot) {
     channelTitle: evidence?.channel?.title || null,
     videoCount: Array.isArray(evidence?.videos) ? evidence.videos.length : null,
     playlistCount: Array.isArray(evidence?.playlists) ? evidence.playlists.length : null,
-    checkedAt: evidence?.checkedAt || snapshot?.created_at || new Date().toISOString(),
+    checkedAt: evidence?.checkedAt || snapshot?.updated_at || snapshot?.created_at || new Date().toISOString(),
     secretsExposed: false,
   };
 }
