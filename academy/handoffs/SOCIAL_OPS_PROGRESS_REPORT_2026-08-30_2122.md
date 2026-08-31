@@ -101,3 +101,4 @@ Report immediately after any of these events:
 Director instruction: keep independent work running; when a worker finishes, validate evidence and immediately reassign to the next executable item. External gates must not idle unrelated lanes.
 
 Automation bridge: handoff ingestion and auto-reassignment enabled.
+Director→Ops context bridge v2 certification trigger: 2026-08-30 21:58 America/New_York.
