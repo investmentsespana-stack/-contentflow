@@ -1,0 +1,126 @@
+name: social-ops-handoff-autoreassign
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'academy/handoffs/**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: social-ops-handoff-autoreassign
+  cancel-in-progress: false
+
+jobs:
+  ingest-handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Extract Director reassignment actions
+        id: extract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const cp = require('child_process');
+          const before = process.env.GITHUB_EVENT_BEFORE || '';
+          let files = [];
+          try {
+            if (before && !/^0+$/.test(before)) {
+              files = cp.execFileSync('git',['diff','--name-only',before,process.env.GITHUB_SHA],{encoding:'utf8'})
+                .trim().split(/\r?\n/).filter(Boolean);
+            }
+          } catch {}
+          if (!files.length) {
+            files = cp.execFileSync('git',['show','--pretty=','--name-only',process.env.GITHUB_SHA],{encoding:'utf8'})
+              .trim().split(/\r?\n/).filter(Boolean);
+          }
+          files = files.filter(f => /^academy\/handoffs\/.*\.md$/i.test(f) && fs.existsSync(f));
+          const actions = [];
+          for (const file of files) {
+            const text = fs.readFileSync(file,'utf8');
+            const headings = [
+              /##\s+Reassigned\s*\/\s*immediately executable work\s*\n([\s\S]*?)(?=\n##\s|$)/i,
+              /##\s+Director reassignment\s*\n([\s\S]*?)(?=\n##\s|$)/i
+            ];
+            for (const re of headings) {
+              const m = text.match(re);
+              if (!m) continue;
+              for (const line of m[1].split(/\r?\n/)) {
+                const hit = line.match(/^\s*\d+\.\s+(.+?)\s*$/);
+                if (hit && hit[1].length <= 1000) actions.push(hit[1]);
+              }
+              if (actions.length) break;
+            }
+          }
+          const unique = [...new Set(actions)].slice(0,20);
+          fs.writeFileSync('/tmp/handoff-actions.json', JSON.stringify(unique));
+          fs.writeFileSync('/tmp/handoff-files.json', JSON.stringify(files));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `count=${unique.length}\n`);
+          NODE
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+
+      - name: Install PostgreSQL client
+        if: steps.extract.outputs.count != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client >/dev/null
+
+      - name: Persist handoff and release work
+        if: steps.extract.outputs.count != '0'
+        shell: bash
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          export PGSSLMODE=require
+          export PGHOST=aws-0-us-east-1.pooler.supabase.com
+          export PGPORT=5432
+          export PGUSER=postgres.koqpyfvnprmirqviafzq
+          export PGDATABASE=postgres
+          ACTIONS_JSON="$(cat /tmp/handoff-actions.json)"
+          FILES_JSON="$(cat /tmp/handoff-files.json)"
+          psql -v ON_ERROR_STOP=1 \
+            -v handoff_id="$GITHUB_SHA" \
+            -v actions_json="$ACTIONS_JSON" \
+            -v files_json="$FILES_JSON" <<'SQL'
+          select public.contentflow_ingest_handoff_v1(
+            'contentflow',
+            :'handoff_id',
+            'github-social-ops',
+            :'actions_json'::jsonb,
+            jsonb_build_object(
+              'repository', 'investmentsespana-stack/-contentflow',
+              'commit_sha', :'handoff_id',
+              'files', :'files_json'::jsonb,
+              'workflow', 'social-ops-handoff-autoreassign'
+            )
+          );
+          select net.http_post(
+            url := 'https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/contentflow-auto-loop',
+            headers := '{"Content-Type":"application/json"}'::jsonb,
+            body := jsonb_build_object('source','github-handoff-autoreassign','handoff_id',:'handoff_id'),
+            timeout_milliseconds := 10000
+          );
+          SQL
+
+      - name: No reassignment section found
+        if: steps.extract.outputs.count == '0'
+        run: echo 'No machine-readable Director reassignment section found; no tasks released.'
