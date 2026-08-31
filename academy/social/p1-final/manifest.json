@@ -1,0 +1,150 @@
+{
+  "schema": "cygnus.social.p1.render.manifest.v1",
+  "generated_at": "2026-08-31T18:57:37.633875+00:00",
+  "source": "academy/social/SOCIAL_OPS_P1_READY_FOR_APPROVAL_2026-08-31.md",
+  "publish_allowed": false,
+  "upload_allowed": false,
+  "audio_policy": "intentional digital silence; no voice/music/source audio introduced",
+  "artifacts": [
+    {
+      "file": "academy/social/p1-final/facebook_p1_1080x1350.png",
+      "sha256": "43c46b0a6e2a433915fc483271bcdb07429de7621c9e08d06316dd4b937323e3",
+      "bytes": 82793,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "dimensions": [
+        1080,
+        1350
+      ]
+    },
+    {
+      "file": "academy/social/p1-final/instagram_p1_card_01_1080x1350.png",
+      "sha256": "166d60052faac818c9830a01c8d2c242f074cd1a1db5babc31153d465ed3b57f",
+      "bytes": 64742,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "dimensions": [
+        1080,
+        1350
+      ]
+    },
+    {
+      "file": "academy/social/p1-final/instagram_p1_card_02_1080x1350.png",
+      "sha256": "4ce92e1a36fb1eab5c2080f59d9ed45408dabbad5a4a9c0d2212a08b52eee2e1",
+      "bytes": 56500,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "dimensions": [
+        1080,
+        1350
+      ]
+    },
+    {
+      "file": "academy/social/p1-final/instagram_p1_card_03_1080x1350.png",
+      "sha256": "2af74ada92c887ee7bdeb10d9cb5b24301472215144828be3ec64c5d6942849a",
+      "bytes": 61117,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "dimensions": [
+        1080,
+        1350
+      ]
+    },
+    {
+      "file": "academy/social/p1-final/instagram_p1_card_04_1080x1350.png",
+      "sha256": "6a0b993808fc101de827e74878fb6e501bf0c6156c6e510ec6170b2e22d99469",
+      "bytes": 58296,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "dimensions": [
+        1080,
+        1350
+      ]
+    },
+    {
+      "file": "academy/social/p1-final/instagram_p1_card_05_1080x1350.png",
+      "sha256": "fae1a6067c718b3f627d8d5544266047f243af35c962fd9d9ca210bd302d9456",
+      "bytes": 61348,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "dimensions": [
+        1080,
+        1350
+      ]
+    },
+    {
+      "file": "academy/social/p1-final/instagram_p1_card_06_1080x1350.png",
+      "sha256": "e670fc57449d0580becd563721dc86ca3c5fd32696409d3687fbe2c6ed599db5",
+      "bytes": 63236,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "dimensions": [
+        1080,
+        1350
+      ]
+    },
+    {
+      "file": "academy/social/p1-final/p1_vertical_captions.srt",
+      "sha256": "4b258c567ec5478cbe213bd26720756a2f63d8942a5b0e40e5fefe783990f586",
+      "bytes": 488,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music"
+    },
+    {
+      "file": "academy/social/p1-final/p1_vertical_captions.vtt",
+      "sha256": "d9f8a6cd75a5d3d8291a881e669cf1caa0b7a3617b69252ee56569942db5fea4",
+      "bytes": 484,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music"
+    },
+    {
+      "file": "academy/social/p1-final/tiktok_p1_1080x1920_30s.mp4",
+      "sha256": "9db7cf1be43c501b8fcd02c89fc1012d198f81a118584d9d4cf9412aca6ad00c",
+      "bytes": 353597,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "probe": {
+        "video": [
+          {
+            "width": 1080,
+            "height": 1920,
+            "r_frame_rate": "30/1",
+            "duration": "30.000000"
+          }
+        ],
+        "audio": [
+          {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2
+          }
+        ]
+      }
+    },
+    {
+      "file": "academy/social/p1-final/youtube_short_p1_1080x1920_30s.mp4",
+      "sha256": "9db7cf1be43c501b8fcd02c89fc1012d198f81a118584d9d4cf9412aca6ad00c",
+      "bytes": 353597,
+      "provenance": "internally rendered from locked Cygnus P1 text + verified internal brand asset; no external stock/voice/music",
+      "probe": {
+        "video": [
+          {
+            "width": 1080,
+            "height": 1920,
+            "r_frame_rate": "30/1",
+            "duration": "30.000000"
+          }
+        ],
+        "audio": [
+          {
+            "codec_name": "aac",
+            "sample_rate": "48000",
+            "channels": 2
+          }
+        ]
+      }
+    }
+  ],
+  "qa": {
+    "facebook_dimensions": "PASS 1080x1350",
+    "instagram_dimensions": "PASS 6x 1080x1350",
+    "tiktok_dimensions_duration": "PASS 1080x1920 ~30s",
+    "youtube_short_dimensions_duration": "PASS 1080x1920 ~30s",
+    "safe_zone": "PASS renderer keeps primary text inside central safe area",
+    "subtitles": "PASS burned-equivalent on-screen text by scene + retained SRT/VTT sidecars",
+    "audio": "PASS intentional silence; AAC track present; no third-party audio",
+    "brand": "PASS internal Cygnus avatar + approved brand line only",
+    "claims": "PASS methodology only; no unsupported statistics/guarantees",
+    "publication_gate": "CLOSED"
+  }
+}

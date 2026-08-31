@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:05,000
+Un error común con IA es empezar por la herramienta.
+
+2
+00:00:05,000 --> 00:00:10,000
+Hazlo al revés. Primero entiende el proceso.
+
+3
+00:00:10,000 --> 00:00:15,000
+Encuentra qué consume tiempo y qué cuesta dinero.
+
+4
+00:00:15,000 --> 00:00:20,000
+Identifica qué necesita criterio humano.
+
+5
+00:00:20,000 --> 00:00:25,000
+Después usa IA solo donde puedas medir una mejora.
+
+6
+00:00:25,000 --> 00:00:30,000
+Eso es aprender haciendo. Cygnus Academy AI.
