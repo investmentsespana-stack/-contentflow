@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Extract Director reassignment actions
+      - name: Extract Director reassignment actions and authoritative context
         id: extract
         shell: bash
         run: |
@@ -49,8 +49,10 @@ jobs:
           }
           files = files.filter(f => /^academy\/handoffs\/.*\.md$/i.test(f) && fs.existsSync(f));
           const actions = [];
+          const contexts = [];
           for (const file of files) {
             const text = fs.readFileSync(file,'utf8');
+            contexts.push(`SOURCE FILE: ${file}\n${text}`);
             const headings = [
               /##\s+Reassigned\s*\/\s*immediately executable work\s*\n([\s\S]*?)(?=\n##\s|$)/i,
               /##\s+Director reassignment\s*\n([\s\S]*?)(?=\n##\s|$)/i
@@ -66,8 +68,10 @@ jobs:
             }
           }
           const unique = [...new Set(actions)].slice(0,20);
+          const context = contexts.join('\n\n---\n\n').slice(0,24000);
           fs.writeFileSync('/tmp/handoff-actions.json', JSON.stringify(unique));
           fs.writeFileSync('/tmp/handoff-files.json', JSON.stringify(files));
+          fs.writeFileSync('/tmp/handoff-context.json', JSON.stringify(context));
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `count=${unique.length}\n`);
           NODE
         env:
@@ -81,7 +85,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client >/dev/null
 
-      - name: Persist handoff and release work
+      - name: Persist handoff with context and release work
         if: steps.extract.outputs.count != '0'
         shell: bash
         env:
@@ -97,10 +101,12 @@ jobs:
           export PGDATABASE=postgres
           ACTIONS_JSON="$(cat /tmp/handoff-actions.json)"
           FILES_JSON="$(cat /tmp/handoff-files.json)"
+          CONTEXT_JSON="$(cat /tmp/handoff-context.json)"
           psql -v ON_ERROR_STOP=1 \
             -v handoff_id="$GITHUB_SHA" \
             -v actions_json="$ACTIONS_JSON" \
-            -v files_json="$FILES_JSON" <<'SQL'
+            -v files_json="$FILES_JSON" \
+            -v context_json="$CONTEXT_JSON" <<'SQL'
           select public.contentflow_ingest_handoff_v1(
             'contentflow',
             :'handoff_id',
@@ -110,13 +116,14 @@ jobs:
               'repository', 'investmentsespana-stack/-contentflow',
               'commit_sha', :'handoff_id',
               'files', :'files_json'::jsonb,
+              'handoff_context', :'context_json'::jsonb #>> '{}',
               'workflow', 'social-ops-handoff-autoreassign'
             )
           );
           select net.http_post(
             url := 'https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/contentflow-auto-loop',
             headers := '{"Content-Type":"application/json"}'::jsonb,
-            body := jsonb_build_object('source','github-handoff-autoreassign','handoff_id',:'handoff_id'),
+            body := jsonb_build_object('source','github-handoff-autoreassign-v2','handoff_id',:'handoff_id'),
             timeout_milliseconds := 10000
           );
           SQL
