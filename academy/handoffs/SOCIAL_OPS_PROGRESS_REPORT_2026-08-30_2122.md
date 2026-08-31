@@ -99,3 +99,5 @@ Report immediately after any of these events:
 - YouTube identity mutation becomes possible in authenticated Studio.
 
 Director instruction: keep independent work running; when a worker finishes, validate evidence and immediately reassign to the next executable item. External gates must not idle unrelated lanes.
+
+Automation bridge: handoff ingestion and auto-reassignment enabled.
