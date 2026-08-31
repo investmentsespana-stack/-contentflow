@@ -1,0 +1,90 @@
+name: social-ops-p1-final-render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/render_cygnus_p1_social_ops.py'
+      - 'academy/social/SOCIAL_OPS_P1_READY_FOR_APPROVAL_2026-08-31.md'
+      - 'academy/social/youtube/branding/**'
+      - '.github/workflows/social-ops-p1-final-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: social-ops-p1-final-render
+  cancel-in-progress: false
+
+jobs:
+  render-and-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install renderer dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core >/dev/null
+          ffmpeg -version | head -n 1
+
+      - name: Render locked P1 package and run binary QA
+        run: |
+          set -euo pipefail
+          python scripts/render_cygnus_p1_social_ops.py
+          test -f academy/social/p1-final/manifest.json
+          test -f academy/handoffs/SOCIAL_OPS_P1_FINAL_RENDER_QA_2026-08-31.md
+
+      - name: Verify output contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('academy/social/p1-final/manifest.json').read_text())
+          assert m['publish_allowed'] is False
+          assert m['upload_allowed'] is False
+          q=m['qa']
+          required=['facebook_dimensions','instagram_dimensions','tiktok_dimensions_duration','youtube_short_dimensions_duration','safe_zone','subtitles','audio','brand','claims','publication_gate']
+          for k in required:
+              assert k in q, k
+          assert q['publication_gate']=='CLOSED'
+          files={a['file'] for a in m['artifacts']}
+          required_files={
+            'academy/social/p1-final/facebook_p1_1080x1350.png',
+            'academy/social/p1-final/instagram_p1_card_01_1080x1350.png',
+            'academy/social/p1-final/instagram_p1_card_06_1080x1350.png',
+            'academy/social/p1-final/tiktok_p1_1080x1920_30s.mp4',
+            'academy/social/p1-final/youtube_short_p1_1080x1920_30s.mp4',
+            'academy/social/p1-final/p1_vertical_captions.srt',
+            'academy/social/p1-final/p1_vertical_captions.vtt',
+          }
+          missing=required_files-files
+          assert not missing, missing
+          print('P1 render contract PASS; artifacts=',len(m['artifacts']))
+          PY
+
+      - name: Commit rendered evidence and Director handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add academy/social/p1-final academy/handoffs/SOCIAL_OPS_P1_FINAL_RENDER_QA_2026-08-31.md
+          if git diff --cached --quiet; then
+            echo 'No render delta to commit.'
+            exit 0
+          fi
+          git commit -m 'social: render P1 final binaries and certify binary QA'
+          git push origin HEAD:main
