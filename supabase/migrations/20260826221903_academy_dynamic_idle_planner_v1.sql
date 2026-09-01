@@ -1,0 +1,12 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: recovery
+-- lineage-recovered-from-production: true
+-- historical-replay: no-op-marker
+-- quarantine-status: quarantined
+-- quarantine-change-id: 531e09dc-b4c6-49b0-b2e1-c526b7e3b67c
+-- detected-by-run: production-git-drift-gate-33019230222
+-- original-statements-sha256: 0ae063b34e9420a7991ca9a4724900a1bc4add279f6abdcbf70ac61e5957ee7a
+-- original-version: 20260826221903
+-- original-name: academy_dynamic_idle_planner_v1
+-- This file records lineage only. It does not admit the production change as desired Git state.
+-- Structural effect remains fail-closed under Production Git Drift Gate.
