@@ -7,8 +7,8 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-  if (!clientSecret) return res.status(503).json({ error: 'TikTok runtime credentials are not configured.' });
+  const { clientSecret, mode } = getRuntime();
+  if (!clientSecret) return res.status(503).json({ error: `TikTok ${mode} runtime credentials are not configured.` });
 
   const cookies = parseCookies(req.headers.cookie || '');
   if (!cookies.tiktok_demo_session) return res.status(401).json({ error: 'TikTok demo session is not connected.' });
@@ -20,6 +20,9 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'TikTok demo session is invalid.' });
   }
 
+  if (session?.mode && session.mode !== mode) {
+    return res.status(401).json({ error: 'TikTok demo session mode does not match runtime mode.' });
+  }
   if (!session?.access_token || Date.now() >= Number(session.expires_at || 0)) {
     return res.status(401).json({ error: 'TikTok access token expired. Reconnect through Login Kit.' });
   }
@@ -77,13 +80,24 @@ export default async function handler(req, res) {
       checkedAt: new Date().toISOString(),
       nextAction: 'Open TikTok inbox notification to continue editing and complete the post.',
     };
-    console.info(`[tiktok-upload] status=${receipt.status} bytes=${video.length} publish_id=${receipt.publishId || 'none'}`);
+    console.info(`[tiktok-upload] status=${receipt.status} mode=${mode} bytes=${video.length} publish_id=${receipt.publishId || 'none'}`);
     return res.status(200).json(receipt);
   } catch (err) {
     const safe = sanitizeError(err?.message || err);
-    console.error(`[tiktok-upload] ${safe}`);
+    console.error(`[tiktok-upload] mode=${mode} ${safe}`);
     return res.status(502).json({ error: safe });
   }
+}
+
+function getRuntime() {
+  const requestedMode = String(process.env.TIKTOK_OAUTH_MODE || 'production').toLowerCase();
+  const mode = requestedMode === 'sandbox' ? 'sandbox' : 'production';
+  return {
+    mode,
+    clientSecret: mode === 'sandbox'
+      ? process.env.TIKTOK_SANDBOX_CLIENT_SECRET
+      : process.env.TIKTOK_CLIENT_SECRET,
+  };
 }
 
 async function readBody(req, expectedSize) {
