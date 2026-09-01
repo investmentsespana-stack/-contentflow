@@ -14,13 +14,30 @@ function fixture(createdAt = '2026-08-23T12:00:00Z') {
     'runtime-control-data.sql': 'INSERT INTO director_control_policy VALUES (1);\n',
   };
   for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
-  writeFileSync(join(dir, 'manifest.json'), JSON.stringify({
+
+  const manifest = {
     project_ref: 'koqpyfvnprmirqviafzq',
     created_at_utc: createdAt,
-    restore_order: ['public-schema.sql','runtime-control-data.sql'],
+    restore_order: [
+      'public-schema.sql',
+      'runtime-control-data.sql',
+      'supabase/migrations after repo_migration_cutoff',
+    ],
     integrity: 'SHA256SUMS',
-  }));
-  writeFileSync(join(dir, 'SHA256SUMS'), Object.entries(files).map(([name, body]) => `${createHash('sha256').update(body).digest('hex')}  ${name}`).join('\n') + '\n');
+    migration_replay_contract: 'REPLAY_SUPABASE_MIGRATIONS_AFTER_CUTOFF_V1',
+    repo_migration_cutoff: '20260823110000_recovery_cutoff.sql',
+    database_migration_head: '20260823110000',
+  };
+  const manifestBody = JSON.stringify(manifest);
+  writeFileSync(join(dir, 'manifest.json'), manifestBody);
+
+  const checksumBodies = { ...files, 'manifest.json': manifestBody };
+  writeFileSync(
+    join(dir, 'SHA256SUMS'),
+    Object.entries(checksumBodies)
+      .map(([name, body]) => `${createHash('sha256').update(body).digest('hex')}  ${name}`)
+      .join('\n') + '\n',
+  );
   return dir;
 }
 
@@ -33,7 +50,11 @@ test('fresh complete snapshot is rollback-viable', () => {
     assert.equal(result.pathChecks.every((x) => x.exists), true);
     assert.equal(result.checksumChecks.every((x) => x.matches), true);
     assert.equal(result.ageMinutes, 30);
-    assert.deepEqual(result.restoreOrder, ['public-schema.sql','runtime-control-data.sql']);
+    assert.deepEqual(result.restoreOrder, [
+      'public-schema.sql',
+      'runtime-control-data.sql',
+      'supabase/migrations after repo_migration_cutoff',
+    ]);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
