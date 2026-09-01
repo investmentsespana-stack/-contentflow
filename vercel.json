@@ -1,5 +1,16 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
+      "destination": "/cygnus-academy.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
+      "destination": "/cygnus-academy.html"
+    },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/terms", "destination": "/terms.html" },
     { "source": "/data-deletion", "destination": "/data-deletion.html" },
