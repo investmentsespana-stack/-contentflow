@@ -8,7 +8,7 @@ test('panel_qa_v1_browser: production loads without fatal browser errors', async
   const fatal: string[] = [];
   page.on('pageerror', err => fatal.push(`pageerror: ${err.message}`));
   page.on('console', msg => {
-    if (msg.type() === 'error') fatal.push(`console: ${msg.text()}`));
+    if (msg.type() === 'error') fatal.push(`console: ${msg.text()}`);
   });
 
   const targetPath = process.env.CONTENTFLOW_QA_PATH ?? '/escuela-digital';
