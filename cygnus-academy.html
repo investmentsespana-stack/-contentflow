@@ -1,160 +1,133 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Cygnus Academy AI | Aprendiendo Haciendo</title>
-  <meta name="description" content="Cygnus Academy AI — formación práctica para el trabajo con profesores de IA especializados, sistemas de IA conectados, práctica, proyectos verificables y aprendizaje basado en ejecución.">
-  <meta name="robots" content="index,follow">
-  <link rel="canonical" href="https://www.cygnusacademyai.com/">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.cygnusacademyai.com/">
-  <meta property="og:site_name" content="Cygnus Academy AI">
-  <meta property="og:title" content="Cygnus Academy AI | Aprendiendo Haciendo">
-  <meta property="og:description" content="Aprende IA haciendo: profesores especializados, práctica guiada, proyectos y sistemas de IA conectados para llevar cada aprendizaje hasta un resultado demostrable.">
-  <meta property="og:image" content="https://www.cygnusacademyai.com/academy/social/youtube/branding/cygnus_youtube_banner_2560x1440.jpg">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Cygnus Academy AI | Aprendiendo Haciendo">
-  <meta name="twitter:description" content="Formación práctica para el trabajo con profesores de IA, proyectos reales y aprendizaje basado en ejecución.">
-  <meta name="twitter:image" content="https://www.cygnusacademyai.com/academy/social/youtube/branding/cygnus_youtube_banner_2560x1440.jpg">
-  <style>
-    :root{color-scheme:dark;--bg:#06101d;--panel:#0d1b2a;--panel2:#091522;--line:#1f3b57;--text:#eef8ff;--muted:#adc3d5;--cyan:#48d7ff;--violet:#9b7cff;--magenta:#db5cc8;--gold:#f2c86b;--green:#42d6a4;--shadow:0 26px 70px rgba(0,0,0,.3)}
-    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(circle at 16% 4%,#142e55 0,#07111f 34%,#050b14 100%);color:var(--text)}
-    a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 24px}.skip-link{position:absolute;left:-9999px;top:8px;background:var(--cyan);color:#06111e;padding:10px 14px;border-radius:10px;z-index:1000;font-weight:800}.skip-link:focus{left:12px}:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
-    nav{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:17px 0;border-bottom:1px solid rgba(255,255,255,.09)}.brand{display:flex;align-items:center;gap:11px;text-decoration:none;font-weight:850;min-width:max-content}.brand img{width:48px;height:48px;border-radius:50%;object-fit:cover;border:1px solid rgba(72,215,255,.42);box-shadow:0 0 24px rgba(72,215,255,.14)}.brand span{color:var(--cyan)}.navlinks{display:flex;gap:18px;align-items:center}.navlinks a{text-decoration:none;color:var(--muted);font-size:14px}.navlinks a:hover{color:var(--text)}
-    .hero{padding:68px 0 34px;display:grid;grid-template-columns:1.02fr .98fr;gap:44px;align-items:center}.eyebrow,.kicker{color:var(--cyan);font-weight:850;text-transform:uppercase;letter-spacing:.13em;font-size:12px}.hero h1{font-size:clamp(44px,6.7vw,78px);line-height:.98;margin:14px 0 18px;letter-spacing:-.035em}.hero h1 em{font-style:normal;color:var(--cyan)}.hero-copy{font-size:19px;line-height:1.62;color:var(--muted);max-width:720px;margin:0}.motto{display:block;color:var(--text);font-weight:750;margin-top:15px;font-size:15px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border-radius:14px;padding:14px 19px;font-weight:800;border:1px solid var(--line);transition:.2s ease}.btn.primary{background:linear-gradient(135deg,var(--cyan),var(--violet));color:#06111e;border:0}.btn.secondary{background:#0b1827}.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(0,0,0,.18)}
-    /* Hero visual v5: artwork is never covered. Caption is a separate block below it. */
-    .hero-visual{border-radius:28px;overflow:hidden;border:1px solid var(--line);background:#07111f;box-shadow:var(--shadow)}.hero-art{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#06101d}.hero-caption{padding:18px 20px 20px;border-top:1px solid var(--line);background:linear-gradient(135deg,rgba(13,27,42,.98),rgba(7,17,31,.98))}.hero-caption strong{display:block;font-size:21px}.hero-caption span{display:block;color:var(--cyan);font-weight:800;margin-top:5px}.hero-caption p{color:var(--muted);margin:8px 0 0;line-height:1.5;font-size:14px}
-    .trust{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0 72px}.trust>div{padding:17px 19px;border:1px solid var(--line);border-radius:16px;background:rgba(13,27,42,.72)}.trust small{display:block;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:11px}.trust strong{display:block;margin-top:6px;font-size:15px}
-    .section{padding:18px 0 78px}.section-head{max-width:840px;margin-bottom:28px}.section h2{font-size:clamp(30px,4.5vw,49px);line-height:1.08;margin:10px 0 14px;letter-spacing:-.025em}.section-lead{color:var(--muted);font-size:18px;line-height:1.65;margin:0}
-    .institution{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}.panel{background:linear-gradient(145deg,rgba(13,27,42,.94),rgba(9,21,35,.94));border:1px solid var(--line);border-radius:22px;padding:28px}.panel h3{margin:0 0 12px;font-size:20px}.panel p{color:var(--muted);line-height:1.65;margin:0}.mission{border-left:3px solid var(--cyan)}.principles{display:grid;gap:12px}.principle{padding:14px 15px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.025)}.principle b{color:var(--gold)}.principle span{display:block;color:var(--muted);margin-top:4px;font-size:14px;line-height:1.45}
-    .method{background:#0b1726;border:1px solid var(--line);border-radius:24px;padding:30px}.ratio{display:grid;grid-template-columns:.7fr 1.3fr;gap:26px;align-items:center}.ratio-mark{text-align:center;border-right:1px solid var(--line);padding-right:26px}.ratio-mark strong{font-size:clamp(46px,7vw,76px);color:var(--cyan);line-height:1}.ratio-mark span{display:block;color:var(--muted);margin-top:8px}.cycle{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}.cycle span{border:1px solid var(--line);border-radius:999px;padding:9px 11px;color:var(--muted);font-size:13px}.cycle b{display:flex;align-items:center;color:var(--gold)}
-    .professors{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.professor{overflow:hidden;border:1px solid var(--line);border-radius:22px;background:linear-gradient(160deg,#10263b,#091522);box-shadow:0 18px 36px rgba(0,0,0,.16)}.professor-photo{height:260px;overflow:hidden;background:#081522}.professor-photo img{width:100%;height:100%;object-fit:cover;display:block;object-position:center 18%}.professor-body{padding:20px}.professor-body small{color:var(--cyan);font-weight:850;letter-spacing:.08em}.professor-body h3{margin:7px 0 8px;font-size:19px}.professor-body p{color:var(--muted);font-size:14px;line-height:1.55;margin:0}.scope-note{margin-top:18px;padding:16px 19px;border:1px solid rgba(72,215,255,.28);border-radius:15px;background:rgba(72,215,255,.055);color:var(--muted);font-size:14px;line-height:1.55}.scope-note b{color:var(--cyan)}
-    .call-layout{display:grid;grid-template-columns:.92fr 1.08fr;gap:28px;align-items:center}.phone{max-width:390px;margin:auto;border:1px solid #315777;border-radius:34px;padding:13px;background:#050c15;box-shadow:0 30px 65px rgba(0,0,0,.38)}.phone-screen{min-height:510px;border-radius:25px;overflow:hidden;background:radial-gradient(circle at 50% 25%,#173d62,#081522 58%,#050c15);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px}.call-avatar{width:130px;height:130px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--cyan);background:rgba(0,0,0,.25);font-size:34px;font-weight:900;color:var(--cyan);box-shadow:0 0 50px rgba(72,215,255,.18)}.phone-screen h3{font-size:24px;margin:22px 0 7px}.phone-screen p{color:var(--muted);margin:0;line-height:1.5}.call-state{color:var(--green);font-size:12px;font-weight:850;letter-spacing:.08em;margin-top:9px}.call-controls{display:flex;gap:17px;margin-top:34px}.call-control{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);font-size:18px}.call-control.end{background:#b83d52;border-color:#d65569}.steps{display:grid;gap:13px}.step{display:grid;grid-template-columns:46px 1fr;gap:14px;padding:16px;border:1px solid var(--line);border-radius:16px;background:rgba(13,27,42,.7)}.step-num{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:rgba(72,215,255,.1);color:var(--cyan);font-weight:900}.step h3{margin:1px 0 6px;font-size:17px}.step p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}.dev-note{margin-top:14px;font-size:13px;color:var(--gold);line-height:1.5}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:rgba(13,27,42,.91);border:1px solid var(--line);border-radius:18px;padding:24px}.card h3{margin:0 0 10px;font-size:20px}.card p{color:var(--muted);line-height:1.58;margin:0}.badge{display:inline-block;color:#06111e;background:var(--green);border-radius:999px;padding:5px 9px;font-size:11px;font-weight:850;margin-bottom:12px;letter-spacing:.04em}.badge.cyan{background:var(--cyan)}.badge.gold{background:var(--gold)}
-    .ecosystem{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.ecosystem .card{min-height:190px}.num{color:var(--cyan);font-size:12px;font-weight:900;letter-spacing:.12em}.flowline{margin-top:18px;padding:19px 22px;background:rgba(72,215,255,.07);border:1px solid rgba(72,215,255,.22);border-radius:16px;color:var(--muted);line-height:1.58}.flowline b{color:var(--text)}
-    .starter{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}.starter-list{display:grid;gap:10px;margin-top:18px}.starter-item{display:flex;align-items:flex-start;gap:11px;color:var(--muted);line-height:1.5}.starter-item i{font-style:normal;color:var(--cyan);font-weight:900}.route{display:grid;gap:10px}.route-node{padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025)}.route-node b{display:block;color:var(--text)}.route-node span{display:block;color:var(--muted);font-size:13px;margin-top:4px}.route-arrow{text-align:center;color:var(--cyan);font-weight:900}
-    .contact{display:grid;grid-template-columns:1fr 1fr;gap:18px}.contact-list{display:grid;gap:11px;margin-top:20px}.contact-row{display:flex;gap:12px;align-items:center;padding:13px 15px;border:1px solid var(--line);border-radius:13px;text-decoration:none;background:#091624}.contact-row:hover{border-color:var(--cyan)}.contact-row b{min-width:100px}.contact-row span{color:var(--muted);overflow-wrap:anywhere}.company-note{margin-top:20px!important;color:var(--muted)!important;font-size:14px!important;line-height:1.55!important}.company-note strong{color:var(--text)}
-    .faq{display:grid;gap:10px}.faq details{border:1px solid var(--line);border-radius:15px;background:rgba(13,27,42,.66);padding:16px 18px}.faq summary{cursor:pointer;font-weight:800}.faq details p{color:var(--muted);line-height:1.6;margin:12px 0 0}
-    footer{border-top:1px solid rgba(255,255,255,.09);padding:30px 0 42px;color:var(--muted);font-size:14px}.footer-grid{display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:24px}.footer-brand{display:flex;gap:12px;align-items:flex-start}.footer-brand img{width:46px;height:46px;border-radius:50%;object-fit:cover}.footer-brand strong{display:block;color:var(--text);font-size:16px}.footer-brand p{margin:5px 0 0;line-height:1.5}.footer-links{display:grid;gap:8px}.footer-links strong{color:var(--text);margin-bottom:3px}.footer-links a{text-decoration:none;color:var(--muted)}.footer-links a:hover{color:var(--cyan)}.copyright{border-top:1px solid rgba(255,255,255,.06);margin-top:24px;padding-top:20px;font-size:12px;color:#809ab0}
-    @media(max-width:980px){.hero,.call-layout,.starter{grid-template-columns:1fr}.institution,.ratio,.contact{grid-template-columns:1fr}.ratio-mark{border-right:0;border-bottom:1px solid var(--line);padding:0 0 24px}.professors,.ecosystem{grid-template-columns:1fr 1fr}.trust{grid-template-columns:1fr 1fr}.footer-grid{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}}
-    @media(max-width:700px){.wrap{padding:0 19px}nav{padding:15px 0}.brand img{width:42px;height:42px}.brand{font-size:15px}.navlinks a{display:none}.hero{padding:50px 0 28px;gap:28px}.hero-copy{font-size:17px}.trust,.grid,.professors,.ecosystem{grid-template-columns:1fr}.professor-photo{height:auto;aspect-ratio:1/1}.section{paddin-bottom:60px}.method,.panel{padding:22px}.contact-row{align-items:flex-start;flex-direction:column;gap:5px}.footer-grid{grid-template-columns:1fr}.footer-brand{grid-column:auto}.actions{display:grid}.btn{text-align:center}.phone-screen{-in-height:460px}}
-  </style>
-  <script type="application/ld+json">
-  {
-    "@context":"https://schema.org",
-    "@type":"EducationalOrganization",
-    "name":"Cygnus Academy AI",
-    "url":"https://www.cygnusacademyai.com/",
-    "logo":"https://www.cygnusacademyai.com/academy/social/youtube/branding/cygnus_youtube_avatar_800x800.jpg",
-    "email":"social@investmentespana.space",
-    "description":"Formación práctica para el trabajo con profesores de IA especializados, sistemas de IA conectados, práctica, proyectos verificables y evaluación por competencias.",
-    "parentOrganization":{"@type":"Organization","name":"Investments España LLC"},
-    "sameAs":[
-      "https://www.instagram.com/cygnusacademyai/",
-      "https://www.facebook.com/102575905973808",
-      "https://www.youtube.com/@CygnusAcademyAI",
-      "https://www.skool.com/cygnusacademyai"
-    ]
-  }
-  </script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cygnus Academy AI | Aprendiendo Haciendo</title>
+<meta name="description" content="Formación práctica para el trabajo con profesores de IA, sistemas conectados, práctica y proyectos verificables.">
+<link rel="canonical" href="https://www.cygnusacademyai.com/">
+<meta property="og:title" content="Cygnus Academy AI | Aprendiendo Haciendo">
+<meta property="og:description" content="Aprende inteligencia artificial haciendo, con profesores IA, práctica guiada y proyectos reales.">
+<meta property="og:image" content="https://www.cygnusacademyai.com/academy/social/youtube/branding/cygnus_youtube_banner_2560x1440.jpg">
+<style>
+:root{--bg:#06101d;--panel:#0d1b2a;--line:#1f3b57;--text:#eef8ff;--muted:#adc3d5;--cyan:#48d7ff;--violet:#9b7cff;--gold:#f2c86b;--green:#42d6a4}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% 0,#14305a,#07111f 35%,#050b14);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 22px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:17px 0;border-bottom:1px solid rgba(255,255,255,.1)}.brand{display:flex;align-items:center;gap:11px;text-decoration:none;font-weight:850}.brand img{width:46px;height:46px;border-radius:50%;object-fit:cover}.brand span{color:var(--cyan)}.navlinks{display:flex;gap:17px}.navlinks a{text-decoration:none;color:var(--muted);font-size:14px}
+.hero{display:grid;grid-template-columns:1fr 1fr;gap:42px;align-items:center;padding:66px 0 34px}.eyebrow,.kicker{font-size:12px;font-weight:850;letter-spacing:.13em;text-transform:uppercase;color:var(--cyan)}h1{font-size:clamp(44px,6.4vw,76px);line-height:.98;margin:14px 0 18px}h1 em{font-style:normal;color:var(--cyan)}.lead{color:var(--muted);font-size:18px;line-height:1.65}.motto{display:block;margin-top:14px;font-weight:750}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:25px}.btn{padding:13px 18px;border-radius:13px;text-decoration:none;font-weight:800;border:1px solid var(--line)}.btn.primary{border:0;background:linear-gradient(135deg,var(--cyan),var(--violet));color:#06111e}
+.hero-visual{margin:0;border:1px solid var(--line);border-radius:26px;overflow:hidden;background:#07111f;box-shadow:0 26px 65px rgba(0,0,0,.3)}.hero-visual img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#06101d}.hero-caption{border-top:1px solid var(--line);padding:17px 19px;background:linear-gradient(135deg,#0d1b2a,#081522)}.hero-caption strong{font-size:20px}.hero-caption b{display:block;color:var(--cyan);margin-top:5px}.hero-caption p{color:var(--muted);margin:7px 0 0;line-height:1.5;font-size:14px}
+.trust{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0 70px}.trust div,.card,.panel{border:1px solid var(--line);border-radius:18px;background:rgba(13,27,42,.9)}.trust div{padding:16px}.trust small{color:var(--muted);display:block;text-transform:uppercase;font-size:11px}.trust strong{display:block;margin-top:5px}
+.section{padding:15px 0 72px}.section-head{max-width:840px;margin-bottom:26px}h2{font-size:clamp(30px,4.4vw,48px);line-height:1.08;margin:9px 0 13px}.section-head p,.card p,.panel p{color:var(--muted);line-height:1.62}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card,.panel{padding:23px}.card h3,.panel h3{margin:0 0 9px}.badge{display:inline-block;background:var(--cyan);color:#06111e;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;margin-bottom:11px}.badge.gold{background:var(--gold)}.badge.green{background:var(--green)}
+.method{display:grid;grid-template-columns:.7fr 1.3fr;gap:25px;align-items:center;border:1px solid var(--line);border-radius:22px;background:#0b1726;padding:28px}.ratio{text-align:center;border-right:1px solid var(--line);padding-right:24px}.ratio strong{font-size:clamp(44px,7vw,72px);color:var(--cyan)}.ratio span{display:block;color:var(--muted)}.cycle{display:flex;flex-wrap:wrap;gap:8px}.cycle span{padding:8px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:13px}
+.professors{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.professor{overflow:hidden;border:1px solid var(--line);border-radius:21px;background:linear-gradient(160deg,#10263b,#091522)}.professor img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;object-position:center 18%}.professor-body{padding:18px}.professor-body small{color:var(--cyan);font-weight:850;letter-spacing:.07em}.professor-body h3{margin:6px 0 7px}.professor-body p{color:var(--muted);font-size:14px;line-height:1.55;margin:0}.scope{margin-top:16px;padding:15px 18px;border:1px solid rgba(72,215,255,.28);border-radius:14px;color:var(--muted);line-height:1.55}.scope b{color:var(--cyan)}
+.call{display:grid;grid-template-columns:.9fr 1.1fr;gap:27px;align-items:center}.phone{max-width:370px;margin:auto;padding:12px;border:1px solid #315777;border-radius:32px;background:#050c15}.screen{min-height:470px;border-radius:23px;background:radial-gradient(circle at 50% 24%,#173d62,#081522 58%,#050c15);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px}.avatar{width:124px;height:124px;border:2px solid var(--cyan);border-radius:50%;display:grid;place-items:center;color:var(--cyan);font-weight:900;font-size:32px}.screen p{color:var(--muted)}.online{color:var(--green);font-size:12px;font-weight:900}.steps{display:grid;gap:12px}.step{display:grid;grid-template-columns:42px 1fr;gap:12px;padding:15px;border:1px solid var(--line);border-radius:15px;background:rgba(13,27,42,.75)}.num{width:40px;height:40px;border-radius:12px;background:rgba(72,215,255,.1);display:grid;place-items:center;color:var(--cyan);font-weight:900}.step h3{margin:0 0 5px}.step p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.flow{margin-top:17px;padding:18px;border:1px solid rgba(72,215,255,.25);border-radius:15px;background:rgba(72,215,255,.06);color:var(--muted);line-height:1.58}.flow b{color:var(--text)}
+.contact{display:grid;grid-template-columns:1fr 1fr;gap:16px}.contact a{display:block;text-decoration:none;padding:11px 13px;margin-top:9px;border:1px solid var(--line);border-radius:12px;color:var(--muted)}
+footer{border-top:1px solid rgba(255,255,255,.09);padding:28px 0 40px;color:var(--muted);font-size:14px}.footer{display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:20px}.footer a{display:block;text-decoration:none;color:var(--muted);margin-top:7px}.copyright{margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.07);font-size:12px}
+@media(max-width:920px){.hero,.call,.contact,.method{grid-template-columns:1fr}.ratio{border-right:0;border-bottom:1px solid var(--line);padding:0 0 20px}.professors,.grid4{grid-template-columns:1fr 1fr}.trust{grid-template-columns:1fr 1fr}.footer{grid-template-columns:1fr}}
+@media(max-width:680px){.navlinks{display:none}.wrap{padding:0 18px}.hero{grid-template-columns:1fr;padding-top:48px}.professors,.grid3,.grid4,.trust{grid-template-columns:1fr}.actions{display:grid}.btn{text-align:center}.section{padding-bottom:56px}}
+</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"EducationalOrganization","name":"Cygnus Academy AI","url":"https://www.cygnusacademyai.com/","email":"social@investmentsespana.space","parentOrganization":{"@type":"Organization","name":"Investments España LLC"}}</script>
 </head>
 <body>
-  <a class="skip-link" href="#contenido">Saltar al contenido</a>
-  <div class="wrap">
-    <nav aria-label="Navegación principal">
-      <a class="brand" href="#inicio"><img src="/academy/social/youtube/branding/cygnus_youtube_avatar_800x800.jpg" alt="Cygnus Academy AI"><div>Cygnus Academy <span>AI</span></div></a>
-      <div class="navlinks"><a href="#institucion">Academia</a><a href="#metodo">Método</a><a href="#profesores">Profesores</a><a href="#experiencia">Experiencia</a><a href="#ia-conectada">IA conectada</a><a href="#contacto">Contacto</a></div>
-    </nav>
+<div class="wrap">
+<nav>
+<a class="brand" href="#inicio"><img src="/academy/social/youtube/branding/cygnus_youtube_avatar_800x800.jpg" alt="Cygnus Academy AI"><div>Cygnus Academy <span>AI</span></div></a>
+<div class="navlinks"><a href="#academia">Academia</a><a href="#metodo">Método</a><a href="#profesores">Profesores</a><a href="#experiencia">Experiencia</a><a href="#ia">IA conectada</a><a href="#contacto">Contacto</a></div>
+</nav>
 
-    <main id="contenido">
-      <section id="inicio" class="hero">
-        <div>
-          <div class="eyebrow">Formación para el trabajo</div>
-          <h1>Aprendiendo <em>Haciendo</em></h1>
-          <p class="hero-copy">Aprende inteligencia artificial ejecutando tareas reales, construyendo proyectos y demostrando competencias. Cygnus conecta profesores de IA, tutoría, agentes especializados, práctica y evaluación para acompañarte desde una pregunta hasta un resultado que puedas demostrar.</p>
-          <span class="motto">Cygnus Academy AI ÷ Aprendiendo Haciendo – Formación para el trabajo.</span>
-          <div class="actions"><a class="btn primary" href="#experiencia">Ver cómo se aprende</a><a class="btn secondary" href="https://www.skool.com/cygnusacademyai" target="_blank" rel="noopener">Comunidad Cygnus</a></div>
-        </div>
-        <figure class="hero-visual">
-          <img class="hero-art" src="/academy/social/youtube/branding/cygnus_youtube_banner_2560x1440.jpg" alt="Identidad visual de Cygnus Academy AI con estética tecnológica">
-          <figcaption class="hero-caption"><strong>Una academia diseñada para ejecutar</strong><span>Profesor + IA + práctica + proyecto</span><p>La imagen queda libre para comunicar la identidad Cygnus; el mensaje vive debajo, sin cubrir la composición visual.</p></figcaption>
-        </figure>
-      </section>
+<main>
+<section id="inicio" class="hero">
+<div>
+<div class="eyebrow">Formación para el trabajo</div>
+<h1>Aprendiendo <em>Haciendo</em></h1>
+<p class="lead">Aprende inteligencia artificial ejecutando tareas reales, construyendo proyectos y demostrando competencias. Cygnus conecta profesores de IA, tutoría, agentes especializados, práctica y evaluación para acompañarte hasta un resultado demostrable.</p>
+<span class="motto">Cygnus Academy AI · Aprendiendo Haciendo – Formación para el trabajo.</span>
+<div class="actions"><a class="btn primary" href="#experiencia">Ver cómo se aprende</a><a class="btn" href="https://www.skool.com/cygnusacademyai" target="_blank" rel="noopener">Comunidad Cygnus</a></div>
+</div>
+<figure class="hero-visual">
+<img src="/academy/social/youtube/branding/cygnus_youtube_banner_2560x1440.jpg" alt="Identidad visual tecnológica de Cygnus Academy AI">
+<figcaption class="hero-caption"><strong>Una academia diseñada para ejecutar</strong><b>Profesor + IA + práctica + proyecto</b><p>El mensaje acompaña a la imagen sin cubrirla. La identidad visual queda completamente visible.</p></figcaption>
+</figure>
+</section>
 
-      <section class="trust" aria-label="Identidad institucional">
-        <div><small>Institución</small><strong>Cygnus Academy AI</strong></div>
-        <div><small>Operada por</small><strong>Investments España LLC</strong></div>
-        <div><small>Principio rector</small><strong>Aprendiendo Haciendo</strong></div>
-        <div><small>Modelo</small><strong>IA conectada + proyectos</strong></div>
-      </section>
+<section class="trust">
+<div><small>Institución</small><strong>Cygnus Academy AI</strong></div>
+<div><small>Operada por</small><strong>Investments España LLC</strong></div>
+<div><small>Principio rector</small><strong>Aprendiendo Haciendo</strong></div>
+<div><small>Modelo</small><strong>IA conectada + proyectos</strong></div>
+</section>
 
-      <section id="institucion" class="section">
-        <div class="section-head"><span class="kicker">Quiénes somos</span><h2>Una academia construida alrededor de la capacidad de hacer</h2><p class="section-lead">Cygnus Academy AI es un entorno de formación prÁctica en inteligencia artificial orientado al trabajo. Integra aprendizaje, tutoría con IA, profesores especializados, sistemas de IA conectados, práctica guiada, proyectos, evaluación por competencias y comunidad.</p></div>
-        <div class="institution">
-          <article class="panel mission"><h3>Nuestra misión académica</h3><p>Desarrollar competencia laboral demostrable mediante práctica real, evidencia y evaluación de desempeño. La teoría se entrega justo a tiempo y en la medida necesaria para ejecutar mejor una tarea.</p></article>
-          <aside class="panel"><h3>Principios de formación</h3><div class="principles"><div class="principle"><b>Evidencia, no sólo memoria</b><span>Cada aprendizaje debe producir un resultado observable o verificable.</span></div><div class="principle"><b>Dominio antes de certificar</b><span>No se certifica una competencia sin ejecución satisfactoria.</span></div><div class="principle"><b>Del acompañamiento a la autonomía</b><span>La dificultad escala desde práctica guiada hasta desempeño independiente.</span></div></div></aside>
-        </div>
-      </section>
+<section id="academia" class="section">
+<div class="section-head"><span class="kicker">Quiénes somos</span><h2>Una academia construida alrededor de la capacidad de hacer</h2><p>Cygnus Academy AI integra aprendizaje, profesores especializados, tutoría con IA, sistemas de IA conectados, práctica guiada, proyectos, evaluación por competencias y comunidad.</p></div>
+<div class="grid3">
+<article class="card"><span class="badge">APRENDER</span><h3>Conocimiento aplicado</h3><p>La teoría se entrega cuando ayuda a ejecutar mejor una tarea.</p></article>
+<article class="card"><span class="badge green">DEMOSTRAR</span><h3>Evidencia de dominio</h3><p>El avance se demuestra mediante entregables, correcciones y resultados verificables.</p></article>
+<article class="card"><span class="badge gold">CONSTRUIR</span><h3>Proyecto real</h3><p>La formación conduce a una competencia y un proyecto que el alumno puede mostrar y usar.</p></article>
+</div>
+</section>
 
-      <section id="metodo" class="section">
-        <div class="section-head"><span class="kicker">Método Cygnus</span><h2>Aprender es ejecutar, recibir feedback y demostrar dominio</h2><p class="section-lead">El alumno avanza cuando demuestra que puede aplicar lo aprendido, no simplemente cuando termina de ver una lección.</p></div>
-        <div class="method"><div class="ratio"><div class="ratio-mark"><strong>20·30·50</strong><span>20% teoría ÷ 30% demostración ÷ 50% práctica y ejecución</span></div><div><h3>Ciclo pedagógico</h3><div class="cycle"><span>Ver</span><b>→</b><span>Entender</span><b>→</b><span>Hacer con guía</span><b>→</b><span>Hacer solo</span><b>→</b><span>Feedback</span><b>→</b><span>Corregir</span><b>→</b><span>Demostrar dominio</span><b>→</b><span>Aplicar al trabajo</span></div></div></div></div>
-      </section>
+<section id="metodo" class="section">
+<div class="section-head"><span class="kicker">Método Cygnus</span><h2>Aprender es ejecutar, recibir feedback y demostrar dominio</h2><p>El alumno avanza cuando puede aplicar lo aprendido, no solamente cuando termina una lección.</p></div>
+<div class="method"><div class="ratio"><strong>20·30·50</strong><span>20% teoría · 30% demostración · 50% práctica y ejecución</span></div><div><h3>Ciclo pedagógico</h3><div class="cycle"><span>Ver</span><span>Entender</span><span>Hacer con guía</span><span>Hacer solo</span><span>Feedback</span><span>Corregir</span><span>Demostrar dominio</span><span>Aplicar al trabajo</span></div></div></div>
+</section>
 
-      <section id="profesores" class="section">
-        <div class="section-head"><span class="kicker">Equipo docente de IA</span><h2>Cuatro profesores con identidad propia y especialización</h2><p class="section-lead">Las cuatro identidades visuales base ya están definidas. Cada profesor se mantendrá dentro del conocimiento de su materia, conservará el contexto de la lección y derivará las preguntas que correspondan a otro especialista.</p></div>
-        <div class="professors">
-          <article class="professor"><div class="professor-photo"><img src="/academy/professors/profesora-01.jpg" alt="Profesora IA 01 de Cygnus Academy AI"></div><div class="professor-body"><small>PROFESORA IA 01</small><h3>Profesora especializada</h3><p>Explica, guía la práctica y resuelve dudas dentro del contexto del curso asignado.</p></div></article>
-          <article class="professor"><div class="professor-photo"><img src="/academy/professors/profesora-02.jpg" alt="Profesora IA 02 de Cygnus Academy AI"></div><div class="professor-body"><small>PROFESORA IA 02</small><h3>Profesora especializada</h3><p>Convierte conceptos en acciones, ejemplos y ejercicios aplicables al trabajo real.</p></div></article>
-          <article class="professor"><div class="professor-photo"><img src="/academy/professors/profesor-03.jpg" alt="Profesor IA 03 de Cygnus Academy AI"></div><div class="professor-body"><small>PROFESOR IA 03</small><h3>Profesor especializado</h3><p>Acompaña resolución de problemas, prÁctica y aplicación de herramientas en proyectos.</p></div></article>
-          <article class="professor"><div class="professor-photo"><img src="/academy/professors/profesor-04.jpg" alt="Profesor IA 04 de Cygnus Academy AI"></div><div class="professor-body"><small>PROFESOR IA 04</small><h3>Profesor especializado</h3><p>Refuerza estructura, razonamiento, verificación y calidad dentro de su especialidad.</p></div></article>
-        </div>
-        <div class="scope-note"><b>Regla académica:</b> los nombres, voces y especialidades concretas se fijarán al cerrar las pruebas docentes, pero estas cuatro identidades visuales ya son la base aprobada del equipo.</div>
-      </section>
+<section id="profesores" class="section">
+<div class="section-head"><span class="kicker">Equipo docente de IA</span><h2>Los cuatro profesores base de Cygnus</h2><p>Sus identidades visuales ya están aprobadas. Cada profesor trabajará dentro del conocimiento y los objetivos de su materia, conservará el contexto de la lección y derivará lo que pertenezca a otra especialidad.</p></div>
+<div class="professors">
+<article class="professor"><img src="/academy/professors/profesora-01.jpg" alt="Profesora IA 01 de Cygnus Academy AI"><div class="professor-body"><small>PROFESORA IA 01</small><h3>Profesora especializada</h3><p>Explica, guía la práctica y resuelve dudas dentro de su curso.</p></div></article>
+<article class="professor"><img src="/academy/professors/profesora-02.jpg" alt="Profesora IA 02 de Cygnus Academy AI"><div class="professor-body"><small>PROFESORA IA 02</small><h3>Profesora especializada</h3><p>Convierte conceptos en ejemplos, acciones y ejercicios aplicables.</p></div></article>
+<article class="professor"><img src="/academy/professors/profesor-03.jpg" alt="Profesor IA 03 de Cygnus Academy AI"><div class="professor-body"><small>PROFESOR IA 03</small><h3>Profesor especializado</h3><p>Acompaña resolución de problemas, práctica y proyectos.</p></div></article>
+<article class="professor"><img src="/academy/professors/profesor-04.jpg" alt="Profesor IA 04 de Cygnus Academy AI"><div class="professor-body"><small>PROFESOR IA 04</small><h3>Profesor especializado</h3><p>Refuerza razonamiento, estructura, verificación y calidad.</p></div></article>
+</div>
+<div class="scope"><b>Estado:</b> estas cuatro caras ya son la base visual aprobada. Los nombres, voces y materias concretas se fijan después de las pruebas docentes.</div>
+</section>
 
-      <section id="experiencia" class="section">
-        <div class="section-head"><span class="kicker">Interacción con el profesor</span><h2>Del video a una conversación con tu profesor</h2><p class="section-lead">La experiencia está diseñada para que una duda no termine en un correo o en una búsqueda fuera del curso. El alumn podrá pasar de la lección a una conversación contextual con el profesor de esa materia.</p></div>
-        <div class="call-layout">
-          <div class="phone"><div class="phone-screen"><div class="call-avatar">AI</div><h3>Profesor Cygnus</h3><p>Lección activa: contexto cargado</p><div class="call-state">● CONVERSACIÓN EDUCATIVA</div><div class="call-controls"><span class="call-control">◉</span><span class="call-control">▻</span><span class="call-control end">×/</span></div></div></div>
-          <div><div class="steps"><article class="step"><div class="step-num">1</div><div><h3>Ves la demostración</h3><p>El profesor explica el concepto y muestra cómo se ejecuta dentro de la lección.</p></div></article><article class="step"><div class="step-num">2</div><div><h3>Preguntas en contexto</h3><p>El sistema conoce el curso, la lección y el punto exacto donde estÁs trabajando.</p></div></article><article class="step"><div class="step-num">3</div><div><h3>Hablas con el profesor</h3><p>La experiencia objetivo combina conversación, voz y avatar para una interacción directa tipo tutoría uno a uno.</p></div></article><article class="step"><div class="step-num">4</div><div><h3>Vuelves a ejecutar</h3><p>La conversación termina en una acción: práctica, corrección, evidencia o siguiente paso del proyecto.</p></div></article></div><div class="dev-note">La interacción contextual ya forma parte de la arquitectura Cygnus. La experiencia completa de voz + avatar en tiempo real se encuentra en integración y validación para el lanzamiento.</div></div>
-        </div>
-      </section>
+<section id="experiencia" class="section">
+<div class="section-head"><span class="kicker">Interacción con el profesor</span><h2>Del video a una conversación con tu profesor</h2><p>La experiencia está diseñada para que el alumno pueda pasar de la lección a una conversación contextual con el profesor de esa materia.</p></div>
+<div class="call">
+<div class="phone"><div class="screen"><div class="avatar">AI</div><h3>Profesor Cygnus</h3><p>Lección activa · contexto cargado</p><div class="online">● CONVERSACIÓN EDUCATIVA</div></div></div>
+<div class="steps">
+<article class="step"><div class="num">1</div><div><h3>Ves la demostración</h3><p>El profesor explica y muestra cómo se ejecuta.</p></div></article>
+<article class="step"><div class="num">2</div><div><h3>Preguntas en contexto</h3><p>El sistema conoce el curso, la lección y el punto donde estás trabajando.</p></div></article>
+<article class="step"><div class="num">3</div><div><h3>Hablas con el profesor</h3><p>La experiencia objetivo combina conversación, voz y avatar como tutoría uno a uno.</p></div></article>
+<article class="step"><div class="num">4</div><div><h3>Vuelves a ejecutar</h3><p>La conversación termina en práctica, corrección, evidencia o el siguiente paso.</p></div></article>
+</div>
+</div>
+<div class="flow"><b>Transparencia:</b> la conversación contextual ya forma parte de la arquitectura Cygnus. La experiencia completa de voz + avatar en tiempo real continúa en integración y validación.</div>
+</section>
 
-      <section id="entorno" class="section">
-        <div class="section-head"><span class="kicker">Entorno educativo</span><h2>Todo trabaja como un solo sistema de aprendizaje</h2><p class="section-lead">Cursos, profesores, tutor IA, agentes, comunidad y evaluación trabajan juntos para llevar al estudiante desde el diagnóstico hasta un proyecto demostrable.</p></div>
-        <div class="grid"><article class="card"><span class="badge cyan">RUTA PERSONALIZADA</span><h3>Progresión por competencias</h3><p>Diagnóstico, prerrequisitos, recomendaciones y avance según evidencia real de aprendizaje.</p></article><article class="card"><span class="badge">IA EDUCATIVA</span><h3>Tutor y profesores</h3><p>Explicaciones contextuales, demostraciones, prÁctica, feedback y especialistas con continuidad dentro del curso.</p></article><article class="card"><span class="badge gold">PRÁCTICA REAL</span><h3>Laboratorios y proyectos</h3><p>Ejercicios guiados, evidencia antes/después, proyectos por módulo y proyecto final verificable.</p></article></div>
-      </section>
+<section id="ia" class="section">
+<div class="section-head"><span class="kicker">IA ORQUESTADA</span><h2>Todo el entorno educativo se diseña, planifica y ejecuta con sistemas de IA conectados</h2><p>Cygnus no utiliza una sola IA para todo. Conecta sistemas especializados para transformar un objetivo de aprendizaje en práctica, evidencia y finalmente un proyecto real.</p></div>
+<div class="grid4">
+<article class="card"><span class="kicker">01 · DISEÑAR</span><h3>Arquitectura educativa</h3><p>Objetivos y competencias se convierten en módulos, lecciones, actividades y evaluaciones.</p></article>
+<article class="card"><span class="kicker">02 · PLANIFICAR</span><h3>Ruta y coordinación</h3><p>Las IAs organizan secuencias, dependencias, práctica, tutoría y siguientes acciones.</p></article>
+<article class="card"><span class="kicker">03 · EJECUTAR</span><h3>Agentes que colaboran</h3><p>Profesores, tutores, agentes y herramientas guían y acompañan la ejecución.</p></article>
+<article class="card"><span class="kicker">04 · VERIFICAR</span><h3>Evidencia y mejora</h3><p>El desempeño alimenta feedback, corrección y control de calidad.</p></article>
+</div>
+<div class="flow"><b>Principio operativo:</b> una IA no trabaja aislada. Cygnus conecta sistemas especializados bajo orquestación, reglas, evidencia y control de calidad para llevar al alumno hasta un resultado que pueda demostrar y utilizar.</div>
+</section>
 
-      <section id="starter" class="section">
-        <div class="section-head"><span class="kicker">Puerta de entrada</span><h2>Cygnus Starter: conocer el método haciendo</h2><p class="section-lead">La ruta inicial esté pensada para que el alumno entienda cómo se trabaja en Cygnus antes de avanzar hacia programas más profundos.</p></div>
-        <div class="starter"><div class="panel"><h3>Lo que debe experimentar el alumno</h3><div class="starter-list"><div class="starter-item"><i>✓</i><span>Entender el objetivo y el resultado esperado antes de comenzar.</span></div><div class="starter-item"><i>✓</i><span>Ver una demostración y reproducirla con guía.</span></div><div class="starter-item"><i>✓</i><span>Preguntar al tutor o profesor dentro del contexto de la lección.</span></div><div class="starter-item"><i>✓</i><span>Entregar una evidencia concreta de lo que hizo.</span></div><div class="starter-item"><i>✓</i><span>Terminar con un pequeño proyecto y una siguiente ruta recomendada.</span></div></div></div><div class="panel"><h3>Recorrido</h3><div class="route"><div class="route-node"><b>Comunidad Skool</b><span>Acceso, orientación y acompañamiento.</span></div><div class="route-arrow">↓</div><div class="route-node"><b>Cygnus Starter</b><span>Lecciones, práctica y primer proyecto.</span></div><div class="route-arrow">↓</div><div class="route-node"><b>Ruta por competencia</b><span>Formación especializada según objetivo.</span></div><div class="route-arrow">↓</div><div class="route-node"><b>Proyecto + evidencia</b><span>Resultado demostrable para el trabajo.</span></div></div></div></div>
-      </section>
+<section class="section">
+<div class="section-head"><span class="kicker">Ruta del alumno</span><h2>Comunidad → aprendizaje → evidencia → proyecto</h2><p>Skool y el entorno educativo Cygnus cumplen funciones complementarias dentro de la misma experiencia.</p></div>
+<div class="grid4">
+<article class="card"><h3>Skool</h3><p>Acceso, comunidad, orientación y continuidad.</p></article>
+<article class="card"><h3>Entorno Cygnus</h3><p>Lecciones, profesores IA, práctica y progresión.</p></article>
+<article class="card"><h3>Evaluación</h3><p>Entregables, decisiones, correcciones y resultados verificables.</p></article>
+<article class="card"><h3>Proyecto</h3><p>Competencia demostrable y portafolio conectado con trabajo real.</p></article>
+</div>
+</section>
 
-      <section id="ia-conectada" class="section">
-        <div class="section-head"><span class="kicker">IA ORQUESTADA</span><h2>El entorno educativo se diseña, planifica y ejecuta con sistemas de IA conectados</h2><p class="section-lead">Cygnus no utiliza una sola IA para todo. Conecta sistemas especializados que colaboran bajo reglas, contexto y control de calidad para transformar objetivos de aprendizaje en práctica, evidencia y un proyecto real.</p></div>
-        <div class="ecosystem"><article class="card"><span class="num">01 ÷ DISEÑAR</span><h3>Arquitectura educativa</h3><p>Objetivos y competencias se convierten en módulos, lecciones, actividades, evaluaciones y recursos.</p></article><article class="card"><span class="num">02 · PLANIFICAR</span><h3>Ruta y coordinación</h3><p>Las IAs organizan secuencias, dependencias, prÁctica, tutoría y siguientes acciones.</p></article><article class="card"><span class="num">03 · EJECUTAR</span><h3>Agentes que colaboran</h3><p>Profesores, tutores, agentes y herramientas explican, producen, guían y acompañan la ejecución.</p></article><article class="card"><span class="num">04 ÷ VERIFICAR</span><h3>Evidencia y mejora</h3><p>El desempeño alimenta feedback, corrección, control de calidad y nuevas acciones.</p></article></div>
-        <div class="flowline"><b>Principio operativo:</b> una IA no trabaja aislada. Cygnus conecta sistemas especializados bajo orquestación, reglas, evidencia y control de calidad para que el alumno llegue desde una necesidad concreta hasta un resultado que pueda demostrar y utilizar.</div>
-      </section>
+<section id="contacto" class="section">
+<div class="section-head"><span class="kicker">Institución y contacto</span><h2>Canales oficiales</h2></div>
+<div class="contact">
+<div class="panel"><h3>Cygnus Academy AI</h3><a href="mailto:social@investmentsespana.space">social@investmentsespana.space</a><a href="https://www.skool.com/cygnusacademyai" target="_blank" rel="noopener">Comunidad Skool</a><a href="https://www.instagram.com/cygnusacademyai/" target="_blank" rel="noopener">@cygnusacademyai</a><a href="https://www.youtube.com/@CygnusAcademyAI" target="_blank" rel="noopener">@CygnusAcademyAI</a></div>
+<div class="panel"><h3>Responsabilidad institucional</h3><p>Cygnus Academy AI es operada por Investments España LLC y está orientada a formación práctica para el trabajo con inteligencia artificial.</p></div>
+</div>
+</section>
+</main>
 
-      <section class="section">
-        <div class="section-head"><span class="kicker">Experiencia completa</span><h2>Comunidad, formación, proyecto y continuidad</h2><p class="section-lead">Skool y el entorno educativo Cygnus cumplen funciones complementarias dentro de una misma experiencia.</p></div>
-        <div class="ecosystem"><article class="card"><span class="num">01 ÷ COMUNIDAD</span><h3>Skool</h3><p>Acceso, interacción, orientación, novedades y continuidad del alumno.</p></article><article class="card"><span class="num">02 · APRENDIZAJE</span><h3>Entorno Cygnus</h3><p>Lecciones, demostraciones, profesores IA, práctica y progresión personalizada.</p></article><article class="card"><span class="num">03 ÷ EVIDENCIA</span><h3>Evaluación por dominio</h3><p>El desempeño se demuestra mediante entregables, decisiones, correcciones y resultados verificables.</p></article><article class="card"><span class="num">04 ÷ RESULTADO</span><h3>Proyecto y certificación</h3><p>La salida es una competencia demostrable y un portafolio conectado con trabajo real.</p></article></div>
-        <div class="actions"><a class="btn primary" href="https://www.skool.com/cygnusacademyai" target="_blank" rel="noopener">Ir a la comunidad Cygnus</a><a class="btn secondary" href="mailto:social@investmentespana.space?subject=Informaci%C3%B3n%20Cygnus%20Academy%20AI">Solicitar información</a></div>
-      </section>
-
-      <section class="section">
-        <div class="section-head"><span class="kicker">Preguntas frecuentes</span><h2>Qué hace diferente a Cygnus</h2></div>
-        <div class="faq"><details><summary>¿Los profesores de IA responden cualquier tema?</summary><p>No. Cada profesor se mantiene dentro del conocimiento y los objetivos de su curso. Si una pregunta corresponde a otra especialidad, la experiencia está diseñada para derivarla al recurso o profesor adecuado.</p></details><details><summary>¿Sólo voy a ver videos?</summary><p>No. El video es una parte del aprendizaje. El modelo incluye demostración, práctica, preguntas en contexto, feedback, corrección, evidencia y proyectos.</p></details><details><summary>¿La IA reemplaza completamente la evaluación?</summary><p>No. La IA ayuda a guiar, revisar y organizar evidencia, pero Cygnus separa automatización, control de calidad y decisiones que requieren validación adicional.</p></details><details><summary>¿Skool es la plataforma educativa completa?</summary><p>Skool funciona como comunidad y capa de acceso. El entorno educativo Cygnus concentra progresión, tutoría, práctica, evaluación y proyectos, trabajando de forma complementaria con la comunidad.</p></details></div>
-      </section>
-
-      <section id="contacto" class="section">
-        <div class="section-head"><span class="kicker">Institución y contacto</span><h2>Canales oficiales de Cygnus Academy AI</h2><p class="section-lead">Información institucional, comunidad y novedades de la academia.</p></div>
-        <div class="contact"><div class="panel"><h3>Contacto institucional</h3><div class="contact-list"><a class="contact-row" href="mailto:social@investmentespana.space"><b>Email</b><span>social@investmentespana.space</span></a><a class="contact-row" href="https://www.skool.com/cygnusacademyai" target="_blank" rel="noopener"><b>Skool</b><span>Comunidad Cygnus Academy AI</span></a><a class="contact-row" href="https://www.instagram.com/cygnusacademyai/" target="_blank" rel="noopener"><b>Instagram</b><span>@cygnusacademyai</span></a><a class="contact-row" href="https://www.facebook.com/102575905973808" target="_blank" rel="noopener"><b>Facebook</b><span>Cygnus Academy AI</span></a><a class="contact-row" href="https://www.youtube.com/@CygnusAcademyAI" target="_blank" rel="noopener"><b>YouTube</b><span>@CygnusAcademyAI</span></a></div></div><div class="panel"><h3>Responsabilidad institucional</h3><p>Cygnus Academy AI es operada por <strong style="color:var(--text)">Investments España LLC</strong>. La academia está orientada a formación práctica para el trabajo y a un ecosistema que acompaña al alumno desde aprender hasta construir y demostrar soluciones con inteligencia artificial.</p><p class="company-note">La comunidad en Skool y el entorno educativo Cygnus cumplen funciones complementarias. El acceso a componentes privados depende de los flujos de membresía y lanzamiento correspondientes.</p></div></div>
-      </section>
-    </main>
-
-    <footer><div class="footer-grid"><div class="footer-brand"><img src="/academy/social/youtube/branding/cygnus_youtube_avatar_800x800.jpg" alt="Cygnus Academy AI"><div><strong>Cygnus Academy AI</strong><p>Aprendiendo Haciendo – Formación para el trabajo.<br>Operada por Investments España LLC.</p></div></div><div class="footer-links"><strong>Explorar</strong><a href="#metodo">Método educativo</a><a href="#profesores">Profesores IA</a><a href="#experiencia">Experiencia del alumno</a><a href="#ia-conectada">IA conectada</a><a href="#contacto">Contacto</a></div><div class="footer-links"><strong>Legal y privacidad</strong><a href="/privacy.html">Política de privacidad</a><a href="/terms.html">Términos de uso</a><a href="/data-deletion.html">Eliminación de datos</a></div></div><div class="copyright">© 2026 Cygnus Academy AI · Investments España LLC · www.cygnusacademyai.com</div></footer>
-  </div>
+<footer><div class="footer"><div><strong>Cygnus Academy AI</strong><p>Aprendiendo Haciendo – Formación para el trabajo.<br>Operada por Investments España LLC.</p></div><div><strong>Explorar</strong><a href="#profesores">Profesores IA</a><a href="#experiencia">Experiencia</a><a href="#ia">IA conectada</a></div><div><strong>Legal</strong><a href="/privacy.html">Privacidad</a><a href="/terms.html">Términos</a><a href="/data-deletion.html">Eliminación de datos</a></div></div><div class="copyright">© 2026 Cygnus Academy AI · Investments España LLC · www.cygnusacademyai.com</div></footer>
+</div>
 </body>
 </html>
