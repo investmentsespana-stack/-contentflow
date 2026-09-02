@@ -1,3 +1,5 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: function
 create or replace function public.rara_claim_review_v1()
 returns table(out_builder_run_id bigint, out_task_key text, out_claim_token text)
 language plpgsql
