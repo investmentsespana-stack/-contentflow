@@ -33,6 +33,15 @@ if [[ "$PUBLIC_OBJECTS" != "0" ]]; then
   exit 4
 fi
 
+# A freshly initialized PostgreSQL database already contains an empty public schema,
+# while pg_dump --schema-only may emit CREATE SCHEMA public. After proving the target
+# has no public objects, remove only that empty bootstrap schema so the committed dump
+# can recreate it deterministically. This keeps the clean-target guard fail-closed.
+PUBLIC_SCHEMA_EXISTS=$(psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -Atqc "select count(*) from pg_namespace where nspname='public';")
+if [[ "$PUBLIC_SCHEMA_EXISTS" == "1" ]]; then
+  psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public;' >/dev/null
+fi
+
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/public-schema.sql"
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/runtime-control-data.sql"
 
