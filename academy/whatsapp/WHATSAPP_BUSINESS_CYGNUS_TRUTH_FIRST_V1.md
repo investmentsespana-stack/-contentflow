@@ -2,7 +2,9 @@
 
 ## Canonical channel
 - Brand: Cygnus Academy AI
-- Phone E.164: `+18433041495`
+- Phone E.164: `+18433044951`
+- Human-readable: `+1 843-304-4951`
+- Supersedes erroneous reference: `+18433041495` (do not use)
 - Purpose: verified Academy information and human escalation.
 - Explicitly **not** a generic chatbot.
 
@@ -68,7 +70,7 @@ Non-secret identifiers to persist after Meta binding:
 ## Meta binding gate
 The system MUST remain disabled until the owner completes the real Meta/WhatsApp Business Platform setup:
 1. Add/enable WhatsApp product on the correct Cygnus Meta business/app context.
-2. Add `+18433041495` to the WhatsApp Business Account.
+2. Add `+18433044951` to the WhatsApp Business Account.
 3. Verify ownership of the phone by the Meta-required SMS/voice flow.
 4. Obtain the real WABA ID and Phone Number ID.
 5. Register the phone for Cloud API and set the owner-controlled 6-digit two-step verification PIN.
@@ -82,7 +84,7 @@ Do not set `enabled=true` yet.
 
 ## E2E activation canary
 After Meta binding:
-1. Send one real WhatsApp message from an external phone to `+18433041495`.
+1. Send one real WhatsApp message from an external phone to `+18433044951`.
 2. Verify inbound message persisted with a real `wamid`.
 3. Verify a factual query receives the approved knowledge answer.
 4. Verify an uncertified question creates a handoff instead of an invented answer.
@@ -105,6 +107,7 @@ Tracked tasks:
 - `academy_whatsapp_e2e_canary_v1` — blocked until Meta binding is complete.
 
 ## Non-negotiable guardrails
+- Canonical WhatsApp number is `+18433044951`; `+18433041495` is superseded and must not be used.
 - No invented WABA ID, Phone Number ID, tokens, Graph version, message IDs, prices, offers or course publication state.
 - No token in chat/log/report.
 - No auto-enable before E2E canary.
