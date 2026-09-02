@@ -9,8 +9,8 @@ test("auto-loop uses policy-controlled Director parallelism and never hardcodes 
   assert.doesNotMatch(source, /p_max_dispatch\s*:\s*0/);
 });
 
-test("V10 self-refresh recovery control plane preserves fail-closed evidence-first safety", () => {
-  assert.match(source, /DURABLE_EXECUTION_CONTROL_LOOP_V10_SELF_REFRESH_RECOVERY_SCOPED_RETRY/);
+test("V11 run-correlated retry health control plane preserves fail-closed evidence-first safety", () => {
+  assert.match(source, /DURABLE_EXECUTION_CONTROL_LOOP_V11_RUN_CORRELATED_RETRY_HEALTH/);
   assert.match(source, /ensureFreshRecoverySnapshot/);
   assert.match(source, /director_external_evidence/);
   assert.match(source, /recovery_snapshot/);
