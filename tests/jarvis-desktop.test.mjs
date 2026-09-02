@@ -46,7 +46,7 @@ test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=
  assert.equal(body.directorConfigured,false);
  assert.equal(body.directorMode,'pairing-required');
  assert.equal(body.active.projectKey,'contentflow');
- assert.equal(body.build,'2026-08-31-conversation-router-v5.3');
+ assert.equal(body.build,'2026-09-02-avatar-live-reconciler-v5.4');
  assert.equal(body.openaiModel,'gpt-5.6-sol');
  assert.equal(body.availableProjects.length,3);
 
