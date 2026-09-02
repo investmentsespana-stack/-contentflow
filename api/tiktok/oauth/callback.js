@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 const REDIRECT_URI = process.env.TIKTOK_OAUTH_REDIRECT_URI || 'https://investmentsespana.space/api/tiktok/oauth/callback';
+const STATE_COOKIE = 'tiktok_oauth_state_binding';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -15,17 +16,23 @@ export default async function handler(req, res) {
 
   const { code, state, error, error_description: errorDescription } = req.query || {};
   if (error) {
+    clearStateBinding(res);
     console.error(`[tiktok-oauth] preflight=authorization_not_completed error=${sanitizeError(errorDescription || error)}`);
     return res.status(400).send(page('TikTok authorization not completed', escapeHtml(errorDescription || error)));
   }
   if (!code || !state) {
+    clearStateBinding(res);
     console.error(`[tiktok-oauth] preflight=missing_oauth_response code=${Boolean(code)} state=${Boolean(state)}`);
     return res.status(400).send(page('Missing OAuth response', 'Authorization code or state is missing.'));
   }
-  if (!validateSignedState(state, clientSecret, mode)) {
-    console.error(`[tiktok-oauth] preflight=invalid_or_expired_state mode=${mode}`);
+
+  const browserBinding = readCookie(req, STATE_COOKIE);
+  if (!browserBinding || !validateSignedState(state, clientSecret, mode, browserBinding)) {
+    clearStateBinding(res);
+    console.error(`[tiktok-oauth] preflight=invalid_expired_or_unbound_state mode=${mode}`);
     return res.status(400).send(page('Invalid or expired OAuth state', 'Start the TikTok authorization flow again.'));
   }
+  clearStateBinding(res);
 
   let stage = 'exchange_code';
   try {
@@ -48,6 +55,7 @@ export default async function handler(req, res) {
 
     const fingerprint = crypto.createHash('sha256').update(token.access_token).digest('hex').slice(0, 16);
     res.setHeader('Set-Cookie', [
+      ...(res.getHeader('Set-Cookie') || []),
       `tiktok_demo_session=${encrypted}; Path=/api/tiktok; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`,
     ]);
 
@@ -121,8 +129,8 @@ async function getUserInfo(accessToken) {
   return data;
 }
 
-function validateSignedState(value, secret, expectedMode) {
-  if (!value || typeof value !== 'string' || !value.includes('.')) return false;
+function validateSignedState(value, secret, expectedMode, browserBinding) {
+  if (!value || typeof value !== 'string' || !value.includes('.') || !browserBinding) return false;
   const [payload, signature] = value.split('.', 2);
   const expected = crypto
     .createHmac('sha256', `contentflow-tiktok-state:${secret}`)
@@ -134,10 +142,35 @@ function validateSignedState(value, secret, expectedMode) {
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
     const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     const age = Date.now() - Number(parsed.iat);
-    return Number.isFinite(Number(parsed.iat)) && age >= 0 && age <= 10 * 60 * 1000 && typeof parsed.nonce === 'string' && parsed.nonce.length >= 16 && String(parsed.mode || 'production') === expectedMode;
+    const expectedBinding = crypto.createHash('sha256').update(browserBinding).digest('base64url');
+    const suppliedBinding = Buffer.from(String(parsed.bind || ''), 'utf8');
+    const wantedBinding = Buffer.from(expectedBinding, 'utf8');
+    const bindingMatches = suppliedBinding.length === wantedBinding.length && crypto.timingSafeEqual(suppliedBinding, wantedBinding);
+    return Number.isFinite(Number(parsed.iat)) && age >= 0 && age <= 10 * 60 * 1000 && typeof parsed.nonce === 'string' && parsed.nonce.length >= 16 && String(parsed.mode || 'production') === expectedMode && bindingMatches;
   } catch {
     return false;
   }
+}
+
+function readCookie(req, name) {
+  const header = String(req.headers?.cookie || '');
+  for (const part of header.split(';')) {
+    const index = part.indexOf('=');
+    if (index < 0) continue;
+    const key = part.slice(0, index).trim();
+    if (key !== name) continue;
+    return decodeURIComponent(part.slice(index + 1).trim());
+  }
+  return null;
+}
+
+function clearStateBinding(res) {
+  const existing = res.getHeader('Set-Cookie');
+  const cookies = Array.isArray(existing) ? existing : existing ? [existing] : [];
+  res.setHeader('Set-Cookie', [
+    ...cookies,
+    `${STATE_COOKIE}=; Path=/api/tiktok/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+  ]);
 }
 
 function encryptSession(payload, secret) {
