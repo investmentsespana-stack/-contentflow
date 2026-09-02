@@ -4,7 +4,7 @@ import process from 'node:process';
 
 const PORT = 44317;
 const BASE = `http://127.0.0.1:${PORT}`;
-const EXPECTED_BUILD = '2026-08-31-conversation-router-v5.3';
+const EXPECTED_BUILD = '2026-09-02-avatar-live-reconciler-v5.4';
 const server = spawn(process.execPath, ['src/jarvis/server.mjs'], {
   env: { ...process.env, JARVIS_PORT: String(PORT), JARVIS_HOST: '127.0.0.1' },
   stdio: ['ignore', 'pipe', 'pipe']
