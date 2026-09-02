@@ -1,0 +1,30 @@
+name: tiktok-oauth-state-ci
+
+on:
+  push:
+    paths:
+      - 'api/tiktok/oauth/**'
+      - 'tests/tiktok-oauth-state.test.mjs'
+      - 'package.json'
+      - '.github/workflows/tiktok-oauth-state-ci.yml'
+  pull_request:
+    paths:
+      - 'api/tiktok/oauth/**'
+      - 'tests/tiktok-oauth-state.test.mjs'
+      - 'package.json'
+      - '.github/workflows/tiktok-oauth-state-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  oauth-state-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: TikTok OAuth state contract tests
+        run: npm run test:tiktok-oauth-state
