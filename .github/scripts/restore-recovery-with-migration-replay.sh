@@ -42,6 +42,18 @@ if [[ "$PUBLIC_SCHEMA_EXISTS" == "1" ]]; then
   psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public;' >/dev/null
 fi
 
+# The committed public-only Supabase dump legitimately references auth.users and
+# auth.uid(), but a bare PostgreSQL certification target does not ship Supabase's
+# managed auth schema. Seed only the dependency surface required to replay public;
+# these stubs live outside public and therefore cannot affect public-schema parity.
+psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
+LANGUAGE sql STABLE
+AS $$ SELECT NULL::uuid $$;
+SQL
+
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/public-schema.sql"
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/runtime-control-data.sql"
 
