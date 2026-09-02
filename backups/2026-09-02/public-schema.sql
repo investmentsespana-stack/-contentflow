@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict BazmG94evYruJmpHkS2oDEey2iEiYZ6GsgpxCvg6DkkXzzoPdQQmN2FnOiwV2we
+\restrict jzcX6jeZzUVdiJXigep7gzlDGkqA9Zv9I8qht6shuiF4nKMjNJmpzSNNt9SpLic
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -6856,27 +6856,39 @@ CREATE FUNCTION public.rara_claim_review_v1() RETURNS TABLE(out_builder_run_id b
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare v_id bigint; v_task text; v_token text:=gen_random_uuid()::text;
+declare
+  v_id bigint;
+  v_task text;
+  v_token text:=gen_random_uuid()::text;
 begin
- if coalesce(auth.role(),'')<>'service_role' then raise exception 'service_role_required'; end if;
- update public.contentflow_review_work_queue q
- set state='pending',claim_token=null,claimed_at=null,available_at=now(),last_error='stale_review_claim_recovered_priority_v3',updated_at=now()
- where q.state='claimed' and q.claimed_at<now()-interval '3 minutes'
-   and exists(select 1 from public.contentflow_builder_runs r where r.id=q.builder_run_id and r.status='review_required');
- select q.builder_run_id,q.task_key into v_id,v_task
- from public.contentflow_review_work_queue q
- join public.contentflow_builder_runs r on r.id=q.builder_run_id
- join public.contentflow_build_backlog b on b.id=r.backlog_task_id
- where q.state='pending' and q.available_at<=now() and r.status='review_required'
- order by coalesce(b.priority,0) desc,q.updated_at,q.builder_run_id
- for update of q skip locked limit 1;
- if v_id is null then return; end if;
- update public.contentflow_review_work_queue q
- set state='claimed',claim_token=v_token,claimed_at=now(),attempts=q.attempts+1,updated_at=now()
- where q.builder_run_id=v_id and q.state='pending';
- if not found then return; end if;
- return query select v_id,v_task,v_token;
-end $$;
+  if coalesce(auth.role(),'')<>'service_role' then raise exception 'service_role_required'; end if;
+
+  update public.contentflow_review_work_queue q
+  set state='pending',claim_token=null,claimed_at=null,available_at=now(),
+      last_error='stale_review_claim_recovered_fairness_v4',updated_at=now()
+  where q.state='claimed' and q.claimed_at<now()-interval '3 minutes'
+    and exists(select 1 from public.contentflow_builder_runs r where r.id=q.builder_run_id and r.status='review_required');
+
+  select q.builder_run_id,q.task_key into v_id,v_task
+  from public.contentflow_review_work_queue q
+  join public.contentflow_builder_runs r on r.id=q.builder_run_id
+  join public.contentflow_build_backlog b on b.id=r.backlog_task_id
+  where q.state='pending' and q.available_at<=now() and r.status='review_required'
+  order by
+    case when q.attempts>=3 then 1 else 0 end asc,
+    coalesce(b.priority,0) desc,
+    q.attempts asc,
+    q.builder_run_id asc
+  for update of q skip locked limit 1;
+
+  if v_id is null then return; end if;
+  update public.contentflow_review_work_queue q
+  set state='claimed',claim_token=v_token,claimed_at=now(),attempts=q.attempts+1,updated_at=now()
+  where q.builder_run_id=v_id and q.state='pending';
+  if not found then return; end if;
+  return query select v_id,v_task,v_token;
+end
+$$;
 
 
 --
@@ -13009,5 +13021,5 @@ ALTER TABLE public.youtube_oauth_token_vault ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict BazmG94evYruJmpHkS2oDEey2iEiYZ6GsgpxCvg6DkkXzzoPdQQmN2FnOiwV2we
+\unrestrict jzcX6jeZzUVdiJXigep7gzlDGkqA9Zv9I8qht6shuiF4nKMjNJmpzSNNt9SpLic
 
