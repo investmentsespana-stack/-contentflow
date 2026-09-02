@@ -10,6 +10,7 @@ on:
       - '.github/scripts/verify-recovery-snapshot.mjs'
       - '.github/scripts/restore-recovery-with-migration-replay.sh'
       - '.github/scripts/verify-migration-lineage.sh'
+      - '.github/scripts/sync-production-migration-lineage.py'
       - 'supabase/migrations/**'
   schedule:
     - cron: '15 7 * * *'
@@ -24,7 +25,7 @@ concurrency:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -73,6 +74,16 @@ jobs:
           export PGSSLMODE=require
           psql -h aws-0-us-east-1.pooler.supabase.com -p 5432 -U postgres.koqpyfvnprmirqviafzq -d postgres -Atqc 'select 1' >/dev/null
           echo 'Session Pooler authentication verified with opaque PGPASSWORD.'
+
+      - name: Reconcile production migration lineage into source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PGPASSWORD="$(cat /tmp/contentflow-recovery-db-password)"
+          export PGSSLMODE=require
+          python3 .github/scripts/sync-production-migration-lineage.py \
+            -h aws-0-us-east-1.pooler.supabase.com -p 5432 \
+            -U postgres.koqpyfvnprmirqviafzq -d postgres
 
       - name: Fail closed on unversioned production migrations
         shell: bash
@@ -161,22 +172,36 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Commit verified snapshot without stale-SHA conflicts
+      - name: Commit verified snapshot and reconciled migration lineage
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "contentflow-backup-bot"
           git config user.email "contentflow-backup-bot@users.noreply.github.com"
           SNAPSHOT_COPY=$(mktemp -d)
+          SYNC_COPY=$(mktemp -d)
           cp -a backups/. "$SNAPSHOT_COPY/"
+          if [[ -s /tmp/contentflow-synced-migrations.txt ]]; then
+            while IFS= read -r file; do
+              [[ -n "$file" ]] || continue
+              mkdir -p "$SYNC_COPY/$(dirname "$file")"
+              cp "$file" "$SYNC_COPY/$file"
+            done < /tmp/contentflow-synced-migrations.txt
+          fi
+
           git fetch origin main
           git reset --hard origin/main
           mkdir -p backups
           cp -a "$SNAPSHOT_COPY/." backups/
-          git add backups/
+          if [[ -d "$SYNC_COPY/supabase/migrations" ]]; then
+            mkdir -p supabase/migrations
+            cp -a "$SYNC_COPY/supabase/migrations/." supabase/migrations/
+          fi
+
+          git add backups/ supabase/migrations/
           if git diff --cached --quiet; then
             echo "No recovery changes to commit."
             exit 0
           fi
-          git commit -m "backup: verified ContentFlow recovery snapshot $(date -u +%Y-%m-%d)"
+          git commit -m "backup: reconcile migrations and snapshot $(date -u +%Y-%m-%d)"
           git push origin HEAD:main
