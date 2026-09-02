@@ -1,11 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { buildAvatarProjectState } from '../src/jarvis/avatar-project-state.mjs';
 
 const port=44317;
 const base=`http://127.0.0.1:${port}`;
 async function waitForHealth(){for(let i=0;i<50;i++){try{const r=await fetch(`${base}/health`);if(r.ok)return r}catch{}await new Promise(r=>setTimeout(r,100))}throw new Error('server did not start')}
 async function classify(text){const r=await fetch(`${base}/api/classify`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})});assert.equal(r.status,200);return r.json()}
+
+test('Avatar project state reconciler detects hub/GitHub conflicts fail-closed',async()=>{
+ const mockFetch=async url=>{
+  const payload=String(url).includes('/actions/runs')?{workflow_runs:[
+   {id:10,name:'Validate',run_number:10,status:'completed',conclusion:'success',head_sha:'abc',updated_at:'2026-09-02T02:00:00Z',html_url:'https://github.test/run/10'},
+   {id:11,name:'Avatar Parallel Non-GPU Lanes',run_number:11,status:'in_progress',conclusion:null,head_sha:'abc',updated_at:'2026-09-02T02:01:00Z',html_url:'https://github.test/run/11'},
+   {id:12,name:'Director RARA Autonomy Watchdog',run_number:12,status:'completed',conclusion:'success',head_sha:'abc',updated_at:'2026-09-02T02:02:00Z',html_url:'https://github.test/run/12'}
+  ]}:{items:[{number:5,title:'watchdog','state':'open',updated_at:'2026-09-02T02:02:00Z',html_url:'https://github.test/issues/5'}]};
+  return {ok:true,status:200,text:async()=>JSON.stringify(payload)};
+ };
+ const state=await buildAvatarProjectState({hubState:{active_tasks:0},fetchImpl:mockFetch,now:new Date('2026-09-02T02:03:00Z')});
+ assert.equal(state.state,'CONFLICT_DETECTED');
+ assert.equal(state.canonical,false);
+ assert.equal(state.sources.github.ok,true);
+ assert.equal(state.director_watchdog_issues.length,1);
+ assert.equal(state.workflows['Validate'].conclusion,'success');
+ assert.equal(state.workflows['Avatar Parallel Non-GPU Lanes'].status,'in_progress');
+ assert.equal(state.conflicts[0].type,'HUB_GITHUB_ACTIVITY_CONFLICT');
+});
+
+test('Avatar project state reconciler never fabricates canonical state when hub is absent',async()=>{
+ const mockFetch=async url=>({ok:true,status:200,text:async()=>JSON.stringify(String(url).includes('/actions/runs')?{workflow_runs:[]}:{items:[]})});
+ const state=await buildAvatarProjectState({fetchImpl:mockFetch,now:new Date('2026-09-02T02:03:00Z')});
+ assert.equal(state.state,'GITHUB_LIVE_HUB_UNAVAILABLE');
+ assert.equal(state.canonical,false);
+ assert.equal(state.sources.hub.ok,false);
+});
 
 test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=>{
  const child=spawn(process.execPath,['src/jarvis/server.mjs'],{env:{...process.env,JARVIS_PORT:String(port),JARVIS_HOST:'127.0.0.1',OPENAI_API_KEY:'',JARVIS_DIRECTOR_DEVICE_TOKEN:''},stdio:['ignore','pipe','pipe']});
