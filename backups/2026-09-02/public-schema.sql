@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict kCWeWWrf24rBcOYR3by6NzpTrjfg0rakcgsQYR7ne7EsydGi1tsy5UsGY3spkSn
+\restrict kJNxfo1p4f86dnnbyVqjlrS5i8XD9pE2hfd2EsSVa5egUnimUfbZwYVIkb8PCIu
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -209,6 +209,84 @@ begin
     'observed_at',now()
   );
 end $$;
+
+
+--
+-- Name: academy_whatsapp_emit_director_help_alert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.academy_whatsapp_emit_director_help_alert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.director_help_alerts(
+    project_key,task_key,component,error_class,error_fingerprint,attempts,status,summary,actions_tried
+  ) values (
+    'agent-academy-platform-v1',
+    'academy_whatsapp_human_handoff',
+    'academy-whatsapp-webhook',
+    'HUMAN_RESPONSE_REQUIRED',
+    'academy_whatsapp_handoff:'||new.id::text,
+    0,
+    'open',
+    'WhatsApp Cygnus requires human response. handoff_id='||new.id::text||' reason='||new.reason,
+    jsonb_build_array('truth_first_fallback_created','no_unverified_answer_sent')
+  );
+  return new;
+end;
+$$;
+
+
+--
+-- Name: academy_whatsapp_resolve_answer(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.academy_whatsapp_resolve_answer(p_text text, p_language text DEFAULT 'es'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v text := lower(coalesce(p_text,''));
+  v_intent text := 'unknown';
+  k public.academy_whatsapp_knowledge%rowtype;
+  v_conf numeric := 0.40;
+begin
+  -- Specific user intents first. Generic identity/greeting are intentionally last
+  -- so phrases such as “cuánto cuesta la academia” cannot be swallowed by “academia”.
+  if v ~ '(precio|cuánto cuesta|cuanto cuesta|costo|mensualidad|pago|premium|membresía|membresia)' then v_intent:='pricing'; v_conf:=0.95;
+  elsif v ~ '(inscrib|registro|registrar|entrar|acceso|unirme|unir|skool)' then v_intent:='enrollment'; v_conf:=0.90;
+  elsif v ~ '(certificado|certificación|certificacion|diploma)' then v_intent:='certification'; v_conf:=0.93;
+  elsif v ~ '(curso|cursos|clase|clases|programa|programas)' then v_intent:='courses'; v_conf:=0.88;
+  elsif v ~ '(soporte|contacto|correo|email|ayuda|hablar con alguien|persona)' then v_intent:='support'; v_conf:=0.90;
+  elsif v ~ '(página|pagina|web|sitio|website|url)' then v_intent:='website'; v_conf:=0.92;
+  elsif v ~ '(método|metodo|cómo enseñan|como enseñan|aprendiendo haciendo|práctica|practica)' then v_intent:='methodology'; v_conf:=0.90;
+  elsif v ~ '(qué es cygnus|que es cygnus|quienes son|quiénes son|qué es la academia|que es la academia|cygnus academy)' then v_intent:='identity'; v_conf:=0.90;
+  elsif v ~ '(hola|buenas|buenos días|buenos dias|buenas tardes|buenas noches|hello|hi)' then v_intent:='greeting'; v_conf:=0.95;
+  end if;
+
+  select * into k from public.academy_whatsapp_knowledge
+  where intent=v_intent and language=coalesce(nullif(p_language,''),'es') and active
+  order by priority desc, updated_at desc limit 1;
+
+  if not found then
+    select * into k from public.academy_whatsapp_knowledge
+    where intent='unknown' and language='es' and active order by priority desc limit 1;
+    v_intent:='unknown'; v_conf:=0.30;
+  end if;
+
+  return jsonb_build_object(
+    'intent',v_intent,
+    'confidence',v_conf,
+    'answer',k.answer_text,
+    'knowledge_id',k.id,
+    'requires_human',k.requires_human,
+    'source_type',k.source_type,
+    'source_ref',k.source_ref,
+    'source_verified_at',k.source_verified_at
+  );
+end;
+$$;
 
 
 --
@@ -659,6 +737,7 @@ declare
   explicit_external boolean := false;
   no_retry_without_evidence boolean := false;
   internal_artifact boolean := false;
+  circuit_open boolean := false;
 begin
   durable := coalesce(new.workflow_contract->>'contract_version','') <> '';
   evidence_external := new.execution_lane='evidence_producer' and coalesce(new.workflow_contract->>'runtime_required','false')='true';
@@ -667,25 +746,31 @@ begin
   internal_artifact := coalesce(new.execution_lane,'llm_artifact')='llm_artifact'
     and coalesce(new.workflow_contract->>'runtime_required','false')='false'
     and coalesce(new.workflow_contract->>'publish_allowed','false')<>'true';
+  select exists(
+    select 1 from public.contentflow_retry_state rs
+    where rs.project_key=new.project_key and rs.task_key=new.task_key and rs.circuit_state='open'
+  ) into circuit_open;
 
   if new.status='ready' then
-    if exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=new.id and r.status='review_required') then
+    if exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=new.id and r.status='review_required' and r.finished_at is null) then
       new.status := 'blocked';
       new.blocked_reason := 'REVIEW_PENDING';
+      new.next_eligible_at := null;
+    elsif circuit_open then
+      new.status := 'blocked';
+      new.blocked_reason := 'RETRY_CIRCUIT_OPEN';
       new.next_eligible_at := null;
     else
       new.blocked_reason := null;
       new.next_eligible_at := coalesce(new.next_eligible_at,now());
-      if not durable then
-        update public.contentflow_retry_state
-        set circuit_state='closed',circuit_open_until=null,next_retry_at=null,updated_at=now()
-        where project_key=new.project_key and task_key=new.task_key and circuit_state='open';
-      end if;
     end if;
   elsif new.status='blocked' then
     if coalesce(new.blocked_reason,'')='REVIEW_PENDING'
-       or exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=new.id and r.status='review_required') then
+       or exists(select 1 from public.contentflow_builder_runs r where r.backlog_task_id=new.id and r.status='review_required' and r.finished_at is null) then
       new.blocked_reason := 'REVIEW_PENDING';
+      new.next_eligible_at := null;
+    elsif circuit_open then
+      new.blocked_reason := 'RETRY_CIRCUIT_OPEN';
       new.next_eligible_at := null;
     elsif evidence_external or explicit_external or no_retry_without_evidence then
       if coalesce(new.blocked_reason,'')='' then
@@ -2519,6 +2604,25 @@ select exists(
     and status in ('configured','healthy')
     and nullif(endpoint,'') is not null
 );
+$$;
+
+
+--
+-- Name: contentflow_external_media_lane_guard_v1(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_external_media_lane_guard_v1() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.epic='external_handoff'
+     and (coalesce(new.title,'')||' '||coalesce(new.description,'')||' '||coalesce(new.acceptance_criteria,'')) ~* '(video|render|master|pieza profesional)'
+     and (coalesce(new.title,'')||' '||coalesce(new.description,'')||' '||coalesce(new.acceptance_criteria,'')) ~* '(sha-?256|keyframe|subt[ií]tul|evidencia aut[eé]ntica|evidencia real|artefact)' then
+    new.execution_lane := 'evidence_producer';
+  end if;
+  return new;
+end
 $$;
 
 
@@ -6954,18 +7058,12 @@ CREATE FUNCTION public.rara_safe_requeue_failed_task(p_task_key text) RETURNS bo
     SET search_path TO 'public'
     AS $$
 declare
-  v_requeued boolean := false;
+  v_id bigint;
 begin
   if p_task_key like 'gap_gap_%' then return false; end if;
 
-  update public.contentflow_build_backlog b
-  set status='ready',
-      selected_model=null,
-      quality_score=0,
-      blocked_reason=null,
-      next_eligible_at=now(),
-      updated_at=now(),
-      result=coalesce(result,'')||E'\n[RARA] safe requeue after diagnosed failure/timeout'
+  select b.id into v_id
+  from public.contentflow_build_backlog b
   where b.project_key='contentflow' and b.task_key=p_task_key
     and b.status in ('failed','blocked')
     and exists(
@@ -6979,20 +7077,26 @@ begin
       where r.backlog_task_id=b.id
         and r.status in ('claimed','running','review_required','verification_required')
         and r.finished_at is null
-    );
-  v_requeued := found;
+    )
+  for update;
 
-  if v_requeued then
-    update public.contentflow_retry_state s
-       set circuit_state='closed',
-           circuit_open_until=null,
-           next_retry_at=now(),
-           updated_at=now()
-     where s.project_key='contentflow'
-       and s.task_key=p_task_key;
-  end if;
+  if v_id is null then return false; end if;
 
-  return v_requeued;
+  update public.contentflow_retry_state s
+     set circuit_state='closed', circuit_open_until=null, next_retry_at=now(), updated_at=now()
+   where s.backlog_task_id=v_id;
+
+  update public.contentflow_build_backlog b
+  set status='ready',
+      selected_model=null,
+      quality_score=0,
+      blocked_reason=null,
+      next_eligible_at=now(),
+      updated_at=now(),
+      result=coalesce(result,'')||E'\n[RARA] safe requeue after diagnosed failure/timeout'
+  where b.id=v_id;
+
+  return true;
 end
 $$;
 
@@ -7141,6 +7245,134 @@ $$;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: academy_whatsapp_config; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.academy_whatsapp_config (
+    id smallint DEFAULT 1 NOT NULL,
+    phone_e164 text NOT NULL,
+    waba_id text,
+    phone_number_id text,
+    verified_name text,
+    status text DEFAULT 'meta_binding_required'::text NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    webhook_verified boolean DEFAULT false NOT NULL,
+    access_token_configured boolean DEFAULT false NOT NULL,
+    app_secret_configured boolean DEFAULT false NOT NULL,
+    verify_token_configured boolean DEFAULT false NOT NULL,
+    graph_version_configured boolean DEFAULT false NOT NULL,
+    last_verified_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT academy_whatsapp_config_id_check CHECK ((id = 1)),
+    CONSTRAINT academy_whatsapp_config_status_check CHECK ((status = ANY (ARRAY['prepared'::text, 'meta_binding_required'::text, 'registered'::text, 'active'::text, 'paused'::text, 'error'::text])))
+);
+
+
+--
+-- Name: academy_whatsapp_conversations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.academy_whatsapp_conversations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    wa_id text NOT NULL,
+    display_name text,
+    language text DEFAULT 'es'::text NOT NULL,
+    status text DEFAULT 'open'::text NOT NULL,
+    last_intent text,
+    human_required boolean DEFAULT false NOT NULL,
+    opened_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_message_at timestamp with time zone DEFAULT now() NOT NULL,
+    closed_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT academy_whatsapp_conversations_status_check CHECK ((status = ANY (ARRAY['open'::text, 'human_required'::text, 'human_active'::text, 'closed'::text])))
+);
+
+
+--
+-- Name: academy_whatsapp_handoffs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.academy_whatsapp_handoffs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    conversation_id uuid NOT NULL,
+    reason text NOT NULL,
+    user_question text,
+    status text DEFAULT 'open'::text NOT NULL,
+    requested_at timestamp with time zone DEFAULT now() NOT NULL,
+    assigned_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    resolution_note text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT academy_whatsapp_handoffs_status_check CHECK ((status = ANY (ARRAY['open'::text, 'assigned'::text, 'resolved'::text, 'closed'::text])))
+);
+
+
+--
+-- Name: academy_whatsapp_knowledge; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.academy_whatsapp_knowledge (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    intent text NOT NULL,
+    language text DEFAULT 'es'::text NOT NULL,
+    topic text NOT NULL,
+    answer_text text NOT NULL,
+    source_type text NOT NULL,
+    source_ref text NOT NULL,
+    source_verified_at timestamp with time zone NOT NULL,
+    requires_human boolean DEFAULT false NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    priority integer DEFAULT 50 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: academy_whatsapp_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.academy_whatsapp_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    conversation_id uuid NOT NULL,
+    whatsapp_message_id text,
+    direction text NOT NULL,
+    message_type text DEFAULT 'text'::text NOT NULL,
+    body text,
+    intent text,
+    knowledge_id uuid,
+    confidence numeric(4,3),
+    status text DEFAULT 'received'::text NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT academy_whatsapp_messages_direction_check CHECK ((direction = ANY (ARRAY['inbound'::text, 'outbound'::text])))
+);
+
+
+--
+-- Name: academy_whatsapp_outbox; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.academy_whatsapp_outbox (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    conversation_id uuid NOT NULL,
+    recipient_wa_id text NOT NULL,
+    body text NOT NULL,
+    source_knowledge_id uuid,
+    status text DEFAULT 'pending'::text NOT NULL,
+    whatsapp_message_id text,
+    attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    sent_at timestamp with time zone,
+    CONSTRAINT academy_whatsapp_outbox_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text, 'blocked'::text])))
+);
+
 
 --
 -- Name: brands; Type: TABLE; Schema: public; Owner: -
@@ -9641,6 +9873,78 @@ ALTER TABLE ONLY public.orchestrator_tasks ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
+-- Name: academy_whatsapp_config academy_whatsapp_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_config
+    ADD CONSTRAINT academy_whatsapp_config_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: academy_whatsapp_conversations academy_whatsapp_conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_conversations
+    ADD CONSTRAINT academy_whatsapp_conversations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: academy_whatsapp_conversations academy_whatsapp_conversations_wa_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_conversations
+    ADD CONSTRAINT academy_whatsapp_conversations_wa_id_key UNIQUE (wa_id);
+
+
+--
+-- Name: academy_whatsapp_handoffs academy_whatsapp_handoffs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_handoffs
+    ADD CONSTRAINT academy_whatsapp_handoffs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: academy_whatsapp_knowledge academy_whatsapp_knowledge_intent_language_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_knowledge
+    ADD CONSTRAINT academy_whatsapp_knowledge_intent_language_key UNIQUE (intent, language);
+
+
+--
+-- Name: academy_whatsapp_knowledge academy_whatsapp_knowledge_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_knowledge
+    ADD CONSTRAINT academy_whatsapp_knowledge_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: academy_whatsapp_messages academy_whatsapp_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_messages
+    ADD CONSTRAINT academy_whatsapp_messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: academy_whatsapp_messages academy_whatsapp_messages_whatsapp_message_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_messages
+    ADD CONSTRAINT academy_whatsapp_messages_whatsapp_message_id_key UNIQUE (whatsapp_message_id);
+
+
+--
+-- Name: academy_whatsapp_outbox academy_whatsapp_outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_outbox
+    ADD CONSTRAINT academy_whatsapp_outbox_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: brands brands_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10449,6 +10753,27 @@ ALTER TABLE ONLY public.youtube_oauth_token_vault
 
 
 --
+-- Name: academy_whatsapp_handoffs_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX academy_whatsapp_handoffs_status_idx ON public.academy_whatsapp_handoffs USING btree (status, requested_at);
+
+
+--
+-- Name: academy_whatsapp_messages_conversation_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX academy_whatsapp_messages_conversation_idx ON public.academy_whatsapp_messages USING btree (conversation_id, created_at DESC);
+
+
+--
+-- Name: academy_whatsapp_outbox_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX academy_whatsapp_outbox_status_idx ON public.academy_whatsapp_outbox USING btree (status, created_at);
+
+
+--
 -- Name: contentflow_build_backlog_next_eligible_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11079,6 +11404,13 @@ CREATE UNIQUE INDEX uq_contentflow_evidence_semantic_identity ON public.contentf
 
 
 --
+-- Name: academy_whatsapp_handoffs trg_academy_whatsapp_handoff_director_alert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_academy_whatsapp_handoff_director_alert AFTER INSERT ON public.academy_whatsapp_handoffs FOR EACH ROW EXECUTE FUNCTION public.academy_whatsapp_emit_director_help_alert();
+
+
+--
 -- Name: director_runs trg_attach_director_usage_to_orchestrator_task; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11209,6 +11541,13 @@ CREATE TRIGGER trg_contentflow_enforce_learned_evidence_lane BEFORE INSERT OR UP
 --
 
 CREATE TRIGGER trg_contentflow_external_executor_autorelease_v1 AFTER INSERT OR UPDATE ON public.contentflow_external_executor_registry FOR EACH ROW EXECUTE FUNCTION public.contentflow_external_executor_autorelease_v1();
+
+
+--
+-- Name: contentflow_build_backlog trg_contentflow_external_media_lane_guard_v1; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contentflow_external_media_lane_guard_v1 BEFORE INSERT OR UPDATE OF title, description, acceptance_criteria, execution_lane, epic ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_external_media_lane_guard_v1();
 
 
 --
@@ -11398,6 +11737,46 @@ CREATE TRIGGER trg_sync_primary_source_context AFTER INSERT OR UPDATE ON public.
 --
 
 CREATE TRIGGER zz_contentflow_obsolete_evidence_tombstone BEFORE UPDATE OF status, workflow_state, completion_phase, blocked_reason, next_eligible_at, selected_model ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_obsolete_evidence_tombstone_guard_v1();
+
+
+--
+-- Name: academy_whatsapp_handoffs academy_whatsapp_handoffs_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_handoffs
+    ADD CONSTRAINT academy_whatsapp_handoffs_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.academy_whatsapp_conversations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: academy_whatsapp_messages academy_whatsapp_messages_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_messages
+    ADD CONSTRAINT academy_whatsapp_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.academy_whatsapp_conversations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: academy_whatsapp_messages academy_whatsapp_messages_knowledge_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_messages
+    ADD CONSTRAINT academy_whatsapp_messages_knowledge_id_fkey FOREIGN KEY (knowledge_id) REFERENCES public.academy_whatsapp_knowledge(id);
+
+
+--
+-- Name: academy_whatsapp_outbox academy_whatsapp_outbox_conversation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_outbox
+    ADD CONSTRAINT academy_whatsapp_outbox_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.academy_whatsapp_conversations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: academy_whatsapp_outbox academy_whatsapp_outbox_source_knowledge_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.academy_whatsapp_outbox
+    ADD CONSTRAINT academy_whatsapp_outbox_source_knowledge_id_fkey FOREIGN KEY (source_knowledge_id) REFERENCES public.academy_whatsapp_knowledge(id);
 
 
 --
@@ -11791,6 +12170,42 @@ ALTER TABLE ONLY public.social_metrics
 ALTER TABLE ONLY public.subscriptions
     ADD CONSTRAINT subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
+
+--
+-- Name: academy_whatsapp_config; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.academy_whatsapp_config ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: academy_whatsapp_conversations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.academy_whatsapp_conversations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: academy_whatsapp_handoffs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.academy_whatsapp_handoffs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: academy_whatsapp_knowledge; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.academy_whatsapp_knowledge ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: academy_whatsapp_messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.academy_whatsapp_messages ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: academy_whatsapp_outbox; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.academy_whatsapp_outbox ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: brands; Type: ROW SECURITY; Schema: public; Owner: -
@@ -12593,5 +13008,5 @@ ALTER TABLE public.youtube_oauth_token_vault ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict kCWeWWrf24rBcOYR3by6NzpTrjfg0rakcgsQYR7ne7EsydGi1tsy5UsGY3spkSn
+\unrestrict kJNxfo1p4f86dnnbyVqjlrS5i8XD9pE2hfd2EsSVa5egUnimUfbZwYVIkb8PCIu
 

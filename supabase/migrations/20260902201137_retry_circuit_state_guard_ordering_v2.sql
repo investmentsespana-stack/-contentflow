@@ -1,3 +1,6 @@
+-- Reconciled from supabase_migrations.schema_migrations by recovery automation.
+-- Source: canonical production migration history; no credentials are emitted.
+
 create or replace function public.contentflow_backlog_state_guard()
 returns trigger
 language plpgsql
