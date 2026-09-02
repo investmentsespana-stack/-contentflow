@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 
 const REDIRECT_URI = process.env.TIKTOK_OAUTH_REDIRECT_URI || 'https://investmentsespana.space/api/tiktok/oauth/callback';
 const SCOPES = ['user.info.basic', 'video.upload'];
+const STATE_COOKIE = 'tiktok_oauth_state_binding';
+const STATE_MAX_AGE_SECONDS = 10 * 60;
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -12,16 +14,22 @@ export default async function handler(req, res) {
     return res.status(503).send(`TikTok ${mode} runtime credentials are not configured.`);
   }
 
+  const browserBinding = crypto.randomBytes(32).toString('base64url');
   const payload = Buffer.from(JSON.stringify({
     iat: Date.now(),
     nonce: crypto.randomBytes(24).toString('base64url'),
     mode,
+    bind: crypto.createHash('sha256').update(browserBinding).digest('base64url'),
   })).toString('base64url');
   const signature = crypto
     .createHmac('sha256', `contentflow-tiktok-state:${clientSecret}`)
     .update(payload)
     .digest('base64url');
   const state = `${payload}.${signature}`;
+
+  res.setHeader('Set-Cookie', [
+    `${STATE_COOKIE}=${browserBinding}; Path=/api/tiktok/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=${STATE_MAX_AGE_SECONDS}`,
+  ]);
 
   const url = new URL('https://www.tiktok.com/v2/auth/authorize/');
   url.searchParams.set('client_key', clientKey);
