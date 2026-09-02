@@ -12,6 +12,7 @@
     "test:meta-pages": "node --test tests/meta-pages-connector.test.mjs",
     "run:meta-pages-verify": "node src/platform/meta-pages-connector.mjs",
     "test:social-ops": "node --test tests/social-ops.test.mjs",
+    "test:tiktok-oauth-state": "node --test tests/tiktok-oauth-state.test.mjs",
     "run:social-ops": "node src/platform/social-ops.mjs",
     "test:private-email": "node --test tests/private-email-connector.test.mjs",
     "run:private-email-verify": "node scripts/verify-private-email.mjs",
