@@ -11,6 +11,66 @@
       "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
       "destination": "/cygnus-academy.html"
     },
+    {
+      "source": "/privacy",
+      "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
+      "destination": "/cygnus-privacy.html"
+    },
+    {
+      "source": "/privacy.html",
+      "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
+      "destination": "/cygnus-privacy.html"
+    },
+    {
+      "source": "/privacy",
+      "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
+      "destination": "/cygnus-privacy.html"
+    },
+    {
+      "source": "/privacy.html",
+      "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
+      "destination": "/cygnus-privacy.html"
+    },
+    {
+      "source": "/terms",
+      "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
+      "destination": "/cygnus-terms.html"
+    },
+    {
+      "source": "/terms.html",
+      "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
+      "destination": "/cygnus-terms.html"
+    },
+    {
+      "source": "/terms",
+      "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
+      "destination": "/cygnus-terms.html"
+    },
+    {
+      "source": "/terms.html",
+      "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
+      "destination": "/cygnus-terms.html"
+    },
+    {
+      "source": "/data-deletion",
+      "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
+      "destination": "/cygnus-data-deletion.html"
+    },
+    {
+      "source": "/data-deletion.html",
+      "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
+      "destination": "/cygnus-data-deletion.html"
+    },
+    {
+      "source": "/data-deletion",
+      "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
+      "destination": "/cygnus-data-deletion.html"
+    },
+    {
+      "source": "/data-deletion.html",
+      "has": [{ "type": "host", "value": "www.cygnusacademyai.com" }],
+      "destination": "/cygnus-data-deletion.html"
+    },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/terms", "destination": "/terms.html" },
     { "source": "/data-deletion", "destination": "/data-deletion.html" },
