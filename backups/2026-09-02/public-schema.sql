@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict P5NtGoiocKpPfEw8aPRPBor5CfMtpnZDhl8aPvOn4tzpDSf6UINYqDDa9sF6XIH
+\restrict BazmG94evYruJmpHkS2oDEey2iEiYZ6GsgpxCvg6DkkXzzoPdQQmN2FnOiwV2we
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -2485,13 +2485,14 @@ CREATE FUNCTION public.contentflow_evidence_prerequisite_class(p_requirement_cla
     SET search_path TO 'public', 'pg_temp'
     AS $$
  select case
+   when coalesce(p_requirement_class,'')='media_capture'
+     or lower(coalesce(p_requirement_text,'')) ~ '(video|subtitle|keyframe|sha-256|sha256|screen recording|audiovisual|master premium|short variant|real screen|pantalla real)'
+     then 'media_capture'
    when coalesce(p_requirement_class,'')='external_approval'
      or lower(coalesce(p_requirement_text,'')) ~ '(requires? (manual|human) approval|pending owner decision|(human|owner|security team|architecture team)[ -]?(approval|sign.?off|authorization))'
      then 'external_approval'
-   when (
-     lower(coalesce(p_requirement_text,'')) ~ '(commit hash|commit sha|repository|repo link|file path|merged into|published|version-controlled|version control)'
-     and lower(coalesce(p_requirement_text,'')) ~ '(unit test|integration test|test suite|test corpus|test execution|coverage|executed|execution on|runtime report|runtime evidence|30 positive test|test cases|machine-readable report)'
-   ) then 'repo_and_runtime_test'
+   when (lower(coalesce(p_requirement_text,'')) ~ '(commit hash|commit sha|repository|repo link|file path|merged into|published|version-controlled|version control)'
+     and lower(coalesce(p_requirement_text,'')) ~ '(unit test|integration test|test suite|test corpus|test execution|coverage|executed|execution on|runtime report|runtime evidence|30 positive test|test cases|machine-readable report)') then 'repo_and_runtime_test'
    when coalesce(p_requirement_class,'')='static_analysis' then 'static_analysis'
    when coalesce(p_requirement_class,'')='runtime_test' then 'runtime_test'
    when coalesce(p_requirement_class,'')='source_contract' then 'source_contract'
@@ -13008,5 +13009,5 @@ ALTER TABLE public.youtube_oauth_token_vault ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict P5NtGoiocKpPfEw8aPRPBor5CfMtpnZDhl8aPvOn4tzpDSf6UINYqDDa9sF6XIH
+\unrestrict BazmG94evYruJmpHkS2oDEey2iEiYZ6GsgpxCvg6DkkXzzoPdQQmN2FnOiwV2we
 
