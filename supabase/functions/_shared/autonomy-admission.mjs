@@ -30,7 +30,7 @@ export function evaluateAutonomyAdmission(input={}) {
   if(!budgetAdmission.admitted)blockers.push(...budgetAdmission.blockers);
   if(ownershipConflicts>0)blockers.push('ownership_conflict');
   if(openIncidents>0)blockers.push('blocking_repair_incident');
-  if(retryOpenRate>0.25)blockers.push('retry_budget_unhealthy');
+  if(retryStates>=4&&openCircuits>=3&&retryOpenRate>0.50)blockers.push('retry_budget_unhealthy');
   if(waitingForEvidence>0)blockers.push('evidence_producer_gap');
 
   const admitted=blockers.length===0;
