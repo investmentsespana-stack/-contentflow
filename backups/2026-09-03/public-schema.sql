@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 2wiOSArKrY89u3XjrbmaWvIiWvOU1iB5P6ujVaLHm46KCT4ZKJ32QQZrE7yTRMk
+\restrict SFcHCDf3QO6qxY4iu3AEG3DILwCr4krqIdBFLM6sIzANCuh0dMGpmMqW7K4fXnJ
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -13266,8 +13266,2921 @@ CREATE POLICY wallets_select_own ON public.credit_wallets FOR SELECT TO authenti
 ALTER TABLE public.youtube_oauth_token_vault ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: -
+--
+
+GRANT USAGE ON SCHEMA public TO postgres;
+GRANT USAGE ON SCHEMA public TO anon;
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT USAGE ON SCHEMA public TO service_role;
+
+
+--
+-- Name: FUNCTION academy_configure_web_runtime_executor_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.academy_configure_web_runtime_executor_v1() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.academy_configure_web_runtime_executor_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION academy_plan_execution_buffer_v1(p_project_key text, p_target integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.academy_plan_execution_buffer_v1(p_project_key text, p_target integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.academy_plan_execution_buffer_v1(p_project_key text, p_target integer) TO service_role;
+
+
+--
+-- Name: FUNCTION academy_security_remediation_canary_v2_once(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.academy_security_remediation_canary_v2_once() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.academy_security_remediation_canary_v2_once() TO service_role;
+
+
+--
+-- Name: FUNCTION academy_social_source_evidence_task_v4(p_kind text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.academy_social_source_evidence_task_v4(p_kind text) TO anon;
+GRANT ALL ON FUNCTION public.academy_social_source_evidence_task_v4(p_kind text) TO authenticated;
+GRANT ALL ON FUNCTION public.academy_social_source_evidence_task_v4(p_kind text) TO service_role;
+
+
+--
+-- Name: FUNCTION academy_whatsapp_emit_director_help_alert(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.academy_whatsapp_emit_director_help_alert() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.academy_whatsapp_emit_director_help_alert() TO service_role;
+
+
+--
+-- Name: FUNCTION academy_whatsapp_resolve_answer(p_text text, p_language text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.academy_whatsapp_resolve_answer(p_text text, p_language text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.academy_whatsapp_resolve_answer(p_text text, p_language text) TO service_role;
+
+
+--
+-- Name: FUNCTION attach_director_usage_to_running_orchestrator_task(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.attach_director_usage_to_running_orchestrator_task() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.attach_director_usage_to_running_orchestrator_task() TO service_role;
+
+
+--
+-- Name: FUNCTION audit_builder_claim(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.audit_builder_claim() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.audit_builder_claim() TO service_role;
+
+
+--
+-- Name: FUNCTION avatar_product_progress_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.avatar_product_progress_v1() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.avatar_product_progress_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_academy_stale_state_watchdog_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_academy_stale_state_watchdog_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_academy_stale_state_watchdog_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_acquire_nexo_slot(p_lane text, p_model text, p_task_key text, p_timeout_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_acquire_nexo_slot(p_lane text, p_model text, p_task_key text, p_timeout_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_acquire_nexo_slot(p_lane text, p_model text, p_task_key text, p_timeout_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_activity_begin_v1(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_phase text, p_timeout_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_activity_begin_v1(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_phase text, p_timeout_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_activity_begin_v1(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_phase text, p_timeout_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_activity_complete_v1(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_phase text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_activity_complete_v1(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_phase text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_activity_complete_v1(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_phase text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_admit_persistent_change_v1(p_change_id uuid, p_git_commit_sha text, p_migration_name text, p_git_pr_number bigint, p_evidence_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_admit_persistent_change_v1(p_change_id uuid, p_git_commit_sha text, p_migration_name text, p_git_pr_number bigint, p_evidence_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_admit_persistent_change_v1(p_change_id uuid, p_git_commit_sha text, p_migration_name text, p_git_pr_number bigint, p_evidence_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_apply_control_incident_strategy(p_incident_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_apply_control_incident_strategy(p_incident_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_apply_control_incident_strategy(p_incident_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_apply_retry_policy(p_run_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_apply_retry_policy(p_run_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_apply_retry_policy(p_run_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_assert_persistent_change_admission_v1(p_change_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_assert_persistent_change_admission_v1(p_change_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_assert_persistent_change_admission_v1(p_change_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_assert_tenant_security_admission_v1(p_scope text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_assert_tenant_security_admission_v1(p_scope text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_assert_tenant_security_admission_v1(p_scope text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_autonomous_continuation_gate(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_autonomous_continuation_gate(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_autonomous_continuation_gate(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_autonomy_supervisor(p_project_key text, p_max_dispatch integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_autonomy_supervisor(p_project_key text, p_max_dispatch integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_autonomy_supervisor(p_project_key text, p_max_dispatch integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_backlog_state_guard(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_backlog_state_guard() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_backlog_state_guard() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_backlog_state_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_block_on_help_alert(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_block_on_help_alert() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_block_on_help_alert() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_blocked_project_watchdog_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_blocked_project_watchdog_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_blocked_project_watchdog_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_blocked_project_watchdog_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_blocked_reason_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_blocked_reason_reconcile(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_blocked_reason_reconcile(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_blocked_reason_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_builder_heartbeat(p_run_id bigint, p_extend_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_builder_heartbeat(p_run_id bigint, p_extend_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_builder_heartbeat(p_run_id bigint, p_extend_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_builder_heartbeat_v2(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_extend_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_builder_heartbeat_v2(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_extend_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_builder_heartbeat_v2(p_run_id bigint, p_lease_token text, p_runner_instance_id text, p_extend_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_builder_result_identity_guard(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_builder_result_identity_guard() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_builder_result_identity_guard() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_builder_result_identity_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_builder_span_identity(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_builder_span_identity() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_builder_span_identity() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_canonical_error_class(p_project_key text, p_task_key text, p_error_class text, p_symptom text, p_evidence jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_canonical_error_class(p_project_key text, p_task_key text, p_error_class text, p_symptom text, p_evidence jsonb) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_canonical_error_class(p_project_key text, p_task_key text, p_error_class text, p_symptom text, p_evidence jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_canonical_error_class(p_project_key text, p_task_key text, p_error_class text, p_symptom text, p_evidence jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_capability_certification_after_run_update(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_capability_certification_after_run_update() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_capability_certification_after_run_update() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_capability_certification_after_run_update() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_capability_first_plan(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_capability_first_plan(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_capability_first_plan(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_capability_first_plan_internal_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_capability_first_plan_internal_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_capability_first_plan_internal_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_capacity_evaluate(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_capacity_evaluate() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_capacity_evaluate() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_checkpoint_stage(p_backlog_task_id bigint, p_stage_name text, p_stage_state text, p_error_class text, p_error text, p_checkpoint jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_checkpoint_stage(p_backlog_task_id bigint, p_stage_name text, p_stage_state text, p_error_class text, p_error text, p_checkpoint jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_checkpoint_stage(p_backlog_task_id bigint, p_stage_name text, p_stage_state text, p_error_class text, p_error text, p_checkpoint jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_claim_direct_tool_execution_task(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_claim_direct_tool_execution_task(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_claim_direct_tool_execution_task(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_claim_tool_execution_task(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_claim_tool_execution_task(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_claim_tool_execution_task(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_classify_execution_lane_fields(p_task_type text, p_description text, p_acceptance text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_classify_execution_lane_fields(p_task_type text, p_description text, p_acceptance text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_classify_execution_lane_fields(p_task_type text, p_description text, p_acceptance text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_classify_execution_lane_fields(p_task_type text, p_description text, p_acceptance text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_classify_run_error(p_error text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_classify_run_error(p_error text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_classify_run_error(p_error text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_classify_run_error(p_error text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_clear_completed_block_residue(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_clear_completed_block_residue(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_clear_completed_block_residue(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_clear_retry_after_repair(p_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_clear_retry_after_repair(p_task_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_clear_retry_after_repair(p_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_clear_retry_after_repair(p_task_key text, p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_clear_retry_after_repair(p_task_key text, p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_clear_retry_after_repair(p_task_key text, p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_clear_retry_after_repair(p_task_key text, p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_close_incident_on_evidence_verified(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_close_incident_on_evidence_verified() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_close_incident_on_evidence_verified() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_close_incident_on_evidence_verified() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_completion_evidence_mode_v3(p_task_key text, p_title text, p_description text, p_acceptance text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_completion_evidence_mode_v3(p_task_key text, p_title text, p_description text, p_acceptance text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_completion_evidence_mode_v3(p_task_key text, p_title text, p_description text, p_acceptance text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_completion_evidence_mode_v3(p_task_key text, p_title text, p_description text, p_acceptance text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_contract_runtime_required(p_contract jsonb, p_task_type text, p_title text, p_description text, p_acceptance_criteria text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_contract_runtime_required(p_contract jsonb, p_task_type text, p_title text, p_description text, p_acceptance_criteria text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_contract_runtime_required(p_contract jsonb, p_task_type text, p_title text, p_description text, p_acceptance_criteria text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_contract_runtime_required(p_contract jsonb, p_task_type text, p_title text, p_description text, p_acceptance_criteria text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_control_incident_observation(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_control_incident_observation(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_control_incident_observation(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_control_lease_acquire_v1(p_project_key text, p_holder_token text, p_ttl_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_control_lease_acquire_v1(p_project_key text, p_holder_token text, p_ttl_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_control_lease_acquire_v1(p_project_key text, p_holder_token text, p_ttl_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_control_lease_release_v1(p_project_key text, p_holder_token text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_control_lease_release_v1(p_project_key text, p_holder_token text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_control_lease_release_v1(p_project_key text, p_holder_token text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_current_workflow_version(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_current_workflow_version(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_current_workflow_version(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_default_artifact_contract_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_default_artifact_contract_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_default_artifact_contract_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_default_artifact_contract_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_deferred_progress_watchdog_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_deferred_progress_watchdog_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_deferred_progress_watchdog_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_dependency_impact_score(p_project_key text, p_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_dependency_impact_score(p_project_key text, p_task_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_dependency_impact_score(p_project_key text, p_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_dependency_release_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_dependency_release_reconcile(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_dependency_release_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_detect_zero_throughput_deadlock(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_detect_zero_throughput_deadlock(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_detect_zero_throughput_deadlock(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_detect_zero_throughput_deadlock(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_direct_tool_recipe_autorelease_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_direct_tool_recipe_autorelease_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_direct_tool_recipe_autorelease_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_direct_tool_recipe_autorelease_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_director_core_cycle(p_project_key text, p_max_dispatch integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_director_core_cycle(p_project_key text, p_max_dispatch integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_director_core_cycle(p_project_key text, p_max_dispatch integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_director_core_cycle_auto(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_director_core_cycle_auto(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_director_core_cycle_auto(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_dispatch_capability_e2e_certification(p_builder_run_id bigint, p_capability text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_dispatch_capability_e2e_certification(p_builder_run_id bigint, p_capability text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_dispatch_capability_e2e_certification(p_builder_run_id bigint, p_capability text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_dispatch_capability_e2e_certification(p_builder_run_id bigint, p_capability text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_dispatch_capability_review_finalizer(p_builder_run_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_dispatch_capability_review_finalizer(p_builder_run_id bigint) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_dispatch_capability_review_finalizer(p_builder_run_id bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_dispatch_capability_review_finalizer(p_builder_run_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_dispatch_director_autonomy_certification(p_builder_run_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_dispatch_director_autonomy_certification(p_builder_run_id bigint) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_dispatch_director_autonomy_certification(p_builder_run_id bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_dispatch_director_autonomy_certification(p_builder_run_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_dispatchable_count(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_dispatchable_count(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_dispatchable_count(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_durable_contract_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_durable_contract_reconcile(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_durable_contract_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_active_builder_lease(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_enforce_active_builder_lease() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_enforce_active_builder_lease() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_enforce_active_builder_lease() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_autonomy_slo(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_enforce_autonomy_slo(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_enforce_autonomy_slo(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_backlog_invariants_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_enforce_backlog_invariants_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_enforce_backlog_invariants_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_enforce_backlog_invariants_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_dynamic_running_cap(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_enforce_dynamic_running_cap() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_enforce_dynamic_running_cap() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_enforce_dynamic_running_cap() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_learned_evidence_lane(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_enforce_learned_evidence_lane() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_enforce_learned_evidence_lane() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_enforce_learned_evidence_lane() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_learned_preflight(p_run_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_enforce_learned_preflight(p_run_id bigint) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_enforce_learned_preflight(p_run_id bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_enforce_learned_preflight(p_run_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_material_claim_truth_preflight(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_enforce_material_claim_truth_preflight() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_enforce_material_claim_truth_preflight() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_enforce_material_claim_truth_preflight() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enforce_research_deliverable_preflight(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_enforce_research_deliverable_preflight() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_enforce_research_deliverable_preflight() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_enforce_research_deliverable_preflight() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enrich_builder_identity(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_enrich_builder_identity() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_enrich_builder_identity() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enrich_cycle_identity(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_enrich_cycle_identity() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_enrich_cycle_identity() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_enrich_runtime_event_trace(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_enrich_runtime_event_trace() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_enrich_runtime_event_trace() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_escalate_unresolved_incidents(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_escalate_unresolved_incidents(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_escalate_unresolved_incidents(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_evidence_coverage_plan(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_evidence_coverage_plan(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_evidence_coverage_plan(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_evidence_first_reconcile(p_project_key text, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_evidence_first_reconcile(p_project_key text, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_evidence_first_reconcile(p_project_key text, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_evidence_prerequisite_class(p_requirement_class text, p_requirement_text text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_evidence_prerequisite_class(p_requirement_class text, p_requirement_text text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_evidence_prerequisite_class(p_requirement_class text, p_requirement_text text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_evidence_prerequisite_class(p_requirement_class text, p_requirement_text text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_evidence_requirement_class(p_error text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_evidence_requirement_class(p_error text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_evidence_requirement_class(p_error text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_evidence_requirement_class(p_error text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_evidence_verifier_preflight(p_project_key text, p_evidence_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_evidence_verifier_preflight(p_project_key text, p_evidence_task_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_evidence_verifier_preflight(p_project_key text, p_evidence_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_executable_tool_pending_count(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_executable_tool_pending_count(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_executable_tool_pending_count(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_executable_tool_pending_count(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_external_executor_autorelease_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_external_executor_autorelease_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_external_executor_autorelease_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_external_executor_autorelease_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_external_executor_ready(p_project_key text, p_executor_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_external_executor_ready(p_project_key text, p_executor_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_external_executor_ready(p_project_key text, p_executor_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_external_executor_ready(p_project_key text, p_executor_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_external_media_lane_guard_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_external_media_lane_guard_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_external_media_lane_guard_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_external_media_lane_guard_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_finalize_run_v2(p_run_id bigint, p_lease_token text, p_http_status integer, p_payload jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_finalize_run_v2(p_run_id bigint, p_lease_token text, p_http_status integer, p_payload jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_finalize_run_v2(p_run_id bigint, p_lease_token text, p_http_status integer, p_payload jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_finalize_runtime_verified_tool_tasks_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_finalize_runtime_verified_tool_tasks_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_finalize_runtime_verified_tool_tasks_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_finish_tool_execution_task(p_queue_id bigint, p_claim_token uuid, p_success boolean, p_evidence jsonb, p_error text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_finish_tool_execution_task(p_queue_id bigint, p_claim_token uuid, p_success boolean, p_evidence jsonb, p_error text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_finish_tool_execution_task(p_queue_id bigint, p_claim_token uuid, p_success boolean, p_evidence jsonb, p_error text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_gc_evidence_dependencies(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_gc_evidence_dependencies(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_gc_evidence_dependencies(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_guard_active_run_protocol(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_active_run_protocol() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_active_run_protocol() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_active_run_protocol() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_guard_backlog_completion(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_backlog_completion() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_backlog_completion() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_backlog_completion() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_guard_builder_completion(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_builder_completion() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_builder_completion() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_builder_completion() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_guard_dependency_graph(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_dependency_graph() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_dependency_graph() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_dependency_graph() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_guard_false_rara_evidence_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_false_rara_evidence_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_false_rara_evidence_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_false_rara_evidence_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_guard_runtime_evidence_ledger_immutable(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_incident_learning_trigger(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_incident_learning_trigger() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_incident_learning_trigger() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_ingest_handoff_v1(p_project_key text, p_handoff_id text, p_source text, p_actions jsonb, p_metadata jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_ingest_handoff_v1(p_project_key text, p_handoff_id text, p_source text, p_actions jsonb, p_metadata jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_ingest_handoff_v1(p_project_key text, p_handoff_id text, p_source text, p_actions jsonb, p_metadata jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_learn_incident(p_incident_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_learn_incident(p_incident_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_learn_incident(p_incident_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_learn_qa_health_degradation(p_project_key text, p_task_key text, p_evidence text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_learn_qa_health_degradation(p_project_key text, p_task_key text, p_evidence text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_learn_qa_health_degradation(p_project_key text, p_task_key text, p_evidence text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_learn_qa_health_degradation(p_project_key text, p_task_key text, p_evidence text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_learned_identity_preflight(p_result text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_learned_identity_preflight(p_result text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_learned_identity_preflight(p_result text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_learned_identity_preflight(p_result text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_legal_admission_decision(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_legal_admission_decision(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_legal_admission_decision(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_log_backlog_transition(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_log_backlog_transition() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_log_backlog_transition() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_log_builder_transition(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_log_builder_transition() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_log_builder_transition() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_log_worker_transition(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_log_worker_transition() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_log_worker_transition() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_make_span_id(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_make_span_id() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_make_span_id() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_make_span_id() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_make_trace_id(p_prefix text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_make_trace_id(p_prefix text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_make_trace_id(p_prefix text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_make_trace_id(p_prefix text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_mark_persistent_change_applied_v1(p_change_id uuid, p_evidence jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_mark_persistent_change_applied_v1(p_change_id uuid, p_evidence jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_mark_persistent_change_applied_v1(p_change_id uuid, p_evidence jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_master_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_master_reconcile(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_master_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_material_claim_truth_preflight(p_task_key text, p_result text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_material_claim_truth_preflight(p_task_key text, p_result text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_material_claim_truth_preflight(p_task_key text, p_result text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_material_claim_truth_preflight(p_task_key text, p_result text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_materialize_verified_sources_on_review(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_materialize_verified_sources_on_review() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_materialize_verified_sources_on_review() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_materialize_verified_sources_on_review() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_normalize_dispatchability(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_normalize_dispatchability(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_normalize_dispatchability(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_normalize_fractional_judge_score(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_normalize_fractional_judge_score() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_normalize_fractional_judge_score() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_normalize_fractional_judge_score() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_obsolete_evidence_tombstone_guard_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_obsolete_evidence_tombstone_guard_v1() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_obsolete_evidence_tombstone_guard_v1() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_obsolete_evidence_tombstone_guard_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_persistent_change_admission_status_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_persistent_change_admission_status_v1() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_persistent_change_admission_status_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_pg_net_stall_reconcile_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_pg_net_stall_reconcile_v1() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_pg_net_stall_reconcile_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_pgnet_recover_if_queued(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_pgnet_recover_if_queued() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_pgnet_recover_if_queued() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_plan_capability_certification_block(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_plan_capability_certification_block(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_plan_capability_certification_block(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_plan_capability_certification_block_internal_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_plan_capability_certification_block_internal_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_plan_capability_certification_block_internal_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_plan_execution_buffer(p_project_key text, p_target integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_plan_execution_buffer(p_project_key text, p_target integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_plan_execution_buffer(p_project_key text, p_target integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_plan_execution_buffer_internal_v1(p_project_key text, p_target integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_plan_execution_buffer_internal_v1(p_project_key text, p_target integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_plan_execution_buffer_internal_v1(p_project_key text, p_target integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_platform_get_active_evidence(p_builder_run_id bigint, p_resource_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_platform_get_active_evidence(p_builder_run_id bigint, p_resource_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_platform_get_active_evidence(p_builder_run_id bigint, p_resource_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_platform_record_evidence(p_builder_run_id bigint, p_event jsonb, p_evidence_key text, p_producer text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_platform_record_evidence(p_builder_run_id bigint, p_event jsonb, p_evidence_key text, p_producer text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_platform_record_evidence(p_builder_run_id bigint, p_event jsonb, p_evidence_key text, p_producer text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_precycle_evidence_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_precycle_evidence_reconcile(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_precycle_evidence_reconcile(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_precycle_evidence_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_preroute_acceptance_work(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_preroute_acceptance_work(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_preroute_acceptance_work(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_preroute_acceptance_work(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_primary_source_context(p_project_key text, p_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_primary_source_context(p_project_key text, p_task_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_primary_source_context(p_project_key text, p_task_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_primary_source_context(p_project_key text, p_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_primary_source_gate(p_project_key text, p_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_primary_source_gate(p_project_key text, p_task_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_primary_source_gate(p_project_key text, p_task_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_primary_source_gate(p_project_key text, p_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_progress_stall_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_progress_stall_reconcile(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_progress_stall_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_promote_safe_learnings(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_promote_safe_learnings(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_promote_safe_learnings(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_quarantine_cross_lane_builder_runs(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_quarantine_cross_lane_builder_runs(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_quarantine_cross_lane_builder_runs(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_quarantine_model_for_task(p_project_key text, p_task_key text, p_model_id text, p_reason text, p_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_quarantine_model_for_task(p_project_key text, p_task_key text, p_model_id text, p_reason text, p_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_quarantine_model_for_task(p_project_key text, p_task_key text, p_model_id text, p_reason text, p_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_queue_aging_reconcile(p_project_key text, p_attempt_budget integer); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_queue_aging_reconcile(p_project_key text, p_attempt_budget integer) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_queue_aging_reconcile(p_project_key text, p_attempt_budget integer) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_queue_aging_reconcile(p_project_key text, p_attempt_budget integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_rara_evidence_complete(p_run_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_rara_evidence_complete(p_run_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_rara_evidence_complete(p_run_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_recommended_parallelism(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_recommended_parallelism(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_recommended_parallelism(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_acceptance_evidence_incidents(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_acceptance_evidence_incidents(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_acceptance_evidence_incidents(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_capability_certifications(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_capability_certifications(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_capability_certifications(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_ci_requirement_evidence(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_ci_requirement_evidence(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_ci_requirement_evidence(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_completion_evidence_v3(p_project_key text, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_completion_evidence_v3(p_project_key text, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_completion_evidence_v3(p_project_key text, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_durable_waits_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_durable_waits_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_durable_waits_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_evidence_capability_queue(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_reconcile_evidence_capability_queue(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_external_executor_waits_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_reconcile_external_executor_waits_v1(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_external_executor_waits_v1(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_external_executor_waits_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_preproduction_evidence_stall_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_reconcile_preproduction_evidence_stall_v1(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_preproduction_evidence_stall_v1(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_preproduction_evidence_stall_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_ready_after_evidence(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_ready_after_evidence(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_ready_after_evidence(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_retry_policies(p_project_key text, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_retry_policies(p_project_key text, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_retry_policies(p_project_key text, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_reconcile_runtime_state(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_reconcile_runtime_state(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_reconcile_runtime_state(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_record_ci_requirement_evidence(p_requirement_id bigint, p_builder_run_id bigint, p_task_key text, p_test_profile text, p_commit_sha text, p_workflow_run_id text, p_payload jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_record_ci_requirement_evidence(p_requirement_id bigint, p_builder_run_id bigint, p_task_key text, p_test_profile text, p_commit_sha text, p_workflow_run_id text, p_payload jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_record_ci_requirement_evidence(p_requirement_id bigint, p_builder_run_id bigint, p_task_key text, p_test_profile text, p_commit_sha text, p_workflow_run_id text, p_payload jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_record_durable_signal_v1(p_project_key text, p_task_key text, p_signal_key text, p_signal_id text, p_payload jsonb, p_producer text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_record_durable_signal_v1(p_project_key text, p_task_key text, p_signal_key text, p_signal_id text, p_payload jsonb, p_producer text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_record_durable_signal_v1(p_project_key text, p_task_key text, p_signal_key text, p_signal_id text, p_payload jsonb, p_producer text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_record_runtime_event(p_run_id bigint, p_event_type text, p_payload jsonb, p_actor text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_record_runtime_event(p_run_id bigint, p_event_type text, p_payload jsonb, p_actor text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_record_runtime_event(p_run_id bigint, p_event_type text, p_payload jsonb, p_actor text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_record_runtime_evidence(p_builder_run_id bigint, p_evidence_type text, p_evidence_key text, p_payload jsonb, p_producer text, p_observed_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_record_runtime_evidence(p_builder_run_id bigint, p_evidence_type text, p_evidence_key text, p_payload jsonb, p_producer text, p_observed_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_record_runtime_evidence(p_builder_run_id bigint, p_evidence_type text, p_evidence_key text, p_payload jsonb, p_producer text, p_observed_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_record_runtime_requirement_evidence(p_requirement_id bigint, p_builder_run_id bigint, p_task_key text, p_commit_sha text, p_execution_id text, p_payload jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_record_runtime_requirement_evidence(p_requirement_id bigint, p_builder_run_id bigint, p_task_key text, p_commit_sha text, p_execution_id text, p_payload jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_record_runtime_requirement_evidence(p_requirement_id bigint, p_builder_run_id bigint, p_task_key text, p_commit_sha text, p_execution_id text, p_payload jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_record_runtime_verification(p_builder_run_id bigint, p_verification_type text, p_passed boolean, p_evidence jsonb, p_verifier text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_record_runtime_verification(p_builder_run_id bigint, p_verification_type text, p_passed boolean, p_evidence jsonb, p_verifier text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_record_runtime_verification(p_builder_run_id bigint, p_verification_type text, p_passed boolean, p_evidence jsonb, p_verifier text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_recover_expired_leases(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_recover_expired_leases(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_recover_expired_leases(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_recover_orphan_claims(p_project_key text, p_grace_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_recover_orphan_claims(p_project_key text, p_grace_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_recover_orphan_claims(p_project_key text, p_grace_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_recover_stalled_activities(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_recover_stalled_activities(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_recover_stalled_activities(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_recovery_watchdog_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_recovery_watchdog_v1() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_recovery_watchdog_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_register_persistent_change_intent_v1(p_project_key text, p_change_class text, p_incident_id bigint, p_repair_recipe text, p_migration_name text, p_git_commit_sha text, p_git_pr_number bigint, p_causal_state_version text, p_evidence_id text, p_evidence jsonb, p_break_glass boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_register_persistent_change_intent_v1(p_project_key text, p_change_class text, p_incident_id bigint, p_repair_recipe text, p_migration_name text, p_git_commit_sha text, p_git_pr_number bigint, p_causal_state_version text, p_evidence_id text, p_evidence jsonb, p_break_glass boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_register_persistent_change_intent_v1(p_project_key text, p_change_class text, p_incident_id bigint, p_repair_recipe text, p_migration_name text, p_git_commit_sha text, p_git_pr_number bigint, p_causal_state_version text, p_evidence_id text, p_evidence jsonb, p_break_glass boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_release_nexo_slot(p_slot uuid, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_release_nexo_slot(p_slot uuid, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_release_nexo_slot(p_slot uuid, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_replan_failed_evidence(p_project_key text, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_replan_failed_evidence(p_project_key text, p_limit integer) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_replan_failed_evidence(p_project_key text, p_limit integer) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_replan_failed_evidence(p_project_key text, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_requires_runtime_evidence(p_task_type text, p_title text, p_description text, p_acceptance_criteria text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_requires_runtime_evidence(p_task_type text, p_title text, p_description text, p_acceptance_criteria text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_requires_runtime_evidence(p_task_type text, p_title text, p_description text, p_acceptance_criteria text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_requires_runtime_evidence(p_task_type text, p_title text, p_description text, p_acceptance_criteria text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_research_deliverable_preflight(p_task_key text, p_result text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_research_deliverable_preflight(p_task_key text, p_result text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_research_deliverable_preflight(p_task_key text, p_result text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_research_deliverable_preflight(p_task_key text, p_result text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_research_submission_guard(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_research_submission_guard() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_research_submission_guard() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_research_submission_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_resilience_self_test(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_resilience_self_test(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_resilience_self_test(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_resolve_obsolete_incidents(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_resolve_obsolete_incidents(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_resolve_obsolete_incidents(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_retire_obsolete_evidence_tombstones_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_retire_obsolete_evidence_tombstones_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_retire_obsolete_evidence_tombstones_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_review_gate_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_review_gate_reconcile(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_review_gate_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_run_evidence_producer_recipe(p_evidence_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_run_evidence_producer_recipe(p_evidence_task_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_run_evidence_producer_recipe(p_evidence_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_runtime_claims_snapshot(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_runtime_claims_snapshot() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_runtime_claims_snapshot() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_runtime_evidence_for_requirement(p_requirement_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_runtime_evidence_for_requirement(p_requirement_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_runtime_evidence_for_requirement(p_requirement_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_runtime_health_snapshot(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_runtime_health_snapshot() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_runtime_health_snapshot() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sanitize_dependency_graph(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_sanitize_dependency_graph(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_sanitize_dependency_graph(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_seed_bootstrap_deadline(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_seed_bootstrap_deadline() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_seed_bootstrap_deadline() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_seed_bootstrap_deadline() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_set_execution_lane(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_set_execution_lane() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_set_execution_lane() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_set_execution_lane() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_state_invariant_reconcile(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_state_invariant_reconcile(p_project_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_state_invariant_reconcile(p_project_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_state_invariant_reconcile(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_strip_internal_execution_identity(p_run_id bigint, p_text text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_strip_internal_execution_identity(p_run_id bigint, p_text text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_strip_internal_execution_identity(p_run_id bigint, p_text text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_strip_internal_execution_identity(p_run_id bigint, p_text text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_builder_span(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_sync_builder_span() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_sync_builder_span() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_dependency_states(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_sync_dependency_states(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_sync_dependency_states(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_help_and_dependents(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_sync_help_and_dependents() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_sync_help_and_dependents() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_obsolete_evidence_requirement(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_sync_obsolete_evidence_requirement() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_sync_obsolete_evidence_requirement() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_sync_obsolete_evidence_requirement() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_primary_source_context(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_sync_primary_source_context() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_sync_primary_source_context() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_sync_primary_source_context() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_review_pending_backlog(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_sync_review_pending_backlog() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_sync_review_pending_backlog() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_sync_review_pending_backlog() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_review_work_queue(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_sync_review_work_queue() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_sync_review_work_queue() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_sync_tool_execution_queue(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_sync_tool_execution_queue(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_sync_tool_execution_queue(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_tenant_security_admission_v1(p_scope text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_tenant_security_admission_v1(p_scope text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_tenant_security_admission_v1(p_scope text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_tool_execution_capability_ready(p_project_key text, p_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_tool_execution_capability_ready(p_project_key text, p_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_transport_recovery_v1(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_transport_recovery_v1(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_transport_recovery_v1(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_verified_external_evidence_context(p_project_key text, p_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_verified_external_evidence_context(p_project_key text, p_task_key text) TO anon;
+GRANT ALL ON FUNCTION public.contentflow_verified_external_evidence_context(p_project_key text, p_task_key text) TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_verified_external_evidence_context(p_project_key text, p_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_verify_evidence_uri(p_storage_uri text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_verify_evidence_uri(p_storage_uri text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_verify_evidence_uri(p_storage_uri text) TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_verify_persistent_change_v1(p_change_id uuid, p_evidence_id text, p_evidence jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.contentflow_verify_persistent_change_v1(p_change_id uuid, p_evidence_id text, p_evidence jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.contentflow_verify_persistent_change_v1(p_change_id uuid, p_evidence_id text, p_evidence jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION director_recovery_finalize_canary(p_project_key text, p_fingerprint text, p_repair_id text, p_pass boolean, p_evidence_id text, p_quality numeric, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.director_recovery_finalize_canary(p_project_key text, p_fingerprint text, p_repair_id text, p_pass boolean, p_evidence_id text, p_quality numeric, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.director_recovery_finalize_canary(p_project_key text, p_fingerprint text, p_repair_id text, p_pass boolean, p_evidence_id text, p_quality numeric, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION director_recovery_learning_decision(p_project_key text, p_fingerprint text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.director_recovery_learning_decision(p_project_key text, p_fingerprint text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.director_recovery_learning_decision(p_project_key text, p_fingerprint text) TO anon;
+GRANT ALL ON FUNCTION public.director_recovery_learning_decision(p_project_key text, p_fingerprint text) TO authenticated;
+GRANT ALL ON FUNCTION public.director_recovery_learning_decision(p_project_key text, p_fingerprint text) TO service_role;
+
+
+--
+-- Name: FUNCTION director_recovery_learning_decision(p_project_key text, p_fingerprint text, p_context_version text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.director_recovery_learning_decision(p_project_key text, p_fingerprint text, p_context_version text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.director_recovery_learning_decision(p_project_key text, p_fingerprint text, p_context_version text) TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_backlog_review_gate(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.enforce_backlog_review_gate() TO anon;
+GRANT ALL ON FUNCTION public.enforce_backlog_review_gate() TO authenticated;
+GRANT ALL ON FUNCTION public.enforce_backlog_review_gate() TO service_role;
+
+
+--
+-- Name: FUNCTION enforce_builder_review_before_complete(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.enforce_builder_review_before_complete() TO anon;
+GRANT ALL ON FUNCTION public.enforce_builder_review_before_complete() TO authenticated;
+GRANT ALL ON FUNCTION public.enforce_builder_review_before_complete() TO service_role;
+
+
+--
+-- Name: FUNCTION internal_builder_approve_review(p_builder_run_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.internal_builder_approve_review(p_builder_run_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.internal_builder_approve_review(p_builder_run_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION internal_builder_assert_deployable(p_builder_run_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.internal_builder_assert_deployable(p_builder_run_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.internal_builder_assert_deployable(p_builder_run_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION internal_builder_claim_next_task(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.internal_builder_claim_next_task(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.internal_builder_claim_next_task(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION internal_builder_collect(p_request_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.internal_builder_collect(p_request_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.internal_builder_collect(p_request_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION internal_builder_dispatch(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.internal_builder_dispatch() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.internal_builder_dispatch() TO service_role;
+
+
+--
+-- Name: FUNCTION internal_builder_finalize(p_builder_run_id bigint, p_status text, p_selected_model text, p_quality_score numeric, p_cost_usd numeric, p_result text, p_error text, p_review_approved boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.internal_builder_finalize(p_builder_run_id bigint, p_status text, p_selected_model text, p_quality_score numeric, p_cost_usd numeric, p_result text, p_error text, p_review_approved boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.internal_builder_finalize(p_builder_run_id bigint, p_status text, p_selected_model text, p_quality_score numeric, p_cost_usd numeric, p_result text, p_error text, p_review_approved boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION internal_builder_recover_stale_claims(p_minutes integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.internal_builder_recover_stale_claims(p_minutes integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.internal_builder_recover_stale_claims(p_minutes integer) TO service_role;
+
+
+--
+-- Name: FUNCTION log_contentflow_autonomy_backlog(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.log_contentflow_autonomy_backlog() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.log_contentflow_autonomy_backlog() TO service_role;
+
+
+--
+-- Name: FUNCTION log_contentflow_problem_from_run(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.log_contentflow_problem_from_run() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.log_contentflow_problem_from_run() TO service_role;
+
+
+--
+-- Name: FUNCTION rara_apply_known_repair(p_incident_id bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_apply_known_repair(p_incident_id bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_apply_known_repair(p_incident_id bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_apply_known_repairs(p_project_key text, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_apply_known_repairs(p_project_key text, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_apply_known_repairs(p_project_key text, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_apply_review_decision(p_builder_run_id bigint, p_approve boolean, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_apply_review_decision(p_builder_run_id bigint, p_approve boolean, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_apply_review_decision(p_builder_run_id bigint, p_approve boolean, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_apply_review_decision_v2(p_builder_run_id bigint, p_claim_token text, p_approve boolean, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_apply_review_decision_v2(p_builder_run_id bigint, p_claim_token text, p_approve boolean, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_apply_review_decision_v2(p_builder_run_id bigint, p_claim_token text, p_approve boolean, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_claim_next_incident(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_claim_next_incident(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_claim_next_incident(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_claim_review_v1(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_claim_review_v1() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_claim_review_v1() TO service_role;
+
+
+--
+-- Name: FUNCTION rara_claim_review_v2(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_claim_review_v2(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_claim_review_v2(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_classify_rejection(p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.rara_classify_rejection(p_reason text) TO anon;
+GRANT ALL ON FUNCTION public.rara_classify_rejection(p_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.rara_classify_rejection(p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_detect_incidents(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_detect_incidents(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_detect_incidents(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_learn_and_replan_rejection(p_builder_run_id bigint, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.rara_learn_and_replan_rejection(p_builder_run_id bigint, p_reason text) TO anon;
+GRANT ALL ON FUNCTION public.rara_learn_and_replan_rejection(p_builder_run_id bigint, p_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.rara_learn_and_replan_rejection(p_builder_run_id bigint, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_normalize_and_reopen_known_incidents(p_project_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_normalize_and_reopen_known_incidents(p_project_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_normalize_and_reopen_known_incidents(p_project_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_release_review_v1(p_builder_run_id bigint, p_claim_token text, p_error text, p_delay_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_release_review_v1(p_builder_run_id bigint, p_claim_token text, p_error text, p_delay_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_release_review_v1(p_builder_run_id bigint, p_claim_token text, p_error text, p_delay_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_safe_collect_ready_dispatches(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_safe_collect_ready_dispatches() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_safe_collect_ready_dispatches() TO service_role;
+
+
+--
+-- Name: FUNCTION rara_safe_requeue_failed_task(p_task_key text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_safe_requeue_failed_task(p_task_key text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_safe_requeue_failed_task(p_task_key text) TO service_role;
+
+
+--
+-- Name: FUNCTION rara_safe_restart_pg_net_if_stuck(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.rara_safe_restart_pg_net_if_stuck() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rara_safe_restart_pg_net_if_stuck() TO service_role;
+
+
+--
+-- Name: FUNCTION record_director_model_stat(p_project_key text, p_task_type text, p_model_id text, p_success boolean, p_quality numeric, p_latency_ms numeric, p_cost_usd numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.record_director_model_stat(p_project_key text, p_task_type text, p_model_id text, p_success boolean, p_quality numeric, p_latency_ms numeric, p_cost_usd numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.record_director_model_stat(p_project_key text, p_task_type text, p_model_id text, p_success boolean, p_quality numeric, p_latency_ms numeric, p_cost_usd numeric) TO anon;
+GRANT ALL ON FUNCTION public.record_director_model_stat(p_project_key text, p_task_type text, p_model_id text, p_success boolean, p_quality numeric, p_latency_ms numeric, p_cost_usd numeric) TO authenticated;
+GRANT ALL ON FUNCTION public.record_director_model_stat(p_project_key text, p_task_type text, p_model_id text, p_success boolean, p_quality numeric, p_latency_ms numeric, p_cost_usd numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION refresh_orchestrator_run_usage(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.refresh_orchestrator_run_usage() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.refresh_orchestrator_run_usage() TO service_role;
+
+
+--
+-- Name: FUNCTION requeue_approved_worker_on_run_finish(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.requeue_approved_worker_on_run_finish() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.requeue_approved_worker_on_run_finish() TO service_role;
+
+
+--
+-- Name: FUNCTION upsert_meta_oauth_token(p_app_id text, p_user_id text, p_page_id text, p_instagram_id text, p_scopes text[], p_tasks text[], p_token_ciphertext text, p_token_iv text, p_token_tag text, p_token_fingerprint text, p_expires_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.upsert_meta_oauth_token(p_app_id text, p_user_id text, p_page_id text, p_instagram_id text, p_scopes text[], p_tasks text[], p_token_ciphertext text, p_token_iv text, p_token_tag text, p_token_fingerprint text, p_expires_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.upsert_meta_oauth_token(p_app_id text, p_user_id text, p_page_id text, p_instagram_id text, p_scopes text[], p_tasks text[], p_token_ciphertext text, p_token_iv text, p_token_tag text, p_token_fingerprint text, p_expires_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION upsert_youtube_oauth_token(p_channel_id text, p_channel_title text, p_scopes text[], p_access_token_ciphertext text, p_access_token_iv text, p_access_token_tag text, p_refresh_token_ciphertext text, p_refresh_token_iv text, p_refresh_token_tag text, p_token_fingerprint text, p_access_expires_at timestamp with time zone, p_refresh_token_received boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.upsert_youtube_oauth_token(p_channel_id text, p_channel_title text, p_scopes text[], p_access_token_ciphertext text, p_access_token_iv text, p_access_token_tag text, p_refresh_token_ciphertext text, p_refresh_token_iv text, p_refresh_token_tag text, p_token_fingerprint text, p_access_expires_at timestamp with time zone, p_refresh_token_received boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.upsert_youtube_oauth_token(p_channel_id text, p_channel_title text, p_scopes text[], p_access_token_ciphertext text, p_access_token_iv text, p_access_token_tag text, p_refresh_token_ciphertext text, p_refresh_token_iv text, p_refresh_token_tag text, p_token_fingerprint text, p_access_expires_at timestamp with time zone, p_refresh_token_received boolean) TO service_role;
+
+
+--
+-- Name: TABLE academy_whatsapp_config; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.academy_whatsapp_config TO service_role;
+
+
+--
+-- Name: TABLE academy_whatsapp_conversations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.academy_whatsapp_conversations TO service_role;
+
+
+--
+-- Name: TABLE academy_whatsapp_handoffs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.academy_whatsapp_handoffs TO service_role;
+
+
+--
+-- Name: TABLE academy_whatsapp_knowledge; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.academy_whatsapp_knowledge TO service_role;
+
+
+--
+-- Name: TABLE academy_whatsapp_messages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.academy_whatsapp_messages TO service_role;
+
+
+--
+-- Name: TABLE academy_whatsapp_outbox; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.academy_whatsapp_outbox TO service_role;
+
+
+--
+-- Name: TABLE brands; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.brands TO anon;
+GRANT ALL ON TABLE public.brands TO authenticated;
+GRANT ALL ON TABLE public.brands TO service_role;
+
+
+--
+-- Name: TABLE content_schedule; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.content_schedule TO anon;
+GRANT ALL ON TABLE public.content_schedule TO authenticated;
+GRANT ALL ON TABLE public.content_schedule TO service_role;
+
+
+--
+-- Name: TABLE contentflow_build_backlog; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_build_backlog TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_build_backlog_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_build_backlog_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_build_backlog_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_build_backlog_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_builder_dispatches; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_builder_dispatches TO service_role;
+
+
+--
+-- Name: TABLE contentflow_builder_runs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_builder_runs TO service_role;
+
+
+--
+-- Name: TABLE contentflow_builder_review_queue; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_builder_review_queue TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_builder_runs_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_builder_runs_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_builder_runs_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_builder_runs_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_builder_stage_evidence; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_builder_stage_evidence TO service_role;
+
+
+--
+-- Name: TABLE contentflow_builder_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_builder_status TO service_role;
+
+
+--
+-- Name: TABLE contentflow_capability_certifications; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_capability_certifications TO anon;
+GRANT ALL ON TABLE public.contentflow_capability_certifications TO authenticated;
+GRANT ALL ON TABLE public.contentflow_capability_certifications TO service_role;
+
+
+--
+-- Name: TABLE contentflow_capacity_decisions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_capacity_decisions TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_capacity_decisions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_capacity_decisions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_capacity_decisions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_capacity_decisions_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_capacity_phases; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_capacity_phases TO service_role;
+
+
+--
+-- Name: TABLE contentflow_capacity_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_capacity_state TO service_role;
+
+
+--
+-- Name: TABLE contentflow_continuation_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_continuation_state TO service_role;
+
+
+--
+-- Name: TABLE contentflow_dependency_priority; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_dependency_priority TO anon;
+GRANT ALL ON TABLE public.contentflow_dependency_priority TO authenticated;
+GRANT ALL ON TABLE public.contentflow_dependency_priority TO service_role;
+
+
+--
+-- Name: TABLE contentflow_durable_signal_ledger; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_durable_signal_ledger TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_durable_signal_ledger_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_durable_signal_ledger_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_durable_signal_ledger_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_durable_signal_ledger_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_durable_task_stages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_durable_task_stages TO anon;
+GRANT ALL ON TABLE public.contentflow_durable_task_stages TO authenticated;
+GRANT ALL ON TABLE public.contentflow_durable_task_stages TO service_role;
+
+
+--
+-- Name: TABLE contentflow_evidence_capability_registry; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_evidence_capability_registry TO service_role;
+
+
+--
+-- Name: TABLE contentflow_evidence_requirements; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_evidence_requirements TO service_role;
+
+
+--
+-- Name: TABLE contentflow_evidence_capability_matrix; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_evidence_capability_matrix TO service_role;
+
+
+--
+-- Name: TABLE contentflow_evidence_producer_recipes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_evidence_producer_recipes TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_evidence_producer_recipes_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_evidence_producer_recipes_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_evidence_producer_recipes_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_evidence_producer_recipes_id_seq TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_evidence_requirements_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_evidence_requirements_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_evidence_requirements_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_evidence_requirements_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_external_executor_registry; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_external_executor_registry TO service_role;
+
+
+--
+-- Name: TABLE contentflow_external_reports; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_external_reports TO service_role;
+
+
+--
+-- Name: TABLE contentflow_fresh10_items; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_fresh10_items TO anon;
+GRANT ALL ON TABLE public.contentflow_fresh10_items TO authenticated;
+GRANT ALL ON TABLE public.contentflow_fresh10_items TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_fresh10_items_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_fresh10_items_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_fresh10_items_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_fresh10_items_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_fresh10_runs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_fresh10_runs TO anon;
+GRANT ALL ON TABLE public.contentflow_fresh10_runs TO authenticated;
+GRANT ALL ON TABLE public.contentflow_fresh10_runs TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_fresh10_runs_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_fresh10_runs_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_fresh10_runs_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_fresh10_runs_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_internal_runner_config; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_internal_runner_config TO service_role;
+
+
+--
+-- Name: TABLE contentflow_lane_models; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_lane_models TO service_role;
+
+
+--
+-- Name: TABLE contentflow_legal_governance_profiles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_legal_governance_profiles TO service_role;
+
+
+--
+-- Name: TABLE contentflow_model_task_quarantine; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_model_task_quarantine TO service_role;
+
+
+--
+-- Name: TABLE contentflow_nexo_request_metrics; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_nexo_request_metrics TO service_role;
+
+
+--
+-- Name: TABLE contentflow_nexo_lane_kpis_24h; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_nexo_lane_kpis_24h TO anon;
+GRANT ALL ON TABLE public.contentflow_nexo_lane_kpis_24h TO authenticated;
+GRANT ALL ON TABLE public.contentflow_nexo_lane_kpis_24h TO service_role;
+
+
+--
+-- Name: TABLE contentflow_nexo_slots; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_nexo_slots TO service_role;
+
+
+--
+-- Name: TABLE contentflow_nexo_lane_status; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_nexo_lane_status TO anon;
+GRANT ALL ON TABLE public.contentflow_nexo_lane_status TO authenticated;
+GRANT ALL ON TABLE public.contentflow_nexo_lane_status TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_nexo_request_metrics_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_nexo_request_metrics_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_nexo_request_metrics_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_nexo_request_metrics_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_persistent_change_provenance; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_persistent_change_provenance TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_persistent_change_provenance_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_persistent_change_provenance_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_persistent_change_provenance_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_persistent_change_provenance_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_primary_source_evidence; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_primary_source_evidence TO anon;
+GRANT ALL ON TABLE public.contentflow_primary_source_evidence TO authenticated;
+GRANT ALL ON TABLE public.contentflow_primary_source_evidence TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_primary_source_evidence_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_primary_source_evidence_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_primary_source_evidence_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_primary_source_evidence_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_retry_policies; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_retry_policies TO service_role;
+
+
+--
+-- Name: TABLE contentflow_retry_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_retry_state TO service_role;
+
+
+--
+-- Name: TABLE contentflow_review_work_queue; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_review_work_queue TO service_role;
+
+
+--
+-- Name: TABLE contentflow_runtime_event_ledger; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_runtime_event_ledger TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_runtime_event_ledger_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_runtime_event_ledger_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_runtime_event_ledger_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_runtime_event_ledger_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_runtime_evidence_ledger; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.contentflow_runtime_evidence_ledger TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_runtime_evidence_ledger_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_runtime_evidence_ledger_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_runtime_evidence_ledger_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_runtime_evidence_ledger_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_runtime_verifications; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_runtime_verifications TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_runtime_verifications_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_runtime_verifications_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_runtime_verifications_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_runtime_verifications_id_seq TO service_role;
+
+
+--
+-- Name: TABLE contentflow_specialist_task_record; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_specialist_task_record TO anon;
+GRANT ALL ON TABLE public.contentflow_specialist_task_record TO authenticated;
+GRANT ALL ON TABLE public.contentflow_specialist_task_record TO service_role;
+
+
+--
+-- Name: TABLE contentflow_specialist_ranking; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_specialist_ranking TO anon;
+GRANT ALL ON TABLE public.contentflow_specialist_ranking TO authenticated;
+GRANT ALL ON TABLE public.contentflow_specialist_ranking TO service_role;
+
+
+--
+-- Name: TABLE contentflow_tenant_security_targets; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_tenant_security_targets TO service_role;
+
+
+--
+-- Name: TABLE contentflow_tool_execution_queue; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_tool_execution_queue TO service_role;
+
+
+--
+-- Name: SEQUENCE contentflow_tool_execution_queue_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.contentflow_tool_execution_queue_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.contentflow_tool_execution_queue_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.contentflow_tool_execution_queue_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_trace_spans; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_trace_spans TO service_role;
+
+
+--
+-- Name: TABLE contentflow_trace_health; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_trace_health TO anon;
+GRANT ALL ON TABLE public.contentflow_trace_health TO authenticated;
+GRANT ALL ON TABLE public.contentflow_trace_health TO service_role;
+
+
+--
+-- Name: TABLE contentflow_wait_registry; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_wait_registry TO service_role;
+
+
+--
+-- Name: TABLE contentflow_workflow_e2e_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.contentflow_workflow_e2e_state TO service_role;
+
+
+--
+-- Name: TABLE credit_transactions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.credit_transactions TO anon;
+GRANT ALL ON TABLE public.credit_transactions TO authenticated;
+GRANT ALL ON TABLE public.credit_transactions TO service_role;
+
+
+--
+-- Name: TABLE credit_wallets; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.credit_wallets TO anon;
+GRANT ALL ON TABLE public.credit_wallets TO authenticated;
+GRANT ALL ON TABLE public.credit_wallets TO service_role;
+
+
+--
+-- Name: TABLE director_approved_solutions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_approved_solutions TO anon;
+GRANT ALL ON TABLE public.director_approved_solutions TO authenticated;
+GRANT ALL ON TABLE public.director_approved_solutions TO service_role;
+
+
+--
+-- Name: SEQUENCE director_approved_solutions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_approved_solutions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_approved_solutions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_approved_solutions_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_autonomy_events; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_autonomy_events TO service_role;
+
+
+--
+-- Name: SEQUENCE director_autonomy_events_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_autonomy_events_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_autonomy_events_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_autonomy_events_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_autonomy_kpis; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_autonomy_kpis TO anon;
+GRANT ALL ON TABLE public.director_autonomy_kpis TO authenticated;
+GRANT ALL ON TABLE public.director_autonomy_kpis TO service_role;
+
+
+--
+-- Name: TABLE director_budgets; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_budgets TO anon;
+GRANT ALL ON TABLE public.director_budgets TO authenticated;
+GRANT ALL ON TABLE public.director_budgets TO service_role;
+
+
+--
+-- Name: SEQUENCE director_budgets_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_budgets_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_budgets_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_budgets_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_canary_policy; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_canary_policy TO service_role;
+
+
+--
+-- Name: TABLE director_control_incident_strategy_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_control_incident_strategy_state TO service_role;
+
+
+--
+-- Name: TABLE director_control_policy; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_control_policy TO service_role;
+
+
+--
+-- Name: TABLE director_cycle_runs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_cycle_runs TO service_role;
+
+
+--
+-- Name: SEQUENCE director_cycle_runs_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_cycle_runs_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_cycle_runs_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_cycle_runs_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_error_memory; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_error_memory TO service_role;
+
+
+--
+-- Name: SEQUENCE director_error_memory_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_error_memory_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_error_memory_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_error_memory_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_external_evidence; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_external_evidence TO service_role;
+
+
+--
+-- Name: SEQUENCE director_external_evidence_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_external_evidence_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_external_evidence_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_external_evidence_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_help_alerts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_help_alerts TO service_role;
+
+
+--
+-- Name: SEQUENCE director_help_alerts_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_help_alerts_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_help_alerts_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_help_alerts_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_model_stats; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_model_stats TO anon;
+GRANT ALL ON TABLE public.director_model_stats TO authenticated;
+GRANT ALL ON TABLE public.director_model_stats TO service_role;
+
+
+--
+-- Name: SEQUENCE director_model_stats_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_model_stats_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_model_stats_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_model_stats_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_operating_rules; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_operating_rules TO service_role;
+
+
+--
+-- Name: SEQUENCE director_operating_rules_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_operating_rules_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_operating_rules_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_operating_rules_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_project_task_scope; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_project_task_scope TO anon;
+GRANT ALL ON TABLE public.director_project_task_scope TO authenticated;
+GRANT ALL ON TABLE public.director_project_task_scope TO service_role;
+
+
+--
+-- Name: TABLE director_recovery_learning_memory; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_recovery_learning_memory TO anon;
+GRANT ALL ON TABLE public.director_recovery_learning_memory TO authenticated;
+GRANT ALL ON TABLE public.director_recovery_learning_memory TO service_role;
+
+
+--
+-- Name: SEQUENCE director_recovery_learning_memory_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_recovery_learning_memory_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_recovery_learning_memory_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_recovery_learning_memory_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_repair_actions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_repair_actions TO service_role;
+
+
+--
+-- Name: SEQUENCE director_repair_actions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_repair_actions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_repair_actions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_repair_actions_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_repair_incidents; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_repair_incidents TO service_role;
+
+
+--
+-- Name: SEQUENCE director_repair_incidents_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_repair_incidents_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_repair_incidents_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_repair_incidents_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_repair_recipes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_repair_recipes TO service_role;
+
+
+--
+-- Name: SEQUENCE director_repair_recipes_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_repair_recipes_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_repair_recipes_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_repair_recipes_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_resilience_checks; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_resilience_checks TO service_role;
+
+
+--
+-- Name: SEQUENCE director_resilience_checks_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_resilience_checks_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_resilience_checks_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_resilience_checks_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_runs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_runs TO anon;
+GRANT ALL ON TABLE public.director_runs TO authenticated;
+GRANT ALL ON TABLE public.director_runs TO service_role;
+
+
+--
+-- Name: SEQUENCE director_runs_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_runs_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_runs_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_runs_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_state_transition_ledger; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_state_transition_ledger TO service_role;
+
+
+--
+-- Name: SEQUENCE director_state_transition_ledger_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_state_transition_ledger_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_state_transition_ledger_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_state_transition_ledger_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_task_decompositions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_task_decompositions TO service_role;
+
+
+--
+-- Name: SEQUENCE director_task_decompositions_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.director_task_decompositions_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.director_task_decompositions_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.director_task_decompositions_id_seq TO service_role;
+
+
+--
+-- Name: TABLE director_worker_queue; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_worker_queue TO service_role;
+
+
+--
+-- Name: TABLE director_workflow_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.director_workflow_versions TO service_role;
+
+
+--
+-- Name: TABLE generations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.generations TO anon;
+GRANT ALL ON TABLE public.generations TO authenticated;
+GRANT ALL ON TABLE public.generations TO service_role;
+
+
+--
+-- Name: TABLE jarvis_device_tokens; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.jarvis_device_tokens TO service_role;
+
+
+--
+-- Name: TABLE jarvis_pairing_codes; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.jarvis_pairing_codes TO service_role;
+
+
+--
+-- Name: TABLE marketing_memory; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.marketing_memory TO anon;
+GRANT ALL ON TABLE public.marketing_memory TO authenticated;
+GRANT ALL ON TABLE public.marketing_memory TO service_role;
+
+
+--
+-- Name: TABLE nexorouter_usage_reconciliation; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.nexorouter_usage_reconciliation TO service_role;
+
+
+--
+-- Name: TABLE orchestrator_runs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.orchestrator_runs TO anon;
+GRANT ALL ON TABLE public.orchestrator_runs TO authenticated;
+GRANT ALL ON TABLE public.orchestrator_runs TO service_role;
+
+
+--
+-- Name: SEQUENCE orchestrator_runs_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.orchestrator_runs_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.orchestrator_runs_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.orchestrator_runs_id_seq TO service_role;
+
+
+--
+-- Name: TABLE orchestrator_tasks; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.orchestrator_tasks TO anon;
+GRANT ALL ON TABLE public.orchestrator_tasks TO authenticated;
+GRANT ALL ON TABLE public.orchestrator_tasks TO service_role;
+
+
+--
+-- Name: SEQUENCE orchestrator_tasks_id_seq; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON SEQUENCE public.orchestrator_tasks_id_seq TO anon;
+GRANT ALL ON SEQUENCE public.orchestrator_tasks_id_seq TO authenticated;
+GRANT ALL ON SEQUENCE public.orchestrator_tasks_id_seq TO service_role;
+
+
+--
+-- Name: TABLE profiles; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.profiles TO anon;
+GRANT ALL ON TABLE public.profiles TO authenticated;
+GRANT ALL ON TABLE public.profiles TO service_role;
+
+
+--
+-- Name: TABLE projects; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.projects TO anon;
+GRANT ALL ON TABLE public.projects TO authenticated;
+GRANT ALL ON TABLE public.projects TO service_role;
+
+
+--
+-- Name: TABLE provider_costs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.provider_costs TO anon;
+GRANT ALL ON TABLE public.provider_costs TO authenticated;
+GRANT ALL ON TABLE public.provider_costs TO service_role;
+
+
+--
+-- Name: TABLE social_accounts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.social_accounts TO anon;
+GRANT ALL ON TABLE public.social_accounts TO authenticated;
+GRANT ALL ON TABLE public.social_accounts TO service_role;
+
+
+--
+-- Name: TABLE social_metrics; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.social_metrics TO anon;
+GRANT ALL ON TABLE public.social_metrics TO authenticated;
+GRANT ALL ON TABLE public.social_metrics TO service_role;
+
+
+--
+-- Name: TABLE subscriptions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.subscriptions TO anon;
+GRANT ALL ON TABLE public.subscriptions TO authenticated;
+GRANT ALL ON TABLE public.subscriptions TO service_role;
+
+
+--
+-- Name: TABLE youtube_oauth_token_vault; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.youtube_oauth_token_vault TO service_role;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: -
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: -
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR FUNCTIONS; Type: DEFAULT ACL; Schema: public; Owner: -
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO service_role;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR FUNCTIONS; Type: DEFAULT ACL; Schema: public; Owner: -
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON FUNCTIONS TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON FUNCTIONS TO service_role;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: -
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: -
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO anon;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
+ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 2wiOSArKrY89u3XjrbmaWvIiWvOU1iB5P6ujVaLHm46KCT4ZKJ32QQZrE7yTRMk
+\unrestrict SFcHCDf3QO6qxY4iu3AEG3DILwCr4krqIdBFLM6sIzANCuh0dMGpmMqW7K4fXnJ
 
