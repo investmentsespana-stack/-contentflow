@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict CaMzzDsIS5m41KoA79aTH5SNwGImWT8PgkcppatsGfbFrTON9dsC9FOQrUcyLJM
+\restrict MbgUs2OddZUrPJTx5grNC7bcx7sBwNkNUodTwvddeVtTdc9IeJ0nXzEhgElXlje
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -1673,6 +1673,7 @@ declare
   explicit_evidence_gap boolean := false;
   no_retry_without_evidence boolean := false;
   internal_artifact boolean := false;
+  tool_recipe boolean := false;
   circuit_open boolean := false;
 begin
   durable := coalesce(new.workflow_contract->>'contract_version','') <> '';
@@ -1684,6 +1685,9 @@ begin
   internal_artifact := coalesce(new.execution_lane,'llm_artifact')='llm_artifact'
     and coalesce(new.workflow_contract->>'runtime_required','false')='false'
     and coalesce(new.workflow_contract->>'publish_allowed','false')<>'true';
+  tool_recipe := coalesce(new.execution_lane,'')='tool_executor'
+    and jsonb_typeof(coalesce(new.workflow_contract->'execution_recipe','{}'::jsonb))='object'
+    and coalesce(new.workflow_contract->'execution_recipe'->>'handler','')<>'';
   select exists(
     select 1 from public.contentflow_retry_state rs
     where rs.project_key=new.project_key and rs.task_key=new.task_key and rs.circuit_state='open'
@@ -1714,6 +1718,11 @@ begin
     elsif evidence_external or explicit_external or no_retry_without_evidence then
       if coalesce(new.blocked_reason,'')='' then
         new.blocked_reason := case when new.task_key ilike '%social%access%' then 'EXTERNAL_PREREQUISITE_SOCIAL_ACCESS' when new.task_key ilike '%gpu%workspace%' then 'INFRASTRUCTURE_RUNTIME_EVIDENCE_REQUIRED' else 'EXTERNAL_RUNTIME_EVIDENCE_REQUIRED' end;
+      end if;
+      new.next_eligible_at := null;
+    elsif tool_recipe then
+      if coalesce(new.blocked_reason,'') in ('','STATE_GUARD_BLOCKED_UNSPECIFIED') then
+        new.blocked_reason := 'EXTERNAL_EXECUTION_IN_PROGRESS';
       end if;
       new.next_eligible_at := null;
     elsif internal_artifact then
@@ -18314,5 +18323,5 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 -- PostgreSQL database dump complete
 --
 
-\unrestrict CaMzzDsIS5m41KoA79aTH5SNwGImWT8PgkcppatsGfbFrTON9dsC9FOQrUcyLJM
+\unrestrict MbgUs2OddZUrPJTx5grNC7bcx7sBwNkNUodTwvddeVtTdc9IeJ0nXzEhgElXlje
 

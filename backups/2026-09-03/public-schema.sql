@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 41HwoY2wCOIxO2jbGbK3GSIx4VdYnOLxEKStCMuhVAHFILj5LsZnTCmIZc4M7gU
+\restrict fm3RZOWjFXacbf1revH7R2MP4IJ7l73igBNWjTAz7rrc8slWKg07Ka91NumidXR
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -901,6 +901,7 @@ declare
   explicit_evidence_gap boolean := false;
   no_retry_without_evidence boolean := false;
   internal_artifact boolean := false;
+  tool_recipe boolean := false;
   circuit_open boolean := false;
 begin
   durable := coalesce(new.workflow_contract->>'contract_version','') <> '';
@@ -912,6 +913,9 @@ begin
   internal_artifact := coalesce(new.execution_lane,'llm_artifact')='llm_artifact'
     and coalesce(new.workflow_contract->>'runtime_required','false')='false'
     and coalesce(new.workflow_contract->>'publish_allowed','false')<>'true';
+  tool_recipe := coalesce(new.execution_lane,'')='tool_executor'
+    and jsonb_typeof(coalesce(new.workflow_contract->'execution_recipe','{}'::jsonb))='object'
+    and coalesce(new.workflow_contract->'execution_recipe'->>'handler','')<>'';
   select exists(
     select 1 from public.contentflow_retry_state rs
     where rs.project_key=new.project_key and rs.task_key=new.task_key and rs.circuit_state='open'
@@ -942,6 +946,11 @@ begin
     elsif evidence_external or explicit_external or no_retry_without_evidence then
       if coalesce(new.blocked_reason,'')='' then
         new.blocked_reason := case when new.task_key ilike '%social%access%' then 'EXTERNAL_PREREQUISITE_SOCIAL_ACCESS' when new.task_key ilike '%gpu%workspace%' then 'INFRASTRUCTURE_RUNTIME_EVIDENCE_REQUIRED' else 'EXTERNAL_RUNTIME_EVIDENCE_REQUIRED' end;
+      end if;
+      new.next_eligible_at := null;
+    elsif tool_recipe then
+      if coalesce(new.blocked_reason,'') in ('','STATE_GUARD_BLOCKED_UNSPECIFIED') then
+        new.blocked_reason := 'EXTERNAL_EXECUTION_IN_PROGRESS';
       end if;
       new.next_eligible_at := null;
     elsif internal_artifact then
@@ -16226,5 +16235,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON T
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 41HwoY2wCOIxO2jbGbK3GSIx4VdYnOLxEKStCMuhVAHFILj5LsZnTCmIZc4M7gU
+\unrestrict fm3RZOWjFXacbf1revH7R2MP4IJ7l73igBNWjTAz7rrc8slWKg07Ka91NumidXR
 
