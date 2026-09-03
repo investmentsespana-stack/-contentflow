@@ -42,11 +42,24 @@ if [[ "$PUBLIC_SCHEMA_EXISTS" == "1" ]]; then
   psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public;' >/dev/null
 fi
 
-# The committed public-only Supabase dump legitimately references auth.users and
-# auth.uid(), but a bare PostgreSQL certification target does not ship Supabase's
-# managed auth schema. Seed only the dependency surface required to replay public;
-# these stubs live outside public and therefore cannot affect public-schema parity.
+# The committed public-only Supabase dump legitimately references auth.users,
+# auth.uid(), and Supabase-managed API roles. A bare PostgreSQL certification target
+# ships none of them. Seed only that dependency surface outside public so policy/ACL
+# statements can replay without changing the public-schema parity being certified.
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+DO $roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    CREATE ROLE service_role NOLOGIN;
+  END IF;
+END
+$roles$;
 CREATE SCHEMA IF NOT EXISTS auth;
 CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
