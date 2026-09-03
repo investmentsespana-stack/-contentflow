@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 5OSAd8DmasvfAlpLhQJRjXkf3KFFgN7d3qLxR4PmuI7ESLOPh6ciythhiBc0kNg
+\restrict BSwIaawn05utQ4lijTkFf9AKSTBx5FbZe6GlVYYOgkt0VRT09uNPtpQnFIkSIKW
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -209,6 +209,151 @@ begin
     'observed_at',now()
   );
 end $$;
+
+
+--
+-- Name: academy_social_source_evidence_task_v4(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.academy_social_source_evidence_task_v4(p_kind text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_run_id bigint;
+  v_events jsonb := '[]'::jsonb;
+  v_cycles jsonb := '[]'::jsonb;
+  v_workers jsonb := '[]'::jsonb;
+  v_recent_runs jsonb := '[]'::jsonb;
+  v_judge_pass boolean := false;
+  v_runner_pass boolean := false;
+begin
+  if p_kind = 'f09' then
+    select r.id into v_run_id
+    from public.contentflow_builder_runs r
+    where r.project_key='agent-academy-platform-v1'
+      and r.task_key='academy_social_director_control_v3'
+      and r.review_approved=true
+      and r.quality_score>=95
+    order by r.id desc limit 1;
+
+    if v_run_id is null then
+      raise exception 'F09_VERIFIED_DIRECTOR_RUN_NOT_FOUND';
+    end if;
+
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'event_type',e.event_type,
+      'actor',e.actor,
+      'created_at',e.created_at,
+      'payload',e.payload
+    ) order by e.created_at),'[]'::jsonb),
+    coalesce(bool_or((e.payload->>'pass')::boolean) filter(where e.event_type='judge_completed'),false),
+    coalesce(bool_or((e.payload->>'pass')::boolean) filter(where e.event_type='runner_completed'),false)
+    into v_events,v_judge_pass,v_runner_pass
+    from public.contentflow_runtime_event_ledger e
+    where e.builder_run_id=v_run_id
+      and e.event_type in ('claimed','executor_async_accepted','runner_v3_started','nexo_execution_probe','model_catalog_failover','artifact_generated','judge_completed','runner_completed','owner_finalized');
+
+    if jsonb_array_length(v_events)<5 or not v_judge_pass or not v_runner_pass then
+      raise exception 'F09_DIRECTOR_EVENT_CHAIN_INCOMPLETE';
+    end if;
+
+    return jsonb_build_object(
+      'ok',true,
+      'architecture','ACADEMY_SOCIAL_VERIFIED_SOURCE_EVIDENCE_V4',
+      'evidence_kind','F09_director_orchestrator_coordination_capture_v1',
+      'source','contentflow_runtime_event_ledger',
+      'builder_run_id',v_run_id,
+      'judge_pass',v_judge_pass,
+      'runner_pass',v_runner_pass,
+      'events',v_events,
+      'sanitized',true,
+      'publication_authorized',false,
+      'generated_at',now()
+    );
+  elsif p_kind = 'f06' then
+    select coalesce(jsonb_agg(x.obj order by x.id desc),'[]'::jsonb)
+      into v_cycles
+    from (
+      select c.id,jsonb_build_object(
+        'cycle_id',c.id,
+        'project_key',c.project_key,
+        'status',c.status,
+        'dispatched',c.dispatched,
+        'started_at',c.started_at,
+        'finished_at',c.finished_at,
+        'workers_ready',coalesce((c.pre_state->>'workers_ready')::int,0),
+        'workers_running_before',coalesce((c.pre_state->>'workers_running')::int,0),
+        'dispatchable_before',coalesce((c.pre_state->>'dispatchable')::int,0),
+        'workers_running_after',coalesce((c.post_state->>'workers_running')::int,0),
+        'dispatchable_after',coalesce((c.post_state->>'dispatchable')::int,0),
+        'capacity_respected',coalesce((c.post_state->>'capacity_respected')::boolean,false),
+        'active_state_mismatches',coalesce((c.post_state->>'active_state_mismatches')::int,0)
+      ) obj
+      from public.director_cycle_runs c
+      where c.project_key in ('contentflow','agent-academy-platform-v1')
+        and c.status in ('completed','completed_with_warnings')
+        and c.started_at > now()-interval '24 hours'
+      order by c.id desc
+      limit 8
+    ) x;
+
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'model_id',q.model_id,
+      'status',q.status,
+      'last_task_key',q.last_task_key,
+      'last_outcome',q.last_outcome,
+      'last_quality_score',q.last_quality_score,
+      'total_assignments',q.total_assignments,
+      'total_completions',q.total_completions,
+      'total_failures',q.total_failures,
+      'updated_at',q.updated_at
+    ) order by q.model_id),'[]'::jsonb)
+    into v_workers
+    from public.director_worker_queue q
+    where q.status in ('ready','running');
+
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'run_id',r.id,
+      'task_key',r.task_key,
+      'status',r.status,
+      'selected_model',r.selected_model,
+      'quality_score',r.quality_score,
+      'review_approved',r.review_approved,
+      'created_at',r.created_at,
+      'finished_at',r.finished_at
+    ) order by r.id desc),'[]'::jsonb)
+    into v_recent_runs
+    from (
+      select r.*
+      from public.contentflow_builder_runs r
+      where r.project_key in ('contentflow','agent-academy-platform-v1')
+        and r.created_at > now()-interval '24 hours'
+        and r.status in ('completed','verification_required','failed')
+      order by r.id desc limit 12
+    ) r;
+
+    if jsonb_array_length(v_cycles)=0 or jsonb_array_length(v_workers)=0 then
+      raise exception 'F06_ROUTING_SOURCE_NOT_AVAILABLE';
+    end if;
+
+    return jsonb_build_object(
+      'ok',true,
+      'architecture','ACADEMY_SOCIAL_VERIFIED_SOURCE_EVIDENCE_V4',
+      'evidence_kind','F06_capability_routing_workflow_capture_v1',
+      'source','director_cycle_runs+director_worker_queue+contentflow_builder_runs',
+      'cycles',v_cycles,
+      'workers',v_workers,
+      'recent_runs',v_recent_runs,
+      'sanitized',true,
+      'publication_authorized',false,
+      'generated_at',now()
+    );
+  else
+    raise exception 'UNSUPPORTED_EVIDENCE_KIND:%',p_kind;
+  end if;
+end
+$$;
 
 
 --
@@ -735,6 +880,7 @@ declare
   durable boolean := false;
   evidence_external boolean := false;
   explicit_external boolean := false;
+  explicit_human boolean := false;
   explicit_evidence_gap boolean := false;
   no_retry_without_evidence boolean := false;
   internal_artifact boolean := false;
@@ -743,6 +889,7 @@ begin
   durable := coalesce(new.workflow_contract->>'contract_version','') <> '';
   evidence_external := new.execution_lane='evidence_producer' and coalesce(new.workflow_contract->>'runtime_required','false')='true';
   explicit_external := coalesce(new.blocked_reason,'') like 'EXTERNAL_%' or coalesce(new.blocked_reason,'') like 'INFRASTRUCTURE_RUNTIME_EVIDENCE_REQUIRED';
+  explicit_human := coalesce(new.blocked_reason,'') like 'HUMAN_%';
   explicit_evidence_gap := coalesce(new.blocked_reason,'') in ('VERIFIED_SOURCE_EVIDENCE_REQUIRED','AUTHENTIC_MEDIA_CAPTURE_REQUIRED','MEDIA_CAPTURE_CAPABILITY_UNAVAILABLE');
   no_retry_without_evidence := coalesce(new.workflow_contract->>'no_retry_without_new_evidence','false')='true';
   internal_artifact := coalesce(new.execution_lane,'llm_artifact')='llm_artifact'
@@ -758,6 +905,8 @@ begin
       new.status := 'blocked'; new.blocked_reason := 'REVIEW_PENDING'; new.next_eligible_at := null;
     elsif circuit_open then
       new.status := 'blocked'; new.blocked_reason := 'RETRY_CIRCUIT_OPEN'; new.next_eligible_at := null;
+    elsif explicit_human then
+      new.status := 'blocked'; new.next_eligible_at := null;
     elsif coalesce(new.completion_phase,'')='evidence_required' then
       new.status := 'blocked'; new.blocked_reason := coalesce(nullif(new.blocked_reason,''),'VERIFIED_SOURCE_EVIDENCE_REQUIRED'); new.next_eligible_at := null;
     else
@@ -769,6 +918,8 @@ begin
       new.blocked_reason := 'REVIEW_PENDING'; new.next_eligible_at := null;
     elsif circuit_open then
       new.blocked_reason := 'RETRY_CIRCUIT_OPEN'; new.next_eligible_at := null;
+    elsif explicit_human then
+      new.next_eligible_at := null;
     elsif explicit_evidence_gap or coalesce(new.completion_phase,'')='evidence_required' then
       new.blocked_reason := coalesce(nullif(new.blocked_reason,''),'VERIFIED_SOURCE_EVIDENCE_REQUIRED'); new.next_eligible_at := null;
     elsif evidence_external or explicit_external or no_retry_without_evidence then
@@ -6103,22 +6254,52 @@ CREATE FUNCTION public.contentflow_verified_external_evidence_context(p_project_
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
-  select string_agg(
-    format('type=%s | status=%s | verified=%s | source=%s | evidence=%s',
+with direct_evidence as (
+  select
+    1 as ord,
+    e.created_at,
+    e.id,
+    format('DIRECT VERIFIED EVIDENCE | type=%s | status=%s | verified=%s | source=%s | evidence=%s',
       e.evidence_type,
       e.status,
       e.verified,
       coalesce(e.source,''),
-      left(coalesce(e.evidence::text,'{}'),2000)
-    ),
-    E'\n---\n'
-    order by e.created_at desc, e.id desc
-  )
+      left(coalesce(e.evidence::text,'{}'),4000)
+    ) as ctx
   from public.director_external_evidence e
   where e.project_key=p_project_key
     and e.task_key=p_task_key
     and e.verified=true
-    and e.status='pass';
+    and e.status='pass'
+), dependency_evidence as (
+  select
+    2 as ord,
+    d.updated_at as created_at,
+    d.id,
+    format('VERIFIED DEPENDENCY RUNTIME EVIDENCE | task=%s | title=%s | status=%s | runtime_verified=%s | completion_phase=%s | evidence=%s',
+      d.task_key,
+      coalesce(d.title,''),
+      d.status,
+      d.runtime_verified,
+      coalesce(d.completion_phase,''),
+      left(coalesce(d.runtime_evidence::text,'{}'),12000)
+    ) as ctx
+  from public.contentflow_build_backlog t
+  cross join lateral jsonb_array_elements_text(coalesce(t.depends_on,'[]'::jsonb)) dep(value)
+  join public.contentflow_build_backlog d
+    on d.project_key=t.project_key and d.task_key=dep.value
+  where t.project_key=p_project_key
+    and t.task_key=p_task_key
+    and d.status='completed'
+    and d.runtime_verified=true
+    and coalesce(d.runtime_evidence,'{}'::jsonb) <> '{}'::jsonb
+)
+select string_agg(ctx,E'\n---\n' order by ord,created_at desc,id desc)
+from (
+  select * from direct_evidence
+  union all
+  select * from dependency_evidence
+) x;
 $$;
 
 
@@ -13063,5 +13244,5 @@ ALTER TABLE public.youtube_oauth_token_vault ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 5OSAd8DmasvfAlpLhQJRjXkf3KFFgN7d3qLxR4PmuI7ESLOPh6ciythhiBc0kNg
+\unrestrict BSwIaawn05utQ4lijTkFf9AKSTBx5FbZe6GlVYYOgkt0VRT09uNPtpQnFIkSIKW
 
