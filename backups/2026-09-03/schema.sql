@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 8phZErksHSE2hKB5DhSUJhYEcXckPPgMLeObrh38QZQKR6DGZc49QasaluYrAJL
+\restrict aKVnMgwIa5LHfhhhtYLuPBXa1yJYU1nnKCI0MqYALTh9Rlp6NiqP6jEWzPZ1rUl
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -1513,10 +1513,31 @@ begin
  select * into b from public.contentflow_build_backlog where id=r.backlog_task_id for update;
  if not found then return jsonb_build_object('applied',false,'reason','backlog_missing'); end if;
 
- -- Durable async-ACK race guard: an old collector could mark a run quality=0/failed
- -- on the HTTP 202 acknowledgement while the async runner was still working.
- -- If the same run later emitted successful judge+runner completion events, that
- -- failure is transport/control-plane noise and must never reopen a quality circuit.
+ cls:=public.contentflow_classify_run_error(r.error);
+
+ -- Human/external approval gates are durable waits, never technical retry failures.
+ if cls='human_external_gate' then
+   delete from public.contentflow_retry_state where backlog_task_id=b.id;
+   update public.contentflow_build_backlog
+      set status='blocked',
+          blocked_reason=case
+            when coalesce(r.error,'') ilike '%voice%' then 'HUMAN_FINAL_CYGNUS_VOICE_APPROVAL_REQUIRED'
+            else 'HUMAN_EXTERNAL_APPROVAL_REQUIRED'
+          end,
+          selected_model=null,
+          next_eligible_at=null,
+          workflow_state='external_approval_wait',
+          completion_phase='external_prerequisite',
+          updated_at=now()
+    where id=b.id;
+   insert into public.contentflow_runtime_event_ledger(project_key,builder_run_id,task_key,event_type,idempotency_key,actor,payload,trace_id)
+   values(b.project_key,r.id,b.task_key,'human_gate_isolated_from_retry',r.idempotency_key,'director_retry_policy',
+     jsonb_build_object('error_class',cls,'blocked_reason',case when coalesce(r.error,'') ilike '%voice%' then 'HUMAN_FINAL_CYGNUS_VOICE_APPROVAL_REQUIRED' else 'HUMAN_EXTERNAL_APPROVAL_REQUIRED' end,'retry_suppressed',true),r.trace_id)
+   on conflict do nothing;
+   return jsonb_build_object('applied',true,'action','human_gate_wait','class',cls,'task_key',b.task_key);
+ end if;
+
+ -- Durable async-ACK race guard.
  if coalesce(r.error,'') ilike '%quality_or_cost_gate_failed%' then
    select
      coalesce(bool_or((payload->>'pass')::boolean) filter(where event_type='judge_completed'),false),
@@ -1546,19 +1567,17 @@ begin
    end if;
  end if;
 
- cls:=public.contentflow_classify_run_error(r.error);
  select * into p from public.contentflow_retry_policies where error_class=cls;
+ if not found then
+   select * into p from public.contentflow_retry_policies where error_class='unknown';
+ end if;
  select * into s from public.contentflow_retry_state where backlog_task_id=b.id for update;
  if found and s.last_run_id=r.id then return jsonb_build_object('applied',false,'reason','already_processed','class',cls,'attempt',s.attempt_count); end if;
  att:=case when found and s.error_class=cls then s.attempt_count+1 else 1 end;
 
  select not exists(
-   select 1
-   from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) dep(value)
-   where not exists(
-     select 1 from public.contentflow_build_backlog d
-     where d.project_key=b.project_key and d.task_key=dep.value and d.status='completed'
-   )
+   select 1 from jsonb_array_elements_text(coalesce(b.depends_on,'[]'::jsonb)) dep(value)
+   where not exists(select 1 from public.contentflow_build_backlog d where d.project_key=b.project_key and d.task_key=dep.value and d.status='completed')
  ) into deps_complete;
 
  if p.retryable and att<=p.max_attempts then
@@ -1570,9 +1589,7 @@ begin
    insert into public.contentflow_retry_state(backlog_task_id,project_key,task_key,error_class,attempt_count,last_run_id,last_error,last_model,next_retry_at,circuit_state,circuit_open_until,updated_at)
    values(b.id,b.project_key,b.task_key,cls,att,r.id,r.error,r.selected_model,next_at,'cooldown',next_at,now())
    on conflict(backlog_task_id) do update set error_class=excluded.error_class,attempt_count=excluded.attempt_count,last_run_id=excluded.last_run_id,last_error=excluded.last_error,last_model=excluded.last_model,next_retry_at=excluded.next_retry_at,circuit_state='cooldown',circuit_open_until=excluded.circuit_open_until,updated_at=now();
-   update public.contentflow_build_backlog
-      set status=target_status,selected_model=null,next_eligible_at=next_at,updated_at=now()
-    where id=b.id and status in ('failed','blocked','ready','planned');
+   update public.contentflow_build_backlog set status=target_status,selected_model=null,next_eligible_at=next_at,updated_at=now() where id=b.id and status in ('failed','blocked','ready','planned');
    insert into public.contentflow_runtime_event_ledger(project_key,builder_run_id,task_key,event_type,idempotency_key,actor,payload,trace_id)
    values(b.project_key,r.id,b.task_key,'retry_scheduled',r.idempotency_key,'director_retry_policy',jsonb_build_object('error_class',cls,'attempt',att,'delay_seconds',delay_s,'next_retry_at',next_at,'switch_model',p.switch_model_on_retry,'dependencies_complete',deps_complete,'target_status',target_status),r.trace_id)
    on conflict do nothing;
@@ -2123,9 +2140,17 @@ CREATE FUNCTION public.contentflow_classify_run_error(p_error text) RETURNS text
     SET search_path TO 'public', 'pg_temp'
     AS $$
  select case
+   when coalesce(p_error,'') ilike '%voice not final%'
+     or coalesce(p_error,'') ilike '%voice_final=false%'
+     or coalesce(p_error,'') ilike '%publication_authorized=false%'
+     or coalesce(p_error,'') ilike '%final cygnus voice%approval%'
+     or coalesce(p_error,'') ilike '%human_final_%'
+     or coalesce(p_error,'') ilike '%owner approval%'
+     or coalesce(p_error,'') ilike '%human approval%'
+     then 'human_external_gate'
    when coalesce(p_error,'') ilike '%artifact_truncated%' or coalesce(p_error,'') ilike '%TRUNCATED_RESPONSE%' then 'artifact_truncation'
    when coalesce(p_error,'') ilike '%ARTIFACT_DEFECT%' or coalesce(p_error,'') ilike '%syntax error%' or coalesce(p_error,'') ilike '%prevents compilation%' then 'artifact_defect'
-   when coalesce(p_error,'') ilike '%EXTERNAL_APPROVAL_WAIT%' then 'acceptance_evidence'
+   when coalesce(p_error,'') ilike '%EXTERNAL_APPROVAL_WAIT%' then 'human_external_gate'
    when coalesce(p_error,'') ilike '%nexo_lane_capacity_limited%' or coalesce(p_error,'') ilike '%capacity%' or coalesce(p_error,'') ilike '%429%' or coalesce(p_error,'') ilike '%rate_limit%' then 'capacity'
    when coalesce(p_error,'') ilike '%judge_unavailable%' or coalesce(p_error,'') ilike '%judge_unavailable_or_unparseable%' then 'judge'
    when coalesce(p_error,'') ilike '%no_catalog_model_executable%' or coalesce(p_error,'') ilike '%worker_transport_failed%' or coalesce(p_error,'') ilike '%transport_failed%' or coalesce(p_error,'') ilike '%worker_provider_failed%' or coalesce(p_error,'') ilike '%provider_failed%' or coalesce(p_error,'') ilike '%runner_response_parse_failed%' or coalesce(p_error,'') ilike '%runner_response_parse%' or coalesce(p_error,'') ilike '%execution_failed%' then 'provider'
@@ -7927,7 +7952,7 @@ CREATE FUNCTION public.rara_classify_rejection(p_reason text) RETURNS text
     AS $$
 with x as (select lower(coalesce(p_reason,'')) s)
 select case
-  when s like '%legal%' or s like '%counsel%' or s like '%consent%' or s like '%biometric%' or s like '%privacy%' or s like '%purchase%' or s like '%cost authorization%' or s like '%gpu rental%' or s like '%production deploy%' or s like '%irreversible%' or s like '%owner approval%' then 'owner_required'
+  when s like '%voice not final%' or s like '%voice_final=false%' or s like '%publication_authorized=false%' or s like '%final cygnus voice%' or s like '%human approval%' or s like '%owner approval%' or s like '%legal%' or s like '%counsel%' or s like '%consent%' or s like '%biometric%' or s like '%privacy%' or s like '%purchase%' or s like '%cost authorization%' or s like '%gpu rental%' or s like '%production deploy%' or s like '%irreversible%' then 'owner_required'
   when s like '%vendor claim%' or s like '%benchmark result%' or s like '%independent verification%' or s like '%unverified hardware%' or s like '%unverified latency%' or s like '%route a%' or s like '%route b%' or s like '%route c%' or s like '%mapping%a/b/c%' then 'vendor_claim_not_benchmark'
   when (s like '%hardcod%' and (s like '%builder%' or s like '%execution%' or s like '%correlation%' or s like '%run id%' or s like '%run_id%')) or s like '%builder_run_id%' or s like '%run-specific%' then 'hardcoded_execution_identity'
   when s like '%placeholder%' or s like '%stub%' or s like '%scaffold%' or s like '%empty json%' or s like '%empty object%' then 'placeholder_or_stub'
@@ -18254,5 +18279,5 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 8phZErksHSE2hKB5DhSUJhYEcXckPPgMLeObrh38QZQKR6DGZc49QasaluYrAJL
+\unrestrict aKVnMgwIa5LHfhhhtYLuPBXa1yJYU1nnKCI0MqYALTh9Rlp6NiqP6jEWzPZ1rUl
 
