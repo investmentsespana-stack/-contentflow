@@ -110,7 +110,9 @@ jobs:
           [[ "$DATABASE_MIGRATION_HEAD" =~ ^[0-9]{14}$ ]]
 
           pg_dump "${DB_ARGS[@]}" --schema-only --no-owner --no-privileges --file "$DIR/schema.sql"
-          pg_dump "${DB_ARGS[@]}" --schema-only --schema=public --no-owner --no-privileges --file "$DIR/public-schema.sql"
+          # public-schema.sql is the restorable/certified artifact. Keep ACLs so an
+          # isolated restore reproduces the authorization surface, not only objects.
+          pg_dump "${DB_ARGS[@]}" --schema-only --schema=public --no-owner --file "$DIR/public-schema.sql"
           pg_dump "${DB_ARGS[@]}" --data-only --column-inserts --no-owner --no-privileges \
             --table=public.director_control_policy \
             --table=public.director_operating_rules \
@@ -129,6 +131,7 @@ jobs:
           grep -q "CREATE TABLE" "$DIR/schema.sql"
           grep -q "CREATE TABLE public\." "$DIR/public-schema.sql"
           grep -q "director_control_policy" "$DIR/runtime-control-data.sql"
+          grep -Eq '^(GRANT|REVOKE) ' "$DIR/public-schema.sql"
 
           PROJECT_REF=koqpyfvnprmirqviafzq \
           CREATED_AT_UTC="$(date -u +%FT%TZ)" \
