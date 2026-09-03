@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6ZySMAprL8Q2Ta7rC1SsF3QW7QuNz1WDRCRf8gbTVgVeVS4HkFautfwzc52cTLr
+\restrict CaMzzDsIS5m41KoA79aTH5SNwGImWT8PgkcppatsGfbFrTON9dsC9FOQrUcyLJM
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -3901,6 +3901,34 @@ CREATE FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() RET
 begin
   raise exception 'runtime_evidence_ledger_is_append_only';
 end $$;
+
+
+--
+-- Name: contentflow_guard_socialops_canonical_v3_legacy(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_guard_socialops_canonical_v3_legacy() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.project_key='agent-academy-platform-v1'
+     and new.task_key like 'academy_today_warmup_%'
+     and exists (
+       select 1 from public.contentflow_build_backlog c
+       where c.project_key=new.project_key
+         and c.task_key='academy_social_f02_capture_gate_v3'
+         and coalesce(c.workflow_state,'')<>'superseded'
+     ) then
+    new.status := 'deferred';
+    new.completion_phase := 'superseded';
+    new.workflow_state := 'superseded';
+    new.blocked_reason := 'SUPERSEDED_BY_ACADEMY_SOCIAL_WARMUP_DAG_V3';
+    new.next_eligible_at := null;
+  end if;
+  return new;
+end;
+$$;
 
 
 --
@@ -16499,6 +16527,13 @@ CREATE TRIGGER trg_contentflow_set_execution_lane BEFORE INSERT OR UPDATE OF tas
 
 
 --
+-- Name: contentflow_build_backlog trg_contentflow_socialops_canonical_v3_legacy_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contentflow_socialops_canonical_v3_legacy_guard BEFORE INSERT OR UPDATE ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_guard_socialops_canonical_v3_legacy();
+
+
+--
 -- Name: contentflow_build_backlog trg_contentflow_sync_help_and_dependents; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -18279,5 +18314,5 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6ZySMAprL8Q2Ta7rC1SsF3QW7QuNz1WDRCRf8gbTVgVeVS4HkFautfwzc52cTLr
+\unrestrict CaMzzDsIS5m41KoA79aTH5SNwGImWT8PgkcppatsGfbFrTON9dsC9FOQrUcyLJM
 

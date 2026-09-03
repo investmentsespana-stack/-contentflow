@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict SFcHCDf3QO6qxY4iu3AEG3DILwCr4krqIdBFLM6sIzANCuh0dMGpmMqW7K4fXnJ
+\restrict 41HwoY2wCOIxO2jbGbK3GSIx4VdYnOLxEKStCMuhVAHFILj5LsZnTCmIZc4M7gU
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -3129,6 +3129,34 @@ CREATE FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() RET
 begin
   raise exception 'runtime_evidence_ledger_is_append_only';
 end $$;
+
+
+--
+-- Name: contentflow_guard_socialops_canonical_v3_legacy(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_guard_socialops_canonical_v3_legacy() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.project_key='agent-academy-platform-v1'
+     and new.task_key like 'academy_today_warmup_%'
+     and exists (
+       select 1 from public.contentflow_build_backlog c
+       where c.project_key=new.project_key
+         and c.task_key='academy_social_f02_capture_gate_v3'
+         and coalesce(c.workflow_state,'')<>'superseded'
+     ) then
+    new.status := 'deferred';
+    new.completion_phase := 'superseded';
+    new.workflow_state := 'superseded';
+    new.blocked_reason := 'SUPERSEDED_BY_ACADEMY_SOCIAL_WARMUP_DAG_V3';
+    new.next_eligible_at := null;
+  end if;
+  return new;
+end;
+$$;
 
 
 --
@@ -11931,6 +11959,13 @@ CREATE TRIGGER trg_contentflow_set_execution_lane BEFORE INSERT OR UPDATE OF tas
 
 
 --
+-- Name: contentflow_build_backlog trg_contentflow_socialops_canonical_v3_legacy_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contentflow_socialops_canonical_v3_legacy_guard BEFORE INSERT OR UPDATE ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_guard_socialops_canonical_v3_legacy();
+
+
+--
 -- Name: contentflow_build_backlog trg_contentflow_sync_help_and_dependents; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14047,6 +14082,15 @@ GRANT ALL ON FUNCTION public.contentflow_guard_false_rara_evidence_v1() TO servi
 GRANT ALL ON FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() TO anon;
 GRANT ALL ON FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() TO authenticated;
 GRANT ALL ON FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() TO service_role;
+
+
+--
+-- Name: FUNCTION contentflow_guard_socialops_canonical_v3_legacy(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_socialops_canonical_v3_legacy() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_socialops_canonical_v3_legacy() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_socialops_canonical_v3_legacy() TO service_role;
 
 
 --
@@ -16182,5 +16226,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON T
 -- PostgreSQL database dump complete
 --
 
-\unrestrict SFcHCDf3QO6qxY4iu3AEG3DILwCr4krqIdBFLM6sIzANCuh0dMGpmMqW7K4fXnJ
+\unrestrict 41HwoY2wCOIxO2jbGbK3GSIx4VdYnOLxEKStCMuhVAHFILj5LsZnTCmIZc4M7gU
 
