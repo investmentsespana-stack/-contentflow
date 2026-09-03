@@ -102,6 +102,8 @@ if [[ "$CERTIFY_PARITY" == "1" ]]; then
   TARGET_SHA=$(sha256sum "$TMP/target.canonical.sql" | awk '{print $1}')
   if [[ "$SOURCE_SHA" != "$TARGET_SHA" ]]; then
     echo "schema parity failed: source=$SOURCE_SHA target=$TARGET_SHA" >&2
+    echo 'bounded canonical schema diff (first 200 lines):' >&2
+    diff -u "$TMP/source.canonical.sql" "$TMP/target.canonical.sql" | head -n 200 >&2 || true
     exit 6
   fi
   PARITY='passed'
