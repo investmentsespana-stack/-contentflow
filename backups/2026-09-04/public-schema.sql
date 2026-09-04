@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict GGLpgFpkU3g98ouatTbu0AzOIOh3X4kxeUL8KRDyzhwf8bRkTAH6J3fKGNPC5oS
+\restrict SXXZtel3hgXvGAv8dz5FaMBfidGy2Uo7CTfKk72LCu4g1EuJy47YJQlIslIzSId
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -3138,6 +3138,37 @@ CREATE FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable() RET
 begin
   raise exception 'runtime_evidence_ledger_is_append_only';
 end $$;
+
+
+--
+-- Name: contentflow_guard_social_ops_rara_voice_gate(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.contentflow_guard_social_ops_rara_voice_gate() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.task_key = 'academy_social_rara_final_f06_f09_v3'
+     and coalesce(new.patch_feedback,'') ilike '%VOICE_APPROVAL_RESOLVED%'
+     and exists (
+       select 1
+       from public.contentflow_build_backlog d
+       where d.project_key = new.project_key
+         and d.task_key = 'academy_social_revoice_f06_f09_bella_v1'
+         and not (d.status = 'completed' and coalesce(d.runtime_verified,false) = true)
+     )
+  then
+    new.status := 'blocked';
+    new.blocked_reason := 'BELLA_REVOICE_RUNTIME_EVIDENCE_REQUIRED';
+    new.workflow_state := 'external_prerequisite';
+    new.completion_phase := 'external_prerequisite';
+    new.selected_model := null;
+    new.next_eligible_at := null;
+  end if;
+  return new;
+end;
+$$;
 
 
 --
@@ -11907,6 +11938,13 @@ CREATE TRIGGER trg_contentflow_guard_dependency_graph BEFORE INSERT OR UPDATE OF
 
 
 --
+-- Name: contentflow_build_backlog trg_contentflow_guard_social_ops_rara_voice_gate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_contentflow_guard_social_ops_rara_voice_gate BEFORE INSERT OR UPDATE ON public.contentflow_build_backlog FOR EACH ROW EXECUTE FUNCTION public.contentflow_guard_social_ops_rara_voice_gate();
+
+
+--
 -- Name: director_repair_incidents trg_contentflow_incident_learning; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -14117,6 +14155,15 @@ GRANT ALL ON FUNCTION public.contentflow_guard_runtime_evidence_ledger_immutable
 
 
 --
+-- Name: FUNCTION contentflow_guard_social_ops_rara_voice_gate(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.contentflow_guard_social_ops_rara_voice_gate() TO anon;
+GRANT ALL ON FUNCTION public.contentflow_guard_social_ops_rara_voice_gate() TO authenticated;
+GRANT ALL ON FUNCTION public.contentflow_guard_social_ops_rara_voice_gate() TO service_role;
+
+
+--
 -- Name: FUNCTION contentflow_guard_socialops_canonical_v3_legacy(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -16258,5 +16305,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON T
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GGLpgFpkU3g98ouatTbu0AzOIOh3X4kxeUL8KRDyzhwf8bRkTAH6J3fKGNPC5oS
+\unrestrict SXXZtel3hgXvGAv8dz5FaMBfidGy2Uo7CTfKk72LCu4g1EuJy47YJQlIslIzSId
 
