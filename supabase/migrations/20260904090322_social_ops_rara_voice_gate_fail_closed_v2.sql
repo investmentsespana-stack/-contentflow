@@ -1,3 +1,5 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: function
 -- Reconciled from supabase_migrations.schema_migrations by recovery automation.
 -- Source: canonical production migration history; no credentials are emitted.
 -- Recertification marker: lineage reconciliation verified from canonical migration history.
