@@ -29,13 +29,14 @@ No retry policy, QA threshold, evidence contract, publication gate, GPU scheduli
 - No F02-F09 media was uploaded or published.
 - F10 remains HOLD.
 - Shared GPU was not used.
-- Existing pending RARA reviews are allowed to drain serially.
-- Post-deploy observation is not yet sufficient to declare all database timeout symptoms eliminated: a standalone statement timeout was still visible at 02:35:13 UTC. In the fetched post-deploy window, no new paired RARA invocation had yet appeared. Therefore this repair is considered deployed and advancing, but final lock-contention closure remains under observation.
+- Existing pending RARA reviews are intended to drain serially under cycles that start on v73.
+- A `contentflow-auto-loop` v72 invocation had already started at 02:35 UTC before v73 became active and completed at 02:35:55 UTC. That legacy in-flight v72 invocation subsequently emitted a final two-RARA pair that completed around 02:36:16–02:36:17 UTC. This pair is attributable to the already-running v72 process and is not evidence that v73 itself scheduled two workers.
+- A standalone statement timeout was also visible at 02:35:13 UTC. Because it occurred while the legacy v72 cycle was still in flight, final lock-contention closure must be judged from the first complete cycle that starts on v73, not from this overlap window.
 
 ## Blockers / limitations
 
 - Direct ad-hoc SQL inspection of backlog/task rows was blocked by the available tool safety layer in this run, so this report does not assert fresh F02-F09 row-level states beyond evidence actually observed through the control-plane/runtime surfaces.
-- The remaining standalone timeout must be attributed before any further database-level repair. Do not assume it is RARA if it persists after serialization.
+- The first full v73-started review cycle had not completed at the time of this report. Therefore no claim is made yet that every statement timeout is resolved.
 
 ## Tasks completed in this block
 
@@ -43,12 +44,13 @@ No retry policy, QA threshold, evidence contract, publication gate, GPU scheduli
 2. Identified the fanout source in the auto-loop.
 3. Patched the repository structurally.
 4. Deployed `contentflow-auto-loop` v73 to production.
-5. Preserved all Social Ops publication and GPU safety gates.
+5. Distinguished the last in-flight v72 RARA pair from future v73 behavior.
+6. Preserved all Social Ops publication and GPU safety gates.
 
 ## Reassignable / parallel work
 
-CPU evidence collection, editing preparation, deterministic QA and non-GPU handoff work may continue in parallel. RARA review application should remain serialized until lock telemetry is clean across subsequent cycles.
+CPU evidence collection, editing preparation, deterministic QA and non-GPU handoff work may continue in parallel. RARA review application should remain serialized until lock telemetry is clean across subsequent v73 cycles.
 
 ## Next step
 
-Observe at least the next complete auto-loop/RARA cycle. If RARA appears once per cycle and ShareLock waits disappear, retain serialization. If statement timeouts persist without duplicate RARA, identify the exact remaining lock holder / query path and repair that component rather than reopening RARA parallelism.
+Observe the first complete `contentflow-auto-loop` cycle whose invocation starts on v73. If RARA appears at most once from that cycle and ShareLock waits disappear, retain serialization. If statement timeouts persist without duplicate RARA, identify the exact remaining lock holder / query path and repair that component rather than reopening RARA parallelism.
