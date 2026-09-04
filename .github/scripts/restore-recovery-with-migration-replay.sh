@@ -33,13 +33,16 @@ if [[ "$PUBLIC_OBJECTS" != "0" ]]; then
   exit 4
 fi
 
-# A freshly initialized PostgreSQL database already contains an empty public schema,
-# while pg_dump --schema-only may emit CREATE SCHEMA public. After proving the target
-# has no public objects, remove only that empty bootstrap schema so the committed dump
-# can recreate it deterministically. This keeps the clean-target guard fail-closed.
+# PostgreSQL initializes `public` with bootstrap ownership/ACL semantics that pg_dump
+# treats as the schema's default baseline. Dropping that empty bootstrap schema and
+# recreating it with plain CREATE SCHEMA changes the baseline (notably PUBLIC USAGE),
+# causing a false ACL drift even when the committed Supabase dump is faithfully replayed.
+# Keep the proven-empty bootstrap schema and suppress only the dump's CREATE SCHEMA line;
+# every real public object, comment, ACL, policy, and grant still replays from the artifact.
 PUBLIC_SCHEMA_EXISTS=$(psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -Atqc "select count(*) from pg_namespace where nspname='public';")
-if [[ "$PUBLIC_SCHEMA_EXISTS" == "1" ]]; then
-  psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public;' >/dev/null
+if [[ "$PUBLIC_SCHEMA_EXISTS" != "1" ]]; then
+  echo 'target public schema bootstrap is missing; refusing non-canonical restore' >&2
+  exit 4
 fi
 
 # The committed public-only Supabase dump legitimately references auth.users,
@@ -70,7 +73,10 @@ LANGUAGE sql STABLE
 AS $$ SELECT NULL::uuid $$;
 SQL
 
-psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/public-schema.sql"
+FILTERED_PUBLIC_SCHEMA=$(mktemp)
+trap 'rm -f "$FILTERED_PUBLIC_SCHEMA"' EXIT
+sed '/^CREATE SCHEMA public;$/d' "$SNAPSHOT_DIR/public-schema.sql" > "$FILTERED_PUBLIC_SCHEMA"
+psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$FILTERED_PUBLIC_SCHEMA"
 psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f "$SNAPSHOT_DIR/runtime-control-data.sql"
 
 mapfile -t REPLAY_FILES < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | LC_ALL=C sort | awk -v cutoff="$CUTOFF" '$0 > cutoff')
@@ -96,7 +102,7 @@ TARGET_SHA=''
 if [[ "$CERTIFY_PARITY" == "1" ]]; then
   [[ -n "$SOURCE_DB_URL" ]] || { echo 'SOURCE_DB_URL is required when CERTIFY_PARITY=1' >&2; exit 5; }
   TMP=$(mktemp -d)
-  trap 'rm -rf "$TMP"' EXIT
+  trap 'rm -rf "$TMP"; rm -f "$FILTERED_PUBLIC_SCHEMA"' EXIT
   pg_dump "$SOURCE_DB_URL" --schema-only --schema=public --no-owner --file "$TMP/source.sql"
   pg_dump "$TARGET_DB_URL" --schema-only --schema=public --no-owner --file "$TMP/target.sql"
   canonicalize_dump "$TMP/source.sql" > "$TMP/source.canonical.sql"
