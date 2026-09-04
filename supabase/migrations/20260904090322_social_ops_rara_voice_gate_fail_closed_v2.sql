@@ -14,7 +14,7 @@ begin
        select 1
        from public.contentflow_build_backlog d
        where d.project_key = new.project_key
-         and d.task_key = 'academy_social_revoice_f06_f09_bella_revoice_v1'
+         and d.task_key = 'academy_social_revoice_f06_f09_bella_v1'
          and not (d.status = 'completed' and coalesce(d.runtime_verified,false) = true)
      )
   then
