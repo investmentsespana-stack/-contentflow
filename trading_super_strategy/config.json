@@ -1,0 +1,27 @@
+{
+  "project": "Super Estrategia Adaptativa",
+  "version": "0.4",
+  "timezone": "America/New_York",
+  "anchor_candle": {"start": "09:00", "end": "12:00"},
+  "entry_window": {"start": "09:00", "end": "11:30"},
+  "markets": ["NQ.v.0", "ES.v.0", "YM.v.0", "RTY.v.0"],
+  "phase_context": {
+    "09:00-10:00": "context/manipulation-or-continuation",
+    "10:00-11:00": "distribution/continuation candidate",
+    "11:00-11:30": "late distribution/management",
+    "11:30-12:00": "observe only"
+  },
+  "confirmations": {
+    "required": 4,
+    "total": 5,
+    "blocks": [
+      "ny_9_12_context",
+      "structure_liquidity",
+      "flow_volume",
+      "cross_market",
+      "strategy_pool"
+    ],
+    "macro_fundamental": "modifier_and_veto"
+  },
+  "execution": {"live_money": false, "mode": "research_paper_only"}
+}
