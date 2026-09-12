@@ -1,27 +1,66 @@
 {
   "project": "Super Estrategia Adaptativa",
-  "version": "0.4",
+  "version": "0.5",
   "timezone": "America/New_York",
-  "anchor_candle": {"start": "09:00", "end": "12:00"},
-  "entry_window": {"start": "09:00", "end": "11:30"},
   "markets": ["NQ.v.0", "ES.v.0", "YM.v.0", "RTY.v.0"],
-  "phase_context": {
-    "09:00-10:00": "context/manipulation-or-continuation",
-    "10:00-11:00": "distribution/continuation candidate",
-    "11:00-11:30": "late distribution/management",
-    "11:30-12:00": "observe only"
+  "operation": {
+    "connected_mode": "24x5_research_paper",
+    "fixed_entry_window": null,
+    "time_is_feature_not_rule": true,
+    "session_contexts": ["asia", "london_europe", "new_york", "session_transition"],
+    "session_open_emphasis": true,
+    "legacy_ny_09_12": "research_hypothesis_only"
   },
+  "context_features": [
+    "session",
+    "minutes_from_session_open",
+    "volatility_regime",
+    "structure_liquidity",
+    "flow_volume",
+    "cross_market",
+    "macro_event_risk"
+  ],
   "confirmations": {
     "required": 4,
     "total": 5,
     "blocks": [
-      "ny_9_12_context",
+      "context_regime",
       "structure_liquidity",
       "flow_volume",
       "cross_market",
-      "strategy_pool"
+      "strategy_synergy"
     ],
     "macro_fundamental": "modifier_and_veto"
   },
-  "execution": {"live_money": false, "mode": "research_paper_only"}
+  "strategy_synergy": {
+    "single_position_plan": true,
+    "independent_strategy_orders": false,
+    "require_directional_compatibility": true,
+    "require_principle_compatibility": true,
+    "prefer_error_diversity": true,
+    "conditional_on_regime_session_volatility": true,
+    "optimize": [
+      "win_rate",
+      "expectancy",
+      "profit_factor",
+      "drawdown",
+      "oos_stability",
+      "diversity",
+      "execution_cost"
+    ],
+    "anti_overfit": ["walk_forward", "oos", "cscv_pbo", "deflated_sharpe"]
+  },
+  "exit_engine": {
+    "coordinated_target": true,
+    "strategy_specific_competing_targets": false,
+    "adaptive_risk_reward": true,
+    "allow_negative_rr_when_positive_ev": true,
+    "candidate_reward_r": [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0],
+    "uses": ["session", "volatility", "structure", "liquidity", "mfe_mae", "order_flow", "regime", "time_in_trade"]
+  },
+  "execution": {
+    "live_money": false,
+    "mode": "research_paper_only",
+    "fail_closed": true
+  }
 }
