@@ -1,0 +1,45 @@
+name: Trading Real Strategy Discovery
+
+on:
+  push:
+    paths:
+      - '.github/workflows/trading-real-strategy-discovery.yml'
+  workflow_dispatch:
+    inputs:
+      sessions:
+        description: 'Completed weekday sessions to study'
+        required: false
+        default: '10'
+      cost_r:
+        description: 'Execution cost assumption in R per trade'
+        required: false
+        default: '0.03'
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      DISCOVERY_SESSIONS: ${{ github.event.inputs.sessions || '10' }}
+      DISCOVERY_COST_R: ${{ github.event.inputs.cost_r || '0.03' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install --upgrade databento pandas
+      - name: Run real-data strategy coalition discovery
+        run: python trading_super_strategy/real_strategy_discovery.py
+      - name: Upload discovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-real-strategy-discovery
+          path: strategy_discovery_output/
+          retention-days: 30
