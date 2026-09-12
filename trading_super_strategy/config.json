@@ -1,6 +1,6 @@
 {
   "project": "Super Estrategia Adaptativa",
-  "version": "0.8",
+  "version": "0.9",
   "timezone": "America/New_York",
   "markets": ["NQ.v.0", "ES.v.0", "YM.v.0", "RTY.v.0"],
   "operation": {
@@ -119,6 +119,27 @@
     "same_coalition_may_rank_differently_by_firm_plan_phase": true,
     "negative_rr_is_candidate_not_default": true,
     "reject_if_oos_ev_turns_negative": true
+  },
+  "agent_pool": {
+    "enabled": true,
+    "config_file": "agent_pool_config.json",
+    "director_review_interval_minutes": 5,
+    "qa_required_before_done": true,
+    "repair_on_qa_rejection": true,
+    "parallel_research": true,
+    "roles": [
+      "director",
+      "strategy_builder",
+      "coalition_researcher",
+      "backtest_agent",
+      "robustness_agent",
+      "prop_firm_agent",
+      "macro_agent",
+      "microstructure_agent",
+      "qa_judge",
+      "rara_repair"
+    ],
+    "agents_can_execute_broker_orders": false
   },
   "execution": {
     "live_money": false,
