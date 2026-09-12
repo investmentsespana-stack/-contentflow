@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict
 
 
 @dataclass(frozen=True)
@@ -14,18 +14,18 @@ class ConfirmationResult:
 class ConfirmationEngine:
     """Fail-closed 4-of-5 confirmation gate.
 
-    The five blocks are intentionally independent families of evidence:
-    NY 09-12 context, structure/liquidity, flow/volume, cross-market,
-    and strategy-pool agreement. Macro/fundamental is not counted as a
-    sixth vote; it modifies confidence and can veto the trade.
+    The five blocks are independent evidence families and are not tied to a
+    fixed clock window. Time/session is contextual evidence, not a mandatory
+    trading schedule. Macro/fundamental remains a confidence modifier and can
+    veto the trade without becoming an extra confirmation vote.
     """
 
     BLOCKS = (
-        "ny_9_12_context",
+        "context_regime",
         "structure_liquidity",
         "flow_volume",
         "cross_market",
-        "strategy_pool",
+        "strategy_synergy",
     )
 
     def __init__(self, required: int = 4):
