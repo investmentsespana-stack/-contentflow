@@ -10,17 +10,22 @@ class CoalitionBacktesterTests(unittest.TestCase):
 
     def _events(self):
         events = []
-        # LONG specialist pair A+B: B filters A's losing long signals.
+        # LONG specialist pair A+B: each has false positives alone, while their
+        # agreement filters those losing signals.
         for _ in range(30):
             events.append(BacktestEvent(self.context, {"A": 1, "B": 1}, 0.5, -0.5, 0.02))
         for _ in range(10):
             events.append(BacktestEvent(self.context, {"A": 1, "B": 0}, -1.0, 0.2, 0.02))
+        for _ in range(10):
+            events.append(BacktestEvent(self.context, {"A": 0, "B": 1}, -1.0, 0.2, 0.02))
 
-        # SHORT specialist pair C+D: D filters C's losing short signals.
+        # SHORT specialist pair C+D behaves asymmetrically and independently.
         for _ in range(30):
             events.append(BacktestEvent(self.context, {"C": -1, "D": -1}, -0.5, 0.5, 0.02))
         for _ in range(10):
             events.append(BacktestEvent(self.context, {"C": -1, "D": 0}, 0.2, -1.0, 0.02))
+        for _ in range(10):
+            events.append(BacktestEvent(self.context, {"C": 0, "D": -1}, 0.2, -1.0, 0.02))
         return events
 
     def test_long_and_short_can_have_different_optimal_groups(self):
