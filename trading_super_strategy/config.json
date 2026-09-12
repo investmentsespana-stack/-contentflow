@@ -1,6 +1,6 @@
 {
   "project": "Super Estrategia Adaptativa",
-  "version": "0.6",
+  "version": "0.8",
   "timezone": "America/New_York",
   "markets": ["NQ.v.0", "ES.v.0", "YM.v.0", "RTY.v.0"],
   "operation": {
@@ -54,7 +54,10 @@
         "trend_regime",
         "structure_regime"
       ],
-      "rank_separately": ["long", "short"]
+      "rank_separately": ["long", "short"],
+      "min_sample_required": true,
+      "positive_expectancy_required": true,
+      "single_coordinated_trade_outcome": true
     },
     "optimize": [
       "win_rate",
@@ -64,8 +67,7 @@
       "oos_stability",
       "diversity",
       "execution_cost"
-    ],
-    "anti_overfit": ["walk_forward", "oos", "cscv_pbo", "deflated_sharpe"]
+    ]
   },
   "regime_routing": {
     "bullish": "best_valid_long_coalition",
@@ -79,8 +81,44 @@
     "strategy_specific_competing_targets": false,
     "adaptive_risk_reward": true,
     "allow_negative_rr_when_positive_ev": true,
-    "candidate_reward_r": [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0],
+    "candidate_reward_r": [0.25, 0.4, 0.5, 0.7, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0],
     "uses": ["session", "volatility", "structure", "liquidity", "mfe_mae", "order_flow", "regime", "time_in_trade"]
+  },
+  "robustness_gate": {
+    "mandatory": true,
+    "tests": [
+      "train_validation_oos",
+      "walk_forward",
+      "monte_carlo_trade_bootstrap",
+      "missed_trade_stress",
+      "slippage_cost_stress",
+      "parameter_perturbation",
+      "latency_fill_stress",
+      "coalition_member_dropout",
+      "cscv_pbo",
+      "deflated_sharpe",
+      "regime_stress"
+    ],
+    "promotion_requires_positive_oos_expectancy": true,
+    "promotion_requires_survival_under_stress": true
+  },
+  "prop_firm": {
+    "enabled_for_research": true,
+    "profiles_file": "prop_firm_profiles.json",
+    "refresh_rules_before_execution": true,
+    "fitness_objective": [
+      "payout_probability",
+      "account_survival_probability",
+      "robust_expectancy",
+      "consistency_score",
+      "time_to_payout",
+      "breach_risk",
+      "drawdown_penalty",
+      "execution_cost"
+    ],
+    "same_coalition_may_rank_differently_by_firm_plan_phase": true,
+    "negative_rr_is_candidate_not_default": true,
+    "reject_if_oos_ev_turns_negative": true
   },
   "execution": {
     "live_money": false,
