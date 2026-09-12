@@ -1,0 +1,130 @@
+name: Databento NY 9-12 Real Sample
+
+on:
+  push:
+    paths:
+      - '.github/workflows/databento-ny-sample.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-real-ny-sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade databento pandas
+
+      - name: Fetch real CME NY 9-12 sample
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import pandas as pd
+          import databento as db
+
+          key = os.getenv('DATABENTO_API_KEY', '')
+          if not key:
+              raise SystemExit('DATABENTO_API_KEY secret is missing')
+
+          # Most recent completed weekday before this workflow was created.
+          # 2026-09-11 09:00-12:00 America/New_York = 13:00-16:00 UTC.
+          start = '2026-09-11T13:00:00Z'
+          end = '2026-09-11T16:00:00Z'
+          symbols = ['NQ.v.0', 'ES.v.0', 'YM.v.0', 'RTY.v.0']
+
+          client = db.Historical(key)
+          data = client.timeseries.get_range(
+              dataset='GLBX.MDP3',
+              schema='ohlcv-1m',
+              stype_in='continuous',
+              symbols=symbols,
+              start=start,
+              end=end,
+          )
+          df = data.to_df()
+          if df.empty:
+              raise SystemExit('No records returned')
+
+          if 'symbol' not in df.columns:
+              raise SystemExit(f"Expected symbol column not found. Columns={list(df.columns)}")
+
+          out = Path('databento_real_sample')
+          out.mkdir(exist_ok=True)
+          df.reset_index().to_csv(out / 'ny_2026-09-11_1m.csv', index=False)
+
+          idx = pd.DatetimeIndex(df.index)
+          if idx.tz is None:
+              idx = idx.tz_localize('UTC')
+          local = idx.tz_convert('America/New_York')
+          work = df.copy()
+          work['local_time'] = local
+
+          segments = {
+              '09-10': ('09:00', '10:00'),
+              '10-11': ('10:00', '11:00'),
+              '11-12': ('11:00', '12:00'),
+              '09-12': ('09:00', '12:00'),
+          }
+
+          summary = {
+              'date': '2026-09-11',
+              'timezone': 'America/New_York',
+              'dataset': 'GLBX.MDP3',
+              'schema': 'ohlcv-1m',
+              'symbols_requested': symbols,
+              'rows_total': int(len(work)),
+              'segments': {},
+          }
+
+          for symbol, g in work.groupby('symbol'):
+              symbol_summary = {}
+              for label, (start_hm, end_hm) in segments.items():
+                  sh, sm = map(int, start_hm.split(':'))
+                  eh, em = map(int, end_hm.split(':'))
+                  mins = g['local_time'].dt.hour * 60 + g['local_time'].dt.minute
+                  lo = sh * 60 + sm
+                  hi = eh * 60 + em
+                  s = g[(mins >= lo) & (mins < hi)]
+                  if s.empty:
+                      symbol_summary[label] = {'rows': 0}
+                      continue
+                  open_px = float(s.iloc[0]['open'])
+                  close_px = float(s.iloc[-1]['close'])
+                  high_px = float(s['high'].max())
+                  low_px = float(s['low'].min())
+                  symbol_summary[label] = {
+                      'rows': int(len(s)),
+                      'open': open_px,
+                      'high': high_px,
+                      'low': low_px,
+                      'close': close_px,
+                      'range_points': high_px - low_px,
+                      'net_points': close_px - open_px,
+                      'volume': int(s['volume'].sum()),
+                  }
+              summary['segments'][str(symbol)] = symbol_summary
+
+          with open(out / 'summary.json', 'w', encoding='utf-8') as f:
+              json.dump(summary, f, indent=2)
+
+          print('DATABENTO_REAL_SAMPLE_OK')
+          print(json.dumps(summary, indent=2))
+          PY
+
+      - name: Upload real-data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: databento-ny-2026-09-11-real-sample
+          path: databento_real_sample/
+          retention-days: 14
