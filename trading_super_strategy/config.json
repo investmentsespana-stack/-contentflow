@@ -1,6 +1,6 @@
 {
   "project": "Super Estrategia Adaptativa",
-  "version": "0.5",
+  "version": "0.6",
   "timezone": "America/New_York",
   "markets": ["NQ.v.0", "ES.v.0", "YM.v.0", "RTY.v.0"],
   "operation": {
@@ -15,6 +15,7 @@
     "session",
     "minutes_from_session_open",
     "volatility_regime",
+    "trend_regime",
     "structure_liquidity",
     "flow_volume",
     "cross_market",
@@ -39,6 +40,22 @@
     "require_principle_compatibility": true,
     "prefer_error_diversity": true,
     "conditional_on_regime_session_volatility": true,
+    "directional_asymmetry_allowed": true,
+    "search_long_and_short_separately": true,
+    "same_strategy_may_have_different_long_short_quality": true,
+    "combination_search": {
+      "mode": "backtest_combinatorial",
+      "member_sizes": [2, 3, 4],
+      "partition_by": [
+        "instrument",
+        "session",
+        "minutes_from_session_open",
+        "volatility_regime",
+        "trend_regime",
+        "structure_regime"
+      ],
+      "rank_separately": ["long", "short"]
+    },
     "optimize": [
       "win_rate",
       "expectancy",
@@ -49,6 +66,13 @@
       "execution_cost"
     ],
     "anti_overfit": ["walk_forward", "oos", "cscv_pbo", "deflated_sharpe"]
+  },
+  "regime_routing": {
+    "bullish": "best_valid_long_coalition",
+    "bearish": "best_valid_short_coalition",
+    "sideways": "NO_TRADE",
+    "unclear": "NO_TRADE",
+    "fail_closed": true
   },
   "exit_engine": {
     "coordinated_target": true,
