@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cygnusacademyai.com/schemas/clipper-provenance-v1.json",
+  "title": "Cygnus Clipper Provenance V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "source_segment_id",
+    "rights_status",
+    "source_start_ms",
+    "source_end_ms",
+    "transcript_sha256",
+    "clip_id",
+    "publication_authorized"
+  ],
+  "properties": {
+    "source_id": {"type": "string", "minLength": 1},
+    "source_segment_id": {"type": "string", "minLength": 1},
+    "source_title": {"type": "string"},
+    "source_uri": {"type": ["string", "null"]},
+    "rights_status": {"enum": ["owned", "licensed", "authorized"]},
+    "rights_evidence_ref": {"type": ["string", "null"]},
+    "source_start_ms": {"type": "integer", "minimum": 0},
+    "source_end_ms": {"type": "integer", "minimum": 1},
+    "transcript": {"type": "string"},
+    "transcript_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "clip_id": {"type": "string", "minLength": 1},
+    "parent_clip_id": {"type": ["string", "null"]},
+    "edit_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "scorer_version": {"type": ["string", "null"]},
+    "qa_state": {"enum": ["pending", "pass", "reject"]},
+    "qa_receipt_ref": {"type": ["string", "null"]},
+    "publication_authorized": {"const": false},
+    "platform_variants": {
+      "type": "array",
+      "items": {"enum": ["tiktok", "instagram_reels", "youtube_shorts", "facebook"]},
+      "uniqueItems": true
+    },
+    "analytics_tracking_id": {"type": ["string", "null"]},
+    "created_at": {"type": ["string", "null"], "format": "date-time"}
+  }
+}
