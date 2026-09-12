@@ -3,6 +3,7 @@ name: Trading Super Strategy CI
 on:
   push:
     paths:
+      - 'trading_super_strategy/**'
       - '.github/workflows/trading-super-strategy-ci.yml'
   workflow_dispatch:
 
@@ -19,6 +20,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Run confirmation engine tests
+      - name: Run trading super strategy tests
         working-directory: trading_super_strategy
-        run: python -m unittest -v test_confirmation_engine.py
+        run: python -m unittest discover -v -p 'test_*.py'
