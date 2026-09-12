@@ -1,0 +1,40 @@
+name: Trading NY 9-12 Historical Study
+
+on:
+  push:
+    paths:
+      - '.github/workflows/trading-ny-history-study.yml'
+  workflow_dispatch:
+    inputs:
+      sessions:
+        description: 'Number of completed weekday sessions to study'
+        required: false
+        default: '15'
+
+permissions:
+  contents: read
+
+jobs:
+  ny-history-study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      STUDY_SESSIONS: ${{ github.event.inputs.sessions || '15' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install --upgrade databento pandas
+      - name: Run NY 9-12 multi-session study
+        run: python trading_super_strategy/ny_history_study.py
+      - name: Upload study artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-ny-9-12-history-study
+          path: trading_study_output/
+          retention-days: 30
