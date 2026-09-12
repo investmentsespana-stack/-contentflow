@@ -1,0 +1,39 @@
+{
+  "version": "0.9",
+  "mode": "research_paper_only",
+  "live_money": false,
+  "order_execution_authority_for_agents": false,
+  "director_cycle": {
+    "review_interval_minutes": 5,
+    "max_attempts_before_block": 3,
+    "qa_required_before_done": true,
+    "repair_on_rejection": true
+  },
+  "model_slots": {
+    "production": "primary_research_model",
+    "qa_judge": "independent_judge_model",
+    "fallback": "repair_fallback_model"
+  },
+  "agents": [
+    {"name": "director", "role": "director", "capabilities": ["planning", "coordination", "data_quality"]},
+    {"name": "strategy_builder", "role": "research", "capabilities": ["strategy_research"]},
+    {"name": "coalition_researcher", "role": "research", "capabilities": ["coalition_research"]},
+    {"name": "backtest_agent", "role": "research", "capabilities": ["backtest", "walk_forward"]},
+    {"name": "robustness_agent", "role": "research", "capabilities": ["robustness", "monte_carlo", "anti_overfit"]},
+    {"name": "prop_firm_agent", "role": "research", "capabilities": ["prop_firm"]},
+    {"name": "macro_agent", "role": "research", "capabilities": ["macro_fundamental"]},
+    {"name": "microstructure_agent", "role": "research", "capabilities": ["order_flow", "mbo", "mbp", "liquidity"]},
+    {"name": "qa_judge", "role": "qa_judge", "capabilities": ["qa_judge"]},
+    {"name": "rara_repair", "role": "repair", "capabilities": ["repair", "root_cause"]}
+  ],
+  "initial_parallel_mission": [
+    {"task_id": "STRAT-001", "task_type": "strategy_generation", "objective": "Expand deterministic strategy families and directional variants."},
+    {"task_id": "COAL-001", "task_type": "coalition_discovery", "objective": "Search compatible LONG and SHORT coalitions by context."},
+    {"task_id": "BT-001", "task_type": "backtest", "objective": "Run train/validation/OOS and compare coalitions against individual baselines."},
+    {"task_id": "ROB-001", "task_type": "monte_carlo", "objective": "Run Monte Carlo, cost, missed-trade, parameter and coalition-dropout stress."},
+    {"task_id": "PROP-001", "task_type": "prop_firm_simulation", "objective": "Rank coalitions by payout and account-survival probability under prop-firm profiles."},
+    {"task_id": "MACRO-001", "task_type": "macro_context", "objective": "Define point-in-time macro/event features and veto interface."},
+    {"task_id": "FLOW-001", "task_type": "microstructure_research", "objective": "Build MBP/MBO liquidity, absorption, stacking/pulling and queue-pressure features."},
+    {"task_id": "DATA-001", "task_type": "data_quality", "objective": "Audit timestamp, gaps, symbol mapping, costs and no-lookahead assumptions."}
+  ]
+}
