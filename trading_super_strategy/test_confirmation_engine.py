@@ -6,11 +6,11 @@ class ConfirmationEngineTests(unittest.TestCase):
     def setUp(self):
         self.engine = ConfirmationEngine(required=4)
         self.base = {
-            "ny_9_12_context": True,
+            "context_regime": True,
             "structure_liquidity": True,
             "flow_volume": True,
             "cross_market": True,
-            "strategy_pool": False,
+            "strategy_synergy": False,
         }
 
     def test_four_of_five_is_candidate(self):
@@ -30,6 +30,13 @@ class ConfirmationEngineTests(unittest.TestCase):
         self.assertFalse(result.candidate)
         self.assertTrue(result.vetoed)
         self.assertEqual(result.reason, "DATA_UNSAFE")
+
+    def test_missing_context_fails_closed(self):
+        broken = dict(self.base)
+        broken.pop("context_regime")
+        result = self.engine.evaluate(broken)
+        self.assertTrue(result.vetoed)
+        self.assertTrue(result.reason.startswith("MISSING:"))
 
 
 if __name__ == "__main__":
