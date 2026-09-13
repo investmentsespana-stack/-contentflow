@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'trading_super_strategy/phase3_risk_gate_v2_resilient.py'
+      - 'trading_super_strategy/phase3_risk_gate_v2_data_cache.py'
+      - 'trading_super_strategy/phase3_risk_gate_v2_cached_runner.py'
       - '.github/workflows/trading-phase3-risk-gate-v2-es-recovery.yml'
 
 permissions:
@@ -13,9 +15,45 @@ permissions:
   actions: read
 
 jobs:
-  phase3-risk-gate-v2-es-recovery:
+  download-es-data:
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 150
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      PHASE3_SYMBOL: 'ES.v.0'
+      PHASE3_START_DATE: '2022-09-01'
+      PHASE3_END_DATE: '2025-09-24'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install transport dependencies
+        run: python -m pip install --upgrade databento pandas pyarrow
+
+      - name: Compile resilient data cache
+        run: |
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_resilient.py
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_data_cache.py
+
+      - name: Download and persist ES validation data
+        working-directory: trading_super_strategy
+        run: python phase3_risk_gate_v2_data_cache.py
+
+      - name: Upload immutable ES data checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-phase3-risk-v2-ES.v.0-data-cache
+          path: trading_super_strategy/phase3_risk_gate_v2_data_cache/
+          if-no-files-found: error
+          retention-days: 30
+
+  calculate-es-risk-gate-v2:
+    needs: download-es-data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
     env:
       DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
       PHASE3_SYMBOL: 'ES.v.0'
@@ -35,6 +73,7 @@ jobs:
       PHASE3_V2_SURVIVOR_POOL_TRIALS: '165'
       PHASE3_V2_FULL_SEARCH_TRIALS: '833140'
       PHASE3_V2_PBO_MAX: '0.50'
+      PHASE3_V2_INPUT_PARQUET: 'phase3_risk_gate_v2_data_cache/ES.v.0.parquet'
     steps:
       - uses: actions/checkout@v4
 
@@ -42,8 +81,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: python -m pip install --upgrade databento pandas
+      - name: Install calculation dependencies
+        run: python -m pip install --upgrade databento pandas pyarrow
 
       - name: Download Phase 2 60-session survivor artifact
         uses: actions/download-artifact@v4
@@ -72,14 +111,20 @@ jobs:
           repository: ${{ github.repository }}
           run-id: '34761821904'
 
-      - name: Compile resilient Risk Gate V2
+      - name: Download ES data checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase3-risk-v2-ES.v.0-data-cache
+          path: trading_super_strategy/phase3_risk_gate_v2_data_cache
+
+      - name: Compile cached Risk Gate V2
         run: |
           python -m py_compile trading_super_strategy/phase3_risk_gate_v2.py
-          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_resilient.py
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_cached_runner.py
 
-      - name: Run ES resilient Risk Gate V2
+      - name: Run ES Risk Gate V2 from checkpoint
         working-directory: trading_super_strategy
-        run: python phase3_risk_gate_v2_resilient.py
+        run: python phase3_risk_gate_v2_cached_runner.py
 
       - name: Upload Phase 3 V2 ES recovery evidence
         if: always()
