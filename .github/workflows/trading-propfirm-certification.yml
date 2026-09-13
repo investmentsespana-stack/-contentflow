@@ -1,0 +1,25 @@
+name: Trading PropFirm Certification
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/propfirm.py'
+      - 'trading_super_strategy/tests/test_propfirm.py'
+      - '.github/workflows/trading-propfirm-certification.yml'
+  workflow_dispatch:
+
+jobs:
+  propfirm-certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile prop firm engine and tests
+        run: |
+          python -m py_compile trading_super_strategy/propfirm.py trading_super_strategy/tests/test_propfirm.py
+      - name: Run deterministic prop firm tests
+        run: |
+          python -m unittest -v trading_super_strategy.tests.test_propfirm
