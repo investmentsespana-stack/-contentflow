@@ -1,0 +1,143 @@
+name: Trading Regime ABC RTY YM NQ
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trading-regime-abc-rty-ym-nq.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  market-cache:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        symbol: ['RTY.v.0','YM.v.0','NQ.v.0']
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      PHASE3_SYMBOL: ${{ matrix.symbol }}
+      PHASE3_START_DATE: '2022-09-01'
+      PHASE3_END_DATE: '2025-09-24'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data dependencies
+        run: python -m pip install --upgrade databento pandas pyarrow
+      - name: Compile resilient cache builder
+        run: |
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_resilient.py
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_data_cache.py
+      - name: Download exact confirmatory market window
+        working-directory: trading_super_strategy
+        run: python phase3_risk_gate_v2_data_cache.py
+      - name: Upload immutable market checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-regime-abc-data-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_risk_gate_v2_data_cache/${{ matrix.symbol }}.parquet
+          if-no-files-found: error
+          retention-days: 30
+
+  rr-experiment:
+    needs: market-cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        symbol: ['RTY.v.0','YM.v.0','NQ.v.0']
+        rr: ['0.5','0.7','0.75','1.0','1.5','2.0','3.0','4.0']
+    env:
+      PHASE3_SYMBOL: ${{ matrix.symbol }}
+      PHASE3_RR_FILTER: ${{ matrix.rr }}
+      PHASE3_V2_INPUT_PARQUET: phase3_risk_gate_v2_data_cache/${{ matrix.symbol }}.parquet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install experiment dependencies
+        run: python -m pip install --upgrade databento pandas numpy pyarrow
+      - name: Download Phase 2 60-session survivors
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_inputs/60/trading-phase2-${{ matrix.symbol }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34759467675'
+      - name: Download Phase 2 126-session survivors
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_inputs/126/trading-phase2-${{ matrix.symbol }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34759985485'
+      - name: Download Phase 2 250-session survivors
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_inputs/250/trading-phase2-${{ matrix.symbol }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34761821904'
+      - name: Download immutable market checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-regime-abc-data-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_risk_gate_v2_data_cache
+      - name: Compile causal experiment
+        run: python -m py_compile trading_super_strategy/regime_abcd_rr_shard.py
+      - name: Run frozen A B C shard
+        working-directory: trading_super_strategy
+        run: python regime_abcd_rr_shard.py
+      - name: Upload experiment shard
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-regime-abc-${{ matrix.symbol }}-${{ matrix.rr }}
+          path: trading_super_strategy/regime_abcd_shards/
+          if-no-files-found: error
+          retention-days: 30
+
+  consolidate:
+    needs: rr-experiment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: ['RTY.v.0','YM.v.0','NQ.v.0']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install consolidation dependencies
+        run: python -m pip install --upgrade pandas numpy
+      - name: Download all market experiment shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: trading-regime-abc-${{ matrix.symbol }}-*
+          path: trading_super_strategy/regime_abcd_shards
+          merge-multiple: true
+      - name: Consolidate frozen A B C results
+        working-directory: trading_super_strategy
+        run: python regime_abcd_consolidate.py
+      - name: Upload consolidated market evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-regime-abc-${{ matrix.symbol }}-consolidated
+          path: trading_super_strategy/regime_abcd_output/
+          if-no-files-found: error
+          retention-days: 30
