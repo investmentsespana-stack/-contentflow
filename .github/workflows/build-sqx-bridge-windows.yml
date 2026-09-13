@@ -1,0 +1,61 @@
+name: Build SQX Bridge Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/sqx_bridge/**'
+      - '.github/workflows/build-sqx-bridge-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install bridge dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r trading_super_strategy/sqx_bridge/requirements.txt pyinstaller
+      - name: Compile source
+        shell: pwsh
+        run: python -m py_compile trading_super_strategy/sqx_bridge/app.py
+      - name: Build single-file GUI executable
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed `
+            --name CygnusSQXBridge `
+            --collect-all mcp `
+            --collect-all keyring `
+            trading_super_strategy/sqx_bridge/app.py
+      - name: Create distribution README
+        shell: pwsh
+        run: |
+          @"
+          CYGNUS SQX BRIDGE
+
+          1. Open StrategyQuant X.
+          2. Gear -> MCP Server... and confirm the URL, usually http://localhost:8080/mcp
+          3. Double-click CygnusSQXBridge.exe
+          4. Enter the one-time pairing code supplied by the Director.
+          5. Project start/stop remains OFF unless you explicitly enable it in the bridge app.
+
+          Research only. No live-money execution is implemented.
+          "@ | Out-File -Encoding utf8 dist/LEEME.txt
+      - name: Upload Windows bridge
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cygnus-SQX-Bridge-Windows
+          path: |
+            dist/CygnusSQXBridge.exe
+            dist/LEEME.txt
+          if-no-files-found: error
+          retention-days: 30
