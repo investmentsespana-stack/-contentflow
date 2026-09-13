@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 export const config = { api: { bodyParser: false } };
+const PREFLIGHT_VIDEO_SIZE = 1024 * 1024;
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -30,6 +31,30 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'video.upload scope was not granted.' });
   }
 
+  if (req.query?.mode === 'preflight') {
+    try {
+      const initData = await initializeUploadSession(session.access_token, PREFLIGHT_VIDEO_SIZE);
+      const receipt = {
+        schema: 'nexo.tiktok.content_posting.preflight.v1',
+        status: 'upload_session_initialized',
+        mode,
+        identity: session.open_id ? 'oauth_identity_bound' : 'oauth_identity_missing',
+        scopes: session.scope,
+        publishId: initData.data.publish_id || null,
+        contentBytesUploaded: 0,
+        publicPostsCreated: 0,
+        checkedAt: new Date().toISOString(),
+        note: 'TikTok accepted an upload-session initialization. No media bytes were uploaded and no post was created.',
+      };
+      console.info(`[tiktok-preflight] status=${receipt.status} mode=${mode} bytes=0 publish_id=${receipt.publishId || 'none'}`);
+      return res.status(200).json(receipt);
+    } catch (err) {
+      const safe = sanitizeError(err?.message || err);
+      console.error(`[tiktok-preflight] mode=${mode} ${safe}`);
+      return res.status(502).json({ error: safe, contentBytesUploaded: 0, publicPostsCreated: 0 });
+    }
+  }
+
   const declaredSize = Number(req.headers['x-video-size'] || 0);
   if (!Number.isFinite(declaredSize) || declaredSize <= 0 || declaredSize > 4 * 1024 * 1024) {
     return res.status(400).json({ error: 'Use a demo video between 1 byte and 4 MB.' });
@@ -39,25 +64,7 @@ export default async function handler(req, res) {
     const video = await readBody(req, declaredSize);
     if (video.length !== declaredSize) return res.status(400).json({ error: 'Video size mismatch.' });
 
-    const initResponse = await fetch('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: JSON.stringify({
-        source_info: {
-          source: 'FILE_UPLOAD',
-          video_size: video.length,
-          chunk_size: video.length,
-          total_chunk_count: 1,
-        },
-      }),
-    });
-    const initData = await initResponse.json().catch(() => ({}));
-    if (!initResponse.ok || initData?.error?.code && initData.error.code !== 'ok' || !initData?.data?.upload_url) {
-      throw new Error(`TikTok upload init: ${initData?.error?.message || initData?.error?.code || `HTTP ${initResponse.status}`}`);
-    }
+    const initData = await initializeUploadSession(session.access_token, video.length);
 
     const uploadResponse = await fetch(initData.data.upload_url, {
       method: 'PUT',
@@ -87,6 +94,29 @@ export default async function handler(req, res) {
     console.error(`[tiktok-upload] mode=${mode} ${safe}`);
     return res.status(502).json({ error: safe });
   }
+}
+
+async function initializeUploadSession(accessToken, videoSize) {
+  const initResponse = await fetch('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json; charset=UTF-8',
+    },
+    body: JSON.stringify({
+      source_info: {
+        source: 'FILE_UPLOAD',
+        video_size: videoSize,
+        chunk_size: videoSize,
+        total_chunk_count: 1,
+      },
+    }),
+  });
+  const initData = await initResponse.json().catch(() => ({}));
+  if (!initResponse.ok || initData?.error?.code && initData.error.code !== 'ok' || !initData?.data?.upload_url) {
+    throw new Error(`TikTok upload init: ${initData?.error?.message || initData?.error?.code || `HTTP ${initResponse.status}`}`);
+  }
+  return initData;
 }
 
 function getRuntime() {
