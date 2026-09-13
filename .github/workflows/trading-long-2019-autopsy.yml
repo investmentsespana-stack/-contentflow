@@ -1,0 +1,76 @@
+name: Trading LONG 2019 Autopsy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trading-long-2019-autopsy.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  autopsy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install analysis dependencies
+        run: python -m pip install --upgrade pandas numpy pyarrow databento
+      - name: Download portfolios frozen before robustness
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-directional-portfolios-frozen
+          path: trading_super_strategy/autopsy_inputs
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34781565340'
+      - name: Download consumed ES 2018 2019 checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-ES.v.0
+          path: trading_super_strategy/autopsy_cache
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34782842917'
+      - name: Download consumed RTY 2018 2019 checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-RTY.v.0
+          path: trading_super_strategy/autopsy_cache
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34782842917'
+      - name: Download consumed YM 2018 2019 checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-YM.v.0
+          path: trading_super_strategy/autopsy_cache
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34782842917'
+      - name: Download consumed NQ 2018 2019 checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-NQ.v.0
+          path: trading_super_strategy/autopsy_cache
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34782842917'
+      - name: Compile diagnostic autopsy
+        run: python -m py_compile trading_super_strategy/long_2019_autopsy.py
+      - name: Attribute 2019 deterioration without retuning
+        working-directory: trading_super_strategy
+        run: python long_2019_autopsy.py
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-long-2019-autopsy
+          path: trading_super_strategy/long_2019_autopsy_output/
+          if-no-files-found: error
+          retention-days: 30
