@@ -1,0 +1,49 @@
+name: Trading Phase 2 Historical Search
+
+# Phase 2A: expanded real-data research only. LIVE MONEY remains disabled.
+on:
+  push:
+    paths:
+      - '.github/workflows/trading-phase2-historical-search.yml'
+  workflow_dispatch:
+    inputs:
+      sessions:
+        description: 'Completed weekday sessions to study'
+        required: false
+        default: '60'
+      cost_r:
+        description: 'Execution cost assumption in R per trade'
+        required: false
+        default: '0.03'
+
+permissions:
+  contents: read
+
+jobs:
+  phase2-historical-search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      PHASE2_SESSIONS: ${{ github.event.inputs.sessions || '60' }}
+      PHASE2_COST_R: ${{ github.event.inputs.cost_r || '0.03' }}
+      PHASE2_END_DATE: '2026-09-11'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install --upgrade databento pandas
+      - name: Compile phase 2 search
+        run: python -m py_compile trading_super_strategy/phase2_historical_search.py
+      - name: Run Phase 2 expanded historical search
+        run: python trading_super_strategy/phase2_historical_search.py
+      - name: Upload Phase 2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-phase2-historical-search
+          path: phase2_historical_output/
+          retention-days: 30
