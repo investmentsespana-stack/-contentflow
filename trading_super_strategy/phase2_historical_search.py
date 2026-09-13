@@ -26,6 +26,97 @@ def combo_count(n_strategies: int) -> int:
     return sum(math.comb(n_strategies, size) for size in MEMBER_SIZES)
 
 
+def _trade_outcome_arrays(open_, high, low, close, atr, pos, direction, rr, horizon=30):
+    if pos + 1 >= len(open_):
+        return None
+    risk = float(atr[pos])
+    if not math.isfinite(risk) or risk <= 0:
+        return None
+    entry = float(open_[pos + 1])
+    target = entry + direction * rr * risk
+    stop = entry - direction * risk
+    last = min(len(open_) - 1, pos + horizon)
+
+    for j in range(pos + 1, last + 1):
+        h = float(high[j])
+        l = float(low[j])
+        if direction == 1:
+            target_hit = h >= target
+            stop_hit = l <= stop
+        else:
+            target_hit = l <= target
+            stop_hit = h >= stop
+        # Conservative ambiguity rule: if both are reachable in one 1m bar,
+        # the stop is counted first until finer data can resolve ordering.
+        if stop_hit:
+            return -1.0
+        if target_hit:
+            return rr
+
+    return direction * (float(close[last]) - entry) / risk
+
+
+def fast_build_events(g, symbol, rr, cost_r):
+    """Build events without repeated pandas .iloc access inside the hot loop."""
+    records = g.reset_index(drop=True)
+    open_ = records["open"].to_numpy()
+    high = records["high"].to_numpy()
+    low = records["low"].to_numpy()
+    close = records["close"].to_numpy()
+    atr = records["atr14"].to_numpy()
+    sma40 = records["sma40"].to_numpy()
+    local_time = records["local_time"].tolist()
+    vol_regime = records["vol_regime"].astype(str).to_numpy()
+    trend_regime = records["trend_regime"].astype(str).to_numpy()
+    structure_regime = records["structure_regime"].astype(str).to_numpy()
+    signal_arrays = {
+        name: records[f"sig_{name}"].fillna(0).astype(int).to_numpy()
+        for name in base.STRATEGIES
+    }
+
+    events = []
+    for pos in range(len(records) - 1):
+        if not math.isfinite(float(atr[pos])) or not math.isfinite(float(sma40[pos])):
+            continue
+        if not any(signal_arrays[name][pos] != 0 for name in base.STRATEGIES):
+            continue
+
+        long_r = _trade_outcome_arrays(open_, high, low, close, atr, pos, 1, rr)
+        short_r = _trade_outcome_arrays(open_, high, low, close, atr, pos, -1, rr)
+        if long_r is None or short_r is None:
+            continue
+
+        ts = local_time[pos]
+        context = base.ContextKey(
+            instrument=str(symbol),
+            session=base.session_label(ts),
+            minutes_from_open_bucket=base.open_bucket(ts),
+            volatility_regime=str(vol_regime[pos]),
+            trend_regime=str(trend_regime[pos]),
+            structure_regime=str(structure_regime[pos]),
+        )
+        signals = {name: int(signal_arrays[name][pos]) for name in base.STRATEGIES}
+        events.append(
+            base.BacktestEvent(
+                context=context,
+                signals=signals,
+                coordinated_long_return_r=float(long_r),
+                coordinated_short_return_r=float(short_r),
+                execution_cost_r=cost_r,
+            )
+        )
+    return events
+
+
+def write_progress(out, payload, all_results, search_ledger):
+    with open(out / "phase2_progress.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    with open(out / "phase2_all_coalitions.partial.json", "w", encoding="utf-8") as f:
+        json.dump(all_results, f, indent=2)
+    with open(out / "phase2_trial_ledger.partial.json", "w", encoding="utf-8") as f:
+        json.dump(search_ledger, f, indent=2)
+
+
 def main():
     key = os.getenv("DATABENTO_API_KEY", "")
     if not key:
@@ -36,41 +127,53 @@ def main():
     end_text = os.getenv("PHASE2_END_DATE", "2026-09-11")
     end = datetime.fromisoformat(end_text).replace(tzinfo=base.TZ)
     dates = base.weekdays(end, session_count)
-    client = db.Historical(key)
+    date_strings = {str(d) for d in dates}
 
+    symbol_text = os.getenv("PHASE2_SYMBOLS", "").strip()
+    selected_symbols = [s.strip() for s in symbol_text.split(",") if s.strip()] or list(base.SYMBOLS)
+    unknown = [s for s in selected_symbols if s not in base.SYMBOLS]
+    if unknown:
+        raise SystemExit(f"Unsupported PHASE2_SYMBOLS: {unknown}")
+
+    client = db.Historical(key)
     out = Path("phase2_historical_output")
     out.mkdir(exist_ok=True)
 
-    by_symbol_frames = defaultdict(list)
-    rows_downloaded = 0
-    completed_sessions = []
-
-    for d in dates:
-        start_date = d - timedelta(days=1)
-        data = client.timeseries.get_range(
-            dataset="GLBX.MDP3",
-            schema="ohlcv-1m",
-            stype_in="continuous",
-            symbols=base.SYMBOLS,
-            start=base.utc_iso(start_date, 18, 0),
-            end=base.utc_iso(d, 16, 0),
-        )
-        df = data.to_df()
-        if df.empty:
-            continue
-        idx = pd.DatetimeIndex(df.index)
-        if idx.tz is None:
-            idx = idx.tz_localize("UTC")
-        work = df.copy()
-        work["local_time"] = idx.tz_convert(base.TZ)
-        work["target_session_date"] = str(d)
-        rows_downloaded += len(work)
-        completed_sessions.append(str(d))
-        for symbol, g in work.groupby("symbol"):
-            by_symbol_frames[str(symbol)].append(g.copy())
-
-    if not by_symbol_frames:
+    # Root-cause repair: one contiguous Databento request per shard instead of
+    # one API request per session. Bars are then mapped back to futures sessions.
+    earliest_start = dates[0] - timedelta(days=1)
+    data = client.timeseries.get_range(
+        dataset="GLBX.MDP3",
+        schema="ohlcv-1m",
+        stype_in="continuous",
+        symbols=selected_symbols,
+        start=base.utc_iso(earliest_start, 18, 0),
+        end=base.utc_iso(dates[-1], 16, 0),
+    )
+    df = data.to_df()
+    if df.empty:
         raise SystemExit("No Databento rows returned")
+
+    idx = pd.DatetimeIndex(df.index)
+    if idx.tz is None:
+        idx = idx.tz_localize("UTC")
+    work = df.copy()
+    work["local_time"] = idx.tz_convert(base.TZ)
+    normalized = work["local_time"].dt.normalize()
+    normalized = normalized + pd.to_timedelta((work["local_time"].dt.hour >= 18).astype(int), unit="D")
+    work["target_session_date"] = normalized.dt.date.astype(str)
+    work = work[work["target_session_date"].isin(date_strings)].copy()
+
+    if work.empty:
+        raise SystemExit("Databento returned no rows for requested completed sessions")
+
+    rows_downloaded = len(work)
+    completed_sessions = sorted(work["target_session_date"].unique().tolist())
+    by_symbol_frames = {str(symbol): g.copy() for symbol, g in work.groupby("symbol")}
+    print(
+        f"PHASE2_DATA_READY symbols={selected_symbols} sessions={len(completed_sessions)} rows={rows_downloaded}",
+        flush=True,
+    )
 
     backtester = CoalitionBacktester()
     mc_engine = MonteCarloRobustnessEngine()
@@ -79,9 +182,10 @@ def main():
     search_ledger = []
     total_trials = 0
     trials_per_context = combo_count(len(base.STRATEGIES))
+    processed_rr = []
 
-    for symbol, frames in by_symbol_frames.items():
-        g = pd.concat(frames).sort_values("local_time")
+    for symbol, frame in by_symbol_frames.items():
+        g = frame.sort_values("local_time")
         g = g[~g.index.duplicated(keep="first")].copy()
         g = base.enrich_symbol(g)
         signal_counts[symbol] = {
@@ -89,13 +193,14 @@ def main():
         }
 
         for rr in RR_CANDIDATES:
-            events = base.build_events(g, symbol, rr, cost_r)
+            events = fast_build_events(g, symbol, rr, cost_r)
             grouped = defaultdict(list)
             for event in events:
                 if event.context.trend_regime not in {"bullish", "bearish"}:
                     continue
                 grouped[event.context].append(event)
 
+            rr_survivors_before = len(all_results)
             for context, context_events in grouped.items():
                 if len(context_events) < MIN_CONTEXT_EVENTS:
                     continue
@@ -113,7 +218,7 @@ def main():
                     top_n_train=TOP_N_TRAIN,
                 )
 
-                ledger_row = {
+                search_ledger.append({
                     "symbol": symbol,
                     "rr": rr,
                     "session": context.session,
@@ -125,8 +230,7 @@ def main():
                     "context_events": len(context_events),
                     "coalitions_tested": trials_per_context,
                     "oos_survivors": len(survivors),
-                }
-                search_ledger.append(ledger_row)
+                })
 
                 if not survivors:
                     continue
@@ -172,6 +276,24 @@ def main():
                         },
                     })
 
+            processed_rr.append({"symbol": symbol, "rr": rr})
+            progress = {
+                "status": "running",
+                "sessions_requested": session_count,
+                "sessions_completed": len(completed_sessions),
+                "symbols": selected_symbols,
+                "processed_rr": processed_rr,
+                "rows_downloaded": rows_downloaded,
+                "total_coalition_trials": total_trials,
+                "surviving_directional_coalitions": len(all_results),
+                "new_survivors_this_rr": len(all_results) - rr_survivors_before,
+            }
+            write_progress(out, progress, all_results, search_ledger)
+            print(
+                f"PHASE2_PROGRESS symbol={symbol} rr={rr} trials={total_trials} survivors={len(all_results)}",
+                flush=True,
+            )
+
     all_results.sort(key=lambda row: (
         row["monte_carlo_oos"]["ruin_probability"],
         -row["oos"]["expectancy_r"],
@@ -186,7 +308,7 @@ def main():
         "date_start": completed_sessions[0] if completed_sessions else None,
         "date_end": completed_sessions[-1] if completed_sessions else None,
         "rows_downloaded": rows_downloaded,
-        "symbols": base.SYMBOLS,
+        "symbols": selected_symbols,
         "strategies": base.STRATEGIES,
         "rr_candidates": RR_CANDIDATES,
         "sub_1r_candidates": [x for x in RR_CANDIDATES if x < 1.0],
@@ -219,6 +341,22 @@ def main():
         json.dump(all_results, f, indent=2)
     with open(out / "phase2_trial_ledger.json", "w", encoding="utf-8") as f:
         json.dump(search_ledger, f, indent=2)
+
+    write_progress(
+        out,
+        {
+            "status": "completed",
+            "sessions_requested": session_count,
+            "sessions_completed": len(completed_sessions),
+            "symbols": selected_symbols,
+            "processed_rr": processed_rr,
+            "rows_downloaded": rows_downloaded,
+            "total_coalition_trials": total_trials,
+            "surviving_directional_coalitions": len(all_results),
+        },
+        all_results,
+        search_ledger,
+    )
 
     print("PHASE2_HISTORICAL_SEARCH_OK")
     print(json.dumps({
