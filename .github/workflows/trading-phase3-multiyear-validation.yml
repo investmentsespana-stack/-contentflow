@@ -1,0 +1,86 @@
+name: Trading Phase 3 Multi-Year Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/phase3_multiyear_validation.py'
+      - '.github/workflows/trading-phase3-multiyear-validation.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  phase3-multiyear-validation:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        symbol: ['NQ.v.0', 'ES.v.0', 'YM.v.0', 'RTY.v.0']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      PHASE3_SYMBOL: ${{ matrix.symbol }}
+      PHASE3_START_DATE: '2022-09-01'
+      PHASE3_END_DATE: '2025-09-24'
+      PHASE3_COST_R: '0.03'
+      PHASE3_MC_ITERATIONS: '2000'
+      PHASE3_MIN_TRADES: '60'
+      PHASE3_MIN_FOLD_TRADES: '5'
+      PHASE3_MIN_FOLDS: '3'
+      PHASE3_MIN_POSITIVE_FOLD_RATE: '0.60'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade databento pandas
+
+      - name: Download Phase 2 60-session survivor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-${{ matrix.symbol }}
+          path: phase3_inputs/60/trading-phase2-${{ matrix.symbol }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34759467675'
+
+      - name: Download Phase 2 126-session survivor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-${{ matrix.symbol }}
+          path: phase3_inputs/126/trading-phase2-${{ matrix.symbol }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34759985485'
+
+      - name: Download Phase 2 250-session survivor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-${{ matrix.symbol }}
+          path: phase3_inputs/250/trading-phase2-${{ matrix.symbol }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34761821904'
+
+      - name: Compile Phase 3 validator
+        run: python -m py_compile trading_super_strategy/phase3_multiyear_validation.py
+
+      - name: Run Phase 3 multi-year confirmatory validation
+        working-directory: trading_super_strategy
+        run: python phase3_multiyear_validation.py
+
+      - name: Upload Phase 3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-phase3-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_multiyear_output/
+          if-no-files-found: warn
+          retention-days: 30
