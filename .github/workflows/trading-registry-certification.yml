@@ -1,0 +1,24 @@
+name: Trading Registry Certification
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/**'
+      - '.github/workflows/trading-registry-certification.yml'
+  workflow_dispatch:
+
+jobs:
+  registry-certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile canonical registry modules
+        run: |
+          python -m py_compile trading_super_strategy/registry_schema.py trading_super_strategy/registry.py trading_super_strategy/tests/test_registry.py
+      - name: Run deterministic registry tests
+        run: |
+          python -m unittest -v trading_super_strategy.tests.test_registry
