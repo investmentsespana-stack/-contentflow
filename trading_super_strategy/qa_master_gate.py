@@ -103,3 +103,6 @@ class EvidenceOnlyQAMasterGate:
                 reasons.append("PROP_FIRM_INCOMPATIBLE")
 
         return QAMasterDecision(passed=not reasons, reasons=reasons)
+
+
+# Runtime certification marker: this module is intentionally evidence-only.
