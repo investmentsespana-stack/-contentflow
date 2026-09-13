@@ -6,14 +6,33 @@ export default async function handler(req, res) {
   const connected = /(?:^|;\s*)tiktok_demo_session=/.test(req.headers.cookie || '');
   const body = connected
     ? `<p><strong>Step 1 complete:</strong> TikTok account authorized through Login Kit.</p>
-       <p><strong>Step 2:</strong> Select a small MP4 video and send it to TikTok as a draft using Content Posting API / <code>video.upload</code>.</p>
+       <p><strong>Step 2 (safe preflight):</strong> Initialize the Content Posting API upload flow without sending media bytes or creating a public post.</p>
+       <button id="preflight" type="button">Run safe upload preflight (0 bytes)</button>
+       <pre id="preflight-result"></pre>
+       <hr />
+       <p><strong>Optional draft upload:</strong> Select a small MP4 video and send it to TikTok as a draft using Content Posting API / <code>video.upload</code>.</p>
        <input id="file" type="file" accept="video/mp4,video/quicktime" />
        <button id="upload" type="button">Upload demo video to TikTok</button>
        <pre id="result"></pre>
        <script>
+         const preflightButton = document.getElementById('preflight');
+         const preflightResult = document.getElementById('preflight-result');
          const button = document.getElementById('upload');
          const fileInput = document.getElementById('file');
          const result = document.getElementById('result');
+         preflightButton.addEventListener('click', async () => {
+           preflightButton.disabled = true;
+           preflightResult.textContent = 'Checking upload initialization…';
+           try {
+             const response = await fetch('/api/tiktok/preflight', { method: 'POST' });
+             const data = await response.json();
+             preflightResult.textContent = JSON.stringify(data, null, 2);
+           } catch (err) {
+             preflightResult.textContent = String(err && err.message || err);
+           } finally {
+             preflightButton.disabled = false;
+           }
+         });
          button.addEventListener('click', async () => {
            const file = fileInput.files && fileInput.files[0];
            if (!file) { result.textContent = 'Select an MP4/MOV file first.'; return; }
