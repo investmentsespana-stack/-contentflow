@@ -9,7 +9,8 @@ class RobustIntegrationTests(unittest.TestCase):
             self.assertIn(rr, SUPPORTED_RR)
 
     def test_negative_expectancy_fails_even_with_high_win_rate(self):
-        returns = [0.25] * 27 + [-1.0] * 3
+        # 80% wins at +0.25R still has <=0 net expectancy once losses/costs are included.
+        returns = [0.25] * 24 + [-1.0] * 6
         result = evaluate_returns(returns, 0.25, execution_cost_r=0.03, tested_trials=20)
         self.assertFalse(result.passed)
         self.assertIn("non_positive_net_expectancy", result.reasons)
