@@ -46,7 +46,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: trading-phase2-${{ matrix.symbol }}
-          path: phase3_inputs/60/trading-phase2-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_inputs/60/trading-phase2-${{ matrix.symbol }}
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: '34759467675'
@@ -55,7 +55,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: trading-phase2-${{ matrix.symbol }}
-          path: phase3_inputs/126/trading-phase2-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_inputs/126/trading-phase2-${{ matrix.symbol }}
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: '34759985485'
@@ -64,7 +64,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: trading-phase2-${{ matrix.symbol }}
-          path: phase3_inputs/250/trading-phase2-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_inputs/250/trading-phase2-${{ matrix.symbol }}
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: '34761821904'
