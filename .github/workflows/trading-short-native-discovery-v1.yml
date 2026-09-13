@@ -1,0 +1,84 @@
+name: Trading SHORT Native Discovery V1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trading-short-native-discovery-v1.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        symbol: ['ES.v.0','NQ.v.0','YM.v.0','RTY.v.0']
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      SHORT_SYMBOL: ${{ matrix.symbol }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install research dependencies
+        run: python -m pip install --upgrade databento pandas numpy pyarrow
+      - name: Compile SHORT asymmetric discovery
+        run: python -m py_compile trading_super_strategy/short_native_discovery_v1.py
+      - name: Run discovery-only SHORT research
+        working-directory: trading_super_strategy
+        run: python short_native_discovery_v1.py
+      - name: Upload market SHORT discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-short-native-discovery-${{ matrix.symbol }}
+          path: trading_super_strategy/short_native_discovery_output/
+          if-no-files-found: error
+          retention-days: 30
+
+  consolidate:
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download ES discovery
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-short-native-discovery-ES.v.0
+          path: trading_super_strategy/short_native_inputs/ES
+      - name: Download NQ discovery
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-short-native-discovery-NQ.v.0
+          path: trading_super_strategy/short_native_inputs/NQ
+      - name: Download YM discovery
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-short-native-discovery-YM.v.0
+          path: trading_super_strategy/short_native_inputs/YM
+      - name: Download RTY discovery
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-short-native-discovery-RTY.v.0
+          path: trading_super_strategy/short_native_inputs/RTY
+      - name: Freeze discovery survivors for next confirmatory stage
+        working-directory: trading_super_strategy
+        run: python short_native_discovery_consolidate.py
+      - name: Upload cross-market frozen SHORT candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-short-native-crossmarket-v1
+          path: trading_super_strategy/short_native_consolidated_output/
+          if-no-files-found: error
+          retention-days: 30
