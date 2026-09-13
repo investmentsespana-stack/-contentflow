@@ -1,0 +1,25 @@
+name: Trading Backtest Certification
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/backtest_engine.py'
+      - 'trading_super_strategy/tests/test_backtest_engine.py'
+      - '.github/workflows/trading-backtest-certification.yml'
+  workflow_dispatch:
+
+jobs:
+  backtest-certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile causal backtest engine
+        run: |
+          python -m py_compile trading_super_strategy/backtest_engine.py
+          python -m py_compile trading_super_strategy/tests/test_backtest_engine.py
+      - name: Run deterministic backtest tests
+        run: python -m unittest trading_super_strategy.tests.test_backtest_engine -v
