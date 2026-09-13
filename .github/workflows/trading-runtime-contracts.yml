@@ -1,0 +1,27 @@
+name: Trading Runtime Contracts Certification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/macro_point_in_time.py'
+      - 'trading_super_strategy/execution_gateway.py'
+      - 'trading_super_strategy/tests/test_runtime_contracts.py'
+      - '.github/workflows/trading-runtime-contracts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile runtime contracts
+        run: python -m py_compile trading_super_strategy/macro_point_in_time.py trading_super_strategy/execution_gateway.py trading_super_strategy/tests/test_runtime_contracts.py
+      - name: Run deterministic runtime contract tests
+        run: PYTHONPATH=. python -m unittest trading_super_strategy.tests.test_runtime_contracts -v
