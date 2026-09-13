@@ -1,0 +1,22 @@
+name: Trading Microstructure Certification
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/microstructure.py'
+      - 'trading_super_strategy/tests/test_microstructure.py'
+      - '.github/workflows/trading-microstructure-certification.yml'
+  workflow_dispatch:
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile
+        run: python -m py_compile trading_super_strategy/microstructure.py trading_super_strategy/tests/test_microstructure.py
+      - name: Deterministic tests
+        run: PYTHONPATH=. python -m unittest trading_super_strategy.tests.test_microstructure -v
