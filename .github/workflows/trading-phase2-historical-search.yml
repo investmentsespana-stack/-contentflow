@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/trading-phase2-historical-search.yml'
+      - 'trading_super_strategy/phase2_historical_search.py'
   workflow_dispatch:
     inputs:
       sessions:
@@ -21,6 +22,11 @@ permissions:
 
 jobs:
   phase2-historical-search:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        symbol: ['NQ.v.0', 'ES.v.0', 'YM.v.0', 'RTY.v.0']
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -28,6 +34,7 @@ jobs:
       PHASE2_SESSIONS: ${{ github.event.inputs.sessions || '60' }}
       PHASE2_COST_R: ${{ github.event.inputs.cost_r || '0.03' }}
       PHASE2_END_DATE: '2026-09-11'
+      PHASE2_SYMBOLS: ${{ matrix.symbol }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,8 +49,9 @@ jobs:
       - name: Run Phase 2 expanded historical search
         run: python trading_super_strategy/phase2_historical_search.py
       - name: Upload Phase 2 artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: trading-phase2-historical-search
+          name: trading-phase2-${{ matrix.symbol }}
           path: phase2_historical_output/
           retention-days: 30
