@@ -1,0 +1,74 @@
+{
+  "protocol": "SHORT_RESTRUCTURE_V1",
+  "status": "PRE_REGISTERED",
+  "live_money": false,
+  "markets": ["ES", "NQ", "YM", "RTY"],
+  "principle": "SHORT is an asymmetric research population, not an inverted LONG template.",
+  "anchor_rule": "NY 09:00-12:00 ET is structural/contextual only and never a hard operating-time restriction.",
+  "data_governance": {
+    "discovery": ["2025-09-25", "2026-09-11"],
+    "confirmatory": ["2022-09-01", "2025-09-24"],
+    "consumed_independent_evidence": ["2018-01-02", "2019-12-31"],
+    "sealed_final_holdout": ["2020-01-02", "2022-08-31"]
+  },
+  "families": [
+    {
+      "id": "SHORT_BREAKDOWN_CONTINUATION",
+      "thesis": "Continuation after support/structure failure with bearish directional agreement.",
+      "contexts": ["bearish_trend", "volatility_expansion", "post_breakdown_retest"],
+      "signals": ["structure_break", "negative_fast_medium_slope", "momentum_confirmation", "volume_or_range_expansion"],
+      "avoid": ["late_exhaustion_without_continuation", "low_quality_chop"]
+    },
+    {
+      "id": "SHORT_ACCELERATION",
+      "thesis": "Downside acceleration where volatility and negative directional slope expand together.",
+      "contexts": ["bearish_acceleration", "atr_expansion", "negative_vwap_displacement"],
+      "signals": ["slope_acceleration", "atr_expansion", "price_below_context_vwap", "failed_reclaim"],
+      "avoid": ["already_extreme_without_fresh_trigger", "mean_reverting_low_volatility"]
+    },
+    {
+      "id": "SHORT_FAILED_AUCTION_REVERSAL",
+      "thesis": "Reversal from failed upside auction / sweep / rejection, not generic mean reversion.",
+      "contexts": ["liquidity_sweep_high", "failed_breakout", "vwap_or_structure_rejection"],
+      "signals": ["failed_high_break", "rejection", "loss_of_reclaim", "bearish_confirmation"],
+      "avoid": ["clean_bullish_trend_continuation", "unconfirmed_countertrend_short"]
+    }
+  ],
+  "session_buckets": ["globex", "europe", "pre_ny", "ny_morning", "ny_midday", "ny_afternoon"],
+  "generation_rules": {
+    "separate_population_per_family": true,
+    "separate_population_per_market": true,
+    "mirror_long_rules": false,
+    "target_raw_candidates_per_market_family": 2000,
+    "return_optimized_portfolio_weights": false
+  },
+  "candidate_triage": {
+    "positive_expectancy_after_baseline_costs": true,
+    "profit_factor_min": 1.05,
+    "cost_stress": [1.5, 2.0],
+    "parameter_perturbation_required": true,
+    "walk_forward_required": true,
+    "monte_carlo_required": true,
+    "single_period_concentration_rejected": true
+  },
+  "portfolio_stage": {
+    "build_separate_family_portfolios_first": true,
+    "measure_marginal_contribution": ["total_r", "profit_factor", "max_drawdown", "negative_day_correlation", "stress_survival"],
+    "candidate_can_be_removed_if_portfolio_improves_without_it": true,
+    "final_short_superportfolio_after_family_validation": true
+  },
+  "external_hard_gates": {
+    "cost_stress_2x_positive": true,
+    "moving_block_mc_required": true,
+    "capital_aware_drawdown_required": true,
+    "dsr_required": true,
+    "cscv_pbo_required": true,
+    "independent_oos_required": true
+  },
+  "guardrails": [
+    "Do not tune against 2018-2019 after observing prior failure evidence.",
+    "Do not read the sealed 2020-2022 holdout.",
+    "Do not weaken robustness gates to force survivors.",
+    "No live-money authorization is implied by research success."
+  ]
+}
