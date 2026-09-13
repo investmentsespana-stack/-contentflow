@@ -24,7 +24,7 @@ export default async function handler(req, res) {
            preflightButton.disabled = true;
            preflightResult.textContent = 'Checking upload initialization…';
            try {
-             const response = await fetch('/api/tiktok/preflight', { method: 'POST' });
+             const response = await fetch('/api/tiktok/upload?mode=preflight', { method: 'POST' });
              const data = await response.json();
              preflightResult.textContent = JSON.stringify(data, null, 2);
            } catch (err) {
