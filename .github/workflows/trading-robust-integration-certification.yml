@@ -1,0 +1,23 @@
+name: Trading Robust Integration Certification
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/robust_integration.py'
+      - 'trading_super_strategy/robustness_engine.py'
+      - 'trading_super_strategy/tests/test_robust_integration.py'
+      - '.github/workflows/trading-robust-integration-certification.yml'
+  workflow_dispatch:
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile integration gate
+        run: python -m py_compile trading_super_strategy/robust_integration.py trading_super_strategy/robustness_engine.py trading_super_strategy/tests/test_robust_integration.py
+      - name: Run deterministic integration tests
+        run: PYTHONPATH=. python -m unittest trading_super_strategy.tests.test_robust_integration -v
