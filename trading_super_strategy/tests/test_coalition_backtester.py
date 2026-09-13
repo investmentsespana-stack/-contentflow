@@ -1,4 +1,3 @@
-import math
 import unittest
 
 from trading_super_strategy.coalition_backtester import BacktestEvent, CoalitionBacktester, ContextKey
@@ -16,9 +15,9 @@ class CoalitionBacktesterTests(unittest.TestCase):
         bt = CoalitionBacktester()
         events = [
             event({"a": 1, "b": 1}, 1.0, -1.0),
-            event({"a": 1, "b": 1}, -1.0, 1.0),
-            event({"a": -1, "b": -1}, 1.0, 1.0),
-            event({"a": -1, "b": -1}, -1.0, -1.0),
+            event({"a": 1, "b": 1}, 0.5, 1.0),
+            event({"a": -1, "b": -1}, 1.0, 1.5),
+            event({"a": -1, "b": -1}, -1.0, 0.5),
         ]
         long_m = bt.evaluate(events, ("a", "b"), 1)
         short_m = bt.evaluate(events, ("a", "b"), -1)
