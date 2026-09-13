@@ -1,0 +1,100 @@
+name: Trading LONG Independent 2018 2019
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trading-long-independent-2018-2019.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  market-cache:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        symbol: ['ES.v.0','RTY.v.0','YM.v.0','NQ.v.0']
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      PHASE3_SYMBOL: ${{ matrix.symbol }}
+      PHASE3_START_DATE: '2018-01-02'
+      PHASE3_END_DATE: '2019-12-31'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install data dependencies
+        run: python -m pip install --upgrade databento pandas pyarrow
+      - name: Compile resilient cache builder
+        run: |
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_resilient.py
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_data_cache.py
+      - name: Download untouched 2018 2019 market window
+        working-directory: trading_super_strategy
+        run: python phase3_risk_gate_v2_data_cache.py
+      - name: Upload immutable independent checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-long-independent-data-${{ matrix.symbol }}
+          path: trading_super_strategy/phase3_risk_gate_v2_data_cache/${{ matrix.symbol }}.parquet
+          if-no-files-found: error
+          retention-days: 30
+
+  validate-long:
+    needs: market-cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install validation dependencies
+        run: python -m pip install --upgrade databento pandas numpy pyarrow
+      - name: Download portfolios frozen before robustness
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-directional-portfolios-frozen
+          path: trading_super_strategy/long_independent_inputs
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34781565340'
+      - name: Download ES independent checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-ES.v.0
+          path: trading_super_strategy/long_independent_cache
+      - name: Download RTY independent checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-RTY.v.0
+          path: trading_super_strategy/long_independent_cache
+      - name: Download YM independent checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-YM.v.0
+          path: trading_super_strategy/long_independent_cache
+      - name: Download NQ independent checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-long-independent-data-NQ.v.0
+          path: trading_super_strategy/long_independent_cache
+      - name: Compile frozen independent validation
+        run: python -m py_compile trading_super_strategy/long_portfolio_independent_validation.py
+      - name: Validate three frozen LONG portfolios on untouched 2018 2019
+        working-directory: trading_super_strategy
+        run: python long_portfolio_independent_validation.py
+      - name: Upload independent LONG evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-long-independent-2018-2019
+          path: trading_super_strategy/long_independent_output/
+          if-no-files-found: error
+          retention-days: 30
