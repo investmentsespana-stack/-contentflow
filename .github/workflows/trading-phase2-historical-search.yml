@@ -11,7 +11,7 @@ on:
       sessions:
         description: 'Completed weekday sessions to study'
         required: false
-        default: '126'
+        default: '252'
       cost_r:
         description: 'Execution cost assumption in R per trade'
         required: false
@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 180
     env:
       DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
-      PHASE2_SESSIONS: ${{ github.event.inputs.sessions || '126' }}
+      PHASE2_SESSIONS: ${{ github.event.inputs.sessions || '252' }}
       PHASE2_COST_R: ${{ github.event.inputs.cost_r || '0.03' }}
       PHASE2_END_DATE: '2026-09-11'
       PHASE2_SYMBOLS: ${{ matrix.symbol }}
