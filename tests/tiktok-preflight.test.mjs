@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import preflightHandler from '../api/tiktok/preflight.js';
+import uploadHandler from '../api/tiktok/upload.js';
 
 const ORIGINAL_ENV = { ...process.env };
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -50,7 +50,7 @@ test('safe preflight initializes once and uploads zero media bytes', async () =>
   };
 
   const res = makeRes();
-  await preflightHandler({ method: 'POST', headers: { cookie: `tiktok_demo_session=${cookie}` } }, res);
+  await uploadHandler({ method: 'POST', query: { mode: 'preflight' }, headers: { cookie: `tiktok_demo_session=${cookie}` } }, res);
 
   assert.equal(res.statusCode, 200);
   assert.equal(calls.length, 1);
@@ -74,7 +74,7 @@ test('safe preflight rejects a session without video.upload', async () => {
   globalThis.fetch = async () => { throw new Error('must not fetch'); };
 
   const res = makeRes();
-  await preflightHandler({ method: 'POST', headers: { cookie: `tiktok_demo_session=${cookie}` } }, res);
+  await uploadHandler({ method: 'POST', query: { mode: 'preflight' }, headers: { cookie: `tiktok_demo_session=${cookie}` } }, res);
   assert.equal(res.statusCode, 403);
   assert.match(res.body.error, /video\.upload/);
 });
