@@ -1,0 +1,118 @@
+name: Trading Active Regime Robustness
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trading-active-regime-robustness.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  robustness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - symbol: 'ES.v.0'
+            candidate_name: 'trading-regime-abcd-ES.v.0'
+            candidate_run: '34779032658'
+            cache_name: 'trading-phase3-risk-v2-ES.v.0-data-cache'
+            cache_run: '34776997342'
+          - symbol: 'RTY.v.0'
+            candidate_name: 'trading-regime-abc-RTY.v.0-consolidated'
+            candidate_run: '34779814764'
+            cache_name: 'trading-regime-abc-data-RTY.v.0'
+            cache_run: '34779814764'
+          - symbol: 'YM.v.0'
+            candidate_name: 'trading-regime-abc-YM.v.0-consolidated'
+            candidate_run: '34779814764'
+            cache_name: 'trading-regime-abc-data-YM.v.0'
+            cache_run: '34779814764'
+          - symbol: 'NQ.v.0'
+            candidate_name: 'trading-regime-abc-NQ.v.0-consolidated'
+            candidate_run: '34779814764'
+            cache_name: 'trading-regime-abc-data-NQ.v.0'
+            cache_run: '34779814764'
+    env:
+      PHASE3_SYMBOL: ${{ matrix.symbol }}
+      PHASE3_V2_INPUT_PARQUET: phase3_risk_gate_v2_data_cache/${{ matrix.symbol }}.parquet
+      ACTIVE_CANDIDATES_JSON: robustness_inputs/candidates/regime_abcd_candidates.json
+      PHASE3_V2_MC_ITERATIONS: '2000'
+      PHASE3_V2_BLOCK_LENGTHS: '5,20'
+      PHASE3_V2_CAPITAL_DD_BUDGET: '0.10'
+      PHASE3_V2_PRIMARY_PROFILE: 'conservative_025pct'
+      PHASE3_V2_MAX_RUIN_PROB: '0.01'
+      PHASE3_V2_DSR_THRESHOLD: '0.95'
+      PHASE3_V2_SURVIVOR_POOL_TRIALS: '165'
+      PHASE3_V2_FULL_SEARCH_TRIALS: '833140'
+      PHASE3_V2_PBO_MAX: '0.50'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install --upgrade databento pandas numpy pyarrow
+      - name: Download frozen ACTIVE_RESEARCH evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.candidate_name }}
+          path: trading_super_strategy/robustness_inputs/candidates
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ matrix.candidate_run }}
+      - name: Download immutable confirmatory market checkpoint
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.cache_name }}
+          path: trading_super_strategy/phase3_risk_gate_v2_data_cache
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ matrix.cache_run }}
+      - name: Compile frozen robustness audit
+        run: python -m py_compile trading_super_strategy/regime_active_robustness.py
+      - name: Run frozen robustness audit
+        working-directory: trading_super_strategy
+        run: python regime_active_robustness.py
+      - name: Upload market robustness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-active-robustness-${{ matrix.symbol }}
+          path: trading_super_strategy/active_robustness_output/
+          if-no-files-found: error
+          retention-days: 30
+
+  consolidate:
+    needs: robustness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download all market robustness outputs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: trading-active-robustness-*
+          path: trading_super_strategy/active_robustness_inputs
+          merge-multiple: true
+      - name: Compile cross-market consolidation
+        run: python -m py_compile trading_super_strategy/regime_active_crossmarket_consolidate.py
+      - name: Consolidate cross-market evidence
+        working-directory: trading_super_strategy
+        run: python regime_active_crossmarket_consolidate.py
+      - name: Upload cross-market robustness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-active-robustness-crossmarket
+          path: trading_super_strategy/active_robustness_crossmarket_output/
+          if-no-files-found: error
+          retention-days: 30
