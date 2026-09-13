@@ -1,6 +1,6 @@
-"""NQ recovery runner for Phase 3 Risk Gate V2.
+"""Resilient transport wrapper for Phase 3 Risk Gate V2.
 
-Root-cause repair for transient Databento 504s on a single multi-year request.
+Root-cause repair for transient Databento transport failures on multi-year requests.
 The statistical gate is unchanged. Only the historical transport is made resilient:
 - deterministic contiguous chunks,
 - bounded retries with backoff,
@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import timedelta
 
 import databento as db
 import pandas as pd
@@ -44,6 +43,9 @@ def _is_transient(exc: Exception) -> bool:
         "temporarily unavailable",
         "connection reset",
         "connection aborted",
+        "error streaming response",
+        "response ended prematurely",
+        "prematurely",
     )
     return any(marker in text for marker in markers)
 
@@ -83,7 +85,7 @@ class _ResilientTimeseries:
                     flush=True,
                 )
                 return [frame]
-            except Exception as exc:  # transport/API exception from Databento
+            except Exception as exc:
                 last_exc = exc
                 if not _is_transient(exc):
                     raise
@@ -98,9 +100,7 @@ class _ResilientTimeseries:
         if span_days <= _MIN_SPLIT_DAYS:
             raise last_exc
 
-        midpoint = start_ts + (end_ts - start_ts) / 2
-        # Normalize the split to the nearest hour to keep request boundaries stable.
-        midpoint = midpoint.floor("h")
+        midpoint = (start_ts + (end_ts - start_ts) / 2).floor("h")
         if midpoint <= start_ts or midpoint >= end_ts:
             raise last_exc
 
@@ -115,8 +115,6 @@ class _ResilientTimeseries:
 
     def get_range(self, *args, **kwargs):
         if args:
-            # The Phase 3 validator calls get_range with keyword arguments only.
-            # Preserve compatibility by delegating any unexpected positional call.
             return self._inner.get_range(*args, **kwargs)
 
         if "start" not in kwargs or "end" not in kwargs:
@@ -145,8 +143,6 @@ class _ResilientTimeseries:
             return _CombinedResult(pd.DataFrame())
 
         combined = pd.concat(nonempty, axis=0).sort_index()
-        # Boundary duplicates are harmless and will also be removed downstream;
-        # remove them here to make transport evidence deterministic.
         combined = combined[~combined.index.duplicated(keep="first")]
         print(
             f"DATABENTO_RESILIENT_COMPLETE chunks={len(frames)} rows={len(combined)} "
@@ -163,8 +159,6 @@ class _ResilientHistorical:
 
 
 def main():
-    # Monkey-patch only the Historical transport used by the existing V2 validator.
-    # No statistical thresholds, candidate definitions, or holdout dates are changed.
     v2.db.Historical = _ResilientHistorical
     v2.main()
 
