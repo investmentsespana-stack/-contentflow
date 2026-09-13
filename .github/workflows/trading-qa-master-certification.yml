@@ -1,0 +1,29 @@
+name: Trading QA Master Certification
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/qa_master_gate.py'
+      - 'trading_super_strategy/tests/test_qa_master_gate.py'
+      - '.github/workflows/trading-qa-master-certification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa-master-certification:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile QA master gate
+        run: |
+          python -m py_compile trading_super_strategy/qa_master_gate.py trading_super_strategy/tests/test_qa_master_gate.py
+      - name: Run deterministic QA master tests
+        run: |
+          PYTHONPATH=. python -m unittest trading_super_strategy.tests.test_qa_master_gate -v
