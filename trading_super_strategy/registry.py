@@ -60,7 +60,7 @@ class RegisteredStrategy:
 
 
 class TradingRegistry:
-    """Research registry only. It has no broker/order/position execution API."""
+    """Research registry only. It intentionally has no broker/order/position execution API."""
 
     def __init__(self) -> None:
         self._records: Dict[str, RegisteredStrategy] = {}
@@ -81,16 +81,10 @@ class TradingRegistry:
 
     @classmethod
     def content_hash(cls, variant: StrategyVariant) -> str:
-        """Hash stable strategy definition. Runtime stats/OOS and lineage timestamps are excluded."""
+        """Hash the stable trading definition, not labels, lifecycle, lineage or measured stats."""
         definition = {
-            "identity": {
-                "family_id": variant.identity.family_id,
-                "canonical_id": variant.identity.canonical_id,
-                "display_name": variant.identity.display_name,
-                "version": variant.identity.version,
-                "supported_instruments": list(variant.identity.supported_instruments),
-            },
             "direction": variant.direction.value,
+            "supported_instruments": list(variant.identity.supported_instruments),
             "premise": asdict(variant.premise),
             "regimes": [r.value for r in variant.regimes],
             "horizon": cls._stable(asdict(variant.horizon)),
