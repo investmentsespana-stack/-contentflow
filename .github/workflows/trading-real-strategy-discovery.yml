@@ -1,5 +1,6 @@
 name: Trading Real Strategy Discovery
 
+# Overnight research run: real Databento OHLCV, preliminary only; LIVE remains disabled.
 on:
   push:
     paths:
