@@ -1,0 +1,91 @@
+name: Trading Phase 3 Risk Gate V2 NQ Recovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/phase3_risk_gate_v2_resilient.py'
+      - '.github/workflows/trading-phase3-risk-gate-v2-nq-recovery.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  phase3-risk-gate-v2-nq-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      PHASE3_SYMBOL: 'NQ.v.0'
+      PHASE3_START_DATE: '2022-09-01'
+      PHASE3_END_DATE: '2025-09-24'
+      PHASE3_COST_R: '0.03'
+      PHASE3_MIN_TRADES: '60'
+      PHASE3_MIN_FOLD_TRADES: '5'
+      PHASE3_MIN_FOLDS: '3'
+      PHASE3_MIN_POSITIVE_FOLD_RATE: '0.60'
+      PHASE3_V2_MC_ITERATIONS: '2000'
+      PHASE3_V2_BLOCK_LENGTHS: '5,20'
+      PHASE3_V2_CAPITAL_DD_BUDGET: '0.10'
+      PHASE3_V2_PRIMARY_PROFILE: 'conservative_025pct'
+      PHASE3_V2_MAX_RUIN_PROB: '0.01'
+      PHASE3_V2_DSR_THRESHOLD: '0.95'
+      PHASE3_V2_SURVIVOR_POOL_TRIALS: '165'
+      PHASE3_V2_FULL_SEARCH_TRIALS: '833140'
+      PHASE3_V2_PBO_MAX: '0.50'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade databento pandas
+
+      - name: Download Phase 2 60-session survivor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-NQ.v.0
+          path: trading_super_strategy/phase3_inputs/60/trading-phase2-NQ.v.0
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34759467675'
+
+      - name: Download Phase 2 126-session survivor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-NQ.v.0
+          path: trading_super_strategy/phase3_inputs/126/trading-phase2-NQ.v.0
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34759985485'
+
+      - name: Download Phase 2 250-session survivor artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: trading-phase2-NQ.v.0
+          path: trading_super_strategy/phase3_inputs/250/trading-phase2-NQ.v.0
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: '34761821904'
+
+      - name: Compile resilient Risk Gate V2
+        run: |
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2.py
+          python -m py_compile trading_super_strategy/phase3_risk_gate_v2_resilient.py
+
+      - name: Run NQ resilient Risk Gate V2
+        working-directory: trading_super_strategy
+        run: python phase3_risk_gate_v2_resilient.py
+
+      - name: Upload Phase 3 V2 NQ recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-phase3-risk-v2-NQ.v.0-recovery
+          path: trading_super_strategy/phase3_risk_gate_v2_output/
+          if-no-files-found: warn
+          retention-days: 30
