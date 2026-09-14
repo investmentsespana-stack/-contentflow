@@ -1,0 +1,66 @@
+{
+  "name": "bollinger_ema_sar_v5_band_correction",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "purpose": "Implement the user's correction: do not enter LONG because a 3/9 bullish cross happened while price is high; wait for price to correct to the lower Bollinger band, and vice versa for SHORT. Keep the first-test 40% Bollinger / max-3-bar exit.",
+  "indicators": {
+    "bollinger": {"period": 20, "stddev": 2.0},
+    "ema": [3, 9, 20, 50, 200],
+    "parabolic_sar": {"step": 0.02, "max_step": 0.20}
+  },
+  "structure": {
+    "swing": "2-left / 2-right confirmed, causal from j+2",
+    "long": "Prior bar sweeps below latest confirmed swing low; signal bar has higher low and closes back above the swept level.",
+    "short": "Prior bar sweeps above latest confirmed swing high; signal bar has lower high and closes back below the swept level."
+  },
+  "market_regime_filter": {
+    "sideways": "NO_TRADE",
+    "rule": "Use V2 fixed EMA20 net-slope filter: 5-bar directional EMA20 move must be at least 5% of current Bollinger bandwidth.",
+    "long": "EMA20[t]-EMA20[t-5] >= 0.05*BBWidth[t]",
+    "short": "EMA20[t-5]-EMA20[t] >= 0.05*BBWidth[t]",
+    "optimization": "NONE"
+  },
+  "bollinger_location": {
+    "long": "Signal candle itself must touch or pierce LOWER Bollinger band: low <= lower band.",
+    "short": "Signal candle itself must touch or pierce UPPER Bollinger band: high >= upper band.",
+    "opposite_band_entry": "FORBIDDEN"
+  },
+  "ema3_9_state": {
+    "long": "Fresh cross on signal bar is not required. EMA3 must be above EMA9 at signal close. A prior bullish 3/9 cross may occur earlier; entry waits for the lower-band correction setup.",
+    "short": "Fresh cross on signal bar is not required. EMA3 must be below EMA9 at signal close. A prior bearish 3/9 cross may occur earlier; entry waits for the upper-band correction setup.",
+    "diagnostic": "Record bars since the most recent matching 3/9 cross; do not use cross age as a gate."
+  },
+  "signal_candle": {
+    "rocket_long": "Green body with lower wick >=70% of body.",
+    "rocket_short": "Red body with upper wick >=70% of body.",
+    "engulfing": "Body fully engulfs the previous candle body in trade direction.",
+    "long_shape": "Signal low > prior candle low.",
+    "short_shape": "Signal high < prior candle high."
+  },
+  "entry": {
+    "long": ["structure sweep/reclaim", "signal at lower Bollinger", "non-lateral positive EMA20 slope", "EMA3>EMA9", "signal close>EMA9", "PSAR below signal", "rocket or bullish engulfing", "higher signal low"],
+    "short": ["structure sweep/reclaim", "signal at upper Bollinger", "non-lateral negative EMA20 slope", "EMA3<EMA9", "signal close<EMA9", "PSAR above signal", "rocket or bearish engulfing", "lower signal high"],
+    "execution": "Open of next bar after fully closed signal candle"
+  },
+  "stop": {
+    "long": "Low of candle immediately before signal candle",
+    "short": "High of candle immediately before signal candle"
+  },
+  "exit": {
+    "target": "40% of Bollinger bandwidth measured at signal close, projected from entry",
+    "maximum_holding_bars": 3,
+    "time_exit": "Close of third entry bar if target or stop did not hit",
+    "same_bar_ambiguity": "stop-first",
+    "ema9_20_extension": "DISABLED"
+  },
+  "session_rule": "NY anchor 09:00-12:00 ET remains contextual only; no hard time restriction.",
+  "comparison": "Compare V5 with V1/V2 on sample size, expectancy, PF, drawdown, direction, session, pattern, exit reason, filter funnel and cross-age distribution. Discovery only; no live promotion."
+}
