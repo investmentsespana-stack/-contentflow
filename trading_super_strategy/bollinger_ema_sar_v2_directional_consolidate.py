@@ -40,7 +40,7 @@ def main():
         "strategy": "bollinger_ema_sar_v2_directional_slope",
         "window": ["2025-09-25", "2026-09-11"],
         "slope_rule": "EMA20 5-bar slope / ATR14; LONG >= +0.10; SHORT <= -0.10",
-        "direction_isolation": true if False else True,
+        "direction_isolation": True,
         "LONG": {"overall": base.metrics([]), "by_symbol": {}, "by_pattern": {}, "by_session": {}},
         "SHORT": {"overall": base.metrics([]), "by_symbol": {}, "by_pattern": {}, "by_session": {}},
         "decision": "DISCOVERY_ONLY_NO_LIVE",
