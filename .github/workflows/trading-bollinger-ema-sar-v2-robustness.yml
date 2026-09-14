@@ -1,0 +1,43 @@
+name: Trading Bollinger EMA SAR V2 Robustness
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/bollinger_ema_sar_v2_robustness_spec.json'
+      - 'trading_super_strategy/bollinger_ema_sar_v2_robustness.py'
+      - '.github/workflows/trading-bollinger-ema-sar-v2-robustness.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  robustness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install research dependencies
+        run: python -m pip install --upgrade databento pandas numpy
+      - name: Compile V1 V2 and robustness engine
+        run: |
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v1_backtest.py
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v2_slope_backtest.py
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v2_robustness.py
+      - name: Run preregistered discovery robustness checks
+        working-directory: trading_super_strategy
+        run: python bollinger_ema_sar_v2_robustness.py
+      - name: Upload robustness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bes-v2-robustness
+          path: trading_super_strategy/bollinger_ema_sar_v2_robustness_output/
+          if-no-files-found: error
+          retention-days: 90
