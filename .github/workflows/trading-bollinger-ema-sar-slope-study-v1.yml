@@ -1,0 +1,74 @@
+name: Trading Bollinger EMA SAR Slope Study V1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/bollinger_ema_sar_slope_study_v1_spec.json'
+      - 'trading_super_strategy/bollinger_ema_sar_slope_study_v1.py'
+      - 'trading_super_strategy/bollinger_ema_sar_slope_study_v1_consolidate.py'
+      - '.github/workflows/trading-bollinger-ema-sar-slope-study-v1.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        symbol: ['ES.v.0', 'NQ.v.0', 'YM.v.0', 'RTY.v.0']
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      BES_SYMBOL: ${{ matrix.symbol }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research dependencies
+        run: python -m pip install --upgrade pip && python -m pip install databento pandas numpy
+      - name: Compile study
+        run: |
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v1_backtest.py
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_slope_study_v1.py
+      - name: Run discovery-only slope study
+        run: python trading_super_strategy/bollinger_ema_sar_slope_study_v1.py
+      - name: Upload market slope-study evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bes-slope-v1-${{ matrix.symbol }}
+          path: bollinger_ema_sar_slope_study_v1_output/
+          if-no-files-found: error
+          retention-days: 90
+
+  consolidate:
+    needs: backtest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install consolidation dependencies
+        run: python -m pip install pandas numpy
+      - name: Download all slope-study market artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bes-slope-v1-*
+          path: bollinger_ema_sar_slope_study_v1_downloads
+      - name: Consolidate cross-market slope study
+        run: python trading_super_strategy/bollinger_ema_sar_slope_study_v1_consolidate.py
+      - name: Upload cross-market slope-study evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bes-slope-v1-crossmarket
+          path: bollinger_ema_sar_slope_study_v1_crossmarket/
+          if-no-files-found: error
+          retention-days: 90
