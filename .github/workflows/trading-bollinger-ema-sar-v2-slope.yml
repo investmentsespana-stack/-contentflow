@@ -1,0 +1,74 @@
+name: Trading Bollinger EMA SAR V2 Slope
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/bollinger_ema_sar_v2_slope_spec.json'
+      - 'trading_super_strategy/bollinger_ema_sar_v2_slope_backtest.py'
+      - 'trading_super_strategy/bollinger_ema_sar_v2_slope_consolidate.py'
+      - '.github/workflows/trading-bollinger-ema-sar-v2-slope.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        symbol: ['ES.v.0', 'NQ.v.0', 'YM.v.0', 'RTY.v.0']
+    env:
+      DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      BES_SYMBOL: ${{ matrix.symbol }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research dependencies
+        run: python -m pip install --upgrade pip && python -m pip install databento pandas numpy
+      - name: Compile V1 core and V2 slope strategy
+        run: |
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v1_backtest.py
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v2_slope_backtest.py
+      - name: Run V2 discovery-only 1m LONG and SHORT backtest
+        run: python trading_super_strategy/bollinger_ema_sar_v2_slope_backtest.py
+      - name: Upload market V2 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bes-v2-slope-${{ matrix.symbol }}
+          path: bollinger_ema_sar_v2_slope_output/
+          if-no-files-found: error
+          retention-days: 90
+
+  consolidate:
+    needs: backtest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install consolidation dependencies
+        run: python -m pip install pandas numpy
+      - name: Download all V2 market artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bes-v2-slope-*
+          path: bollinger_ema_sar_v2_slope_downloads
+      - name: Consolidate V2 cross-market LONG and SHORT results
+        run: python trading_super_strategy/bollinger_ema_sar_v2_slope_consolidate.py
+      - name: Upload V2 cross-market evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: bes-v2-slope-crossmarket
+          path: bollinger_ema_sar_v2_slope_crossmarket/
+          if-no-files-found: error
+          retention-days: 90
