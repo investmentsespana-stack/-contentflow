@@ -1,0 +1,59 @@
+{
+  "name": "bollinger_ema_sar_v1_1_robustness",
+  "status": "PREREGISTERED_DISCOVERY_ROBUSTNESS_ONLY",
+  "live_money": false,
+  "purpose": "Relax only the overly restrictive lateral-market slope interpretation while keeping the user's core setup unchanged, then stress the surviving interpretation instead of selecting the highest-return configuration.",
+  "discovery_window": ["2025-09-25", "2026-09-11"],
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "core_rules_held_fixed": [
+    "Bollinger 20/2",
+    "EMA 3/9/20/50/200",
+    "Parabolic SAR 0.02/0.20",
+    "2-left/2-right confirmed structure swing",
+    "structure sweep and reclaim",
+    "rocket rejection or body engulfing signal candle",
+    "rocket wick >= 70% of body",
+    "LONG signal low > prior low; SHORT signal high < prior high",
+    "EMA3/EMA9 cross on fully closed signal candle",
+    "signal close beyond EMA9 in trade direction",
+    "next-bar-open execution",
+    "stop at low/high of candle immediately before signal candle",
+    "sideways = NO_TRADE",
+    "no hard NY 09:00-12:00 gate"
+  ],
+  "slope_interpretations": {
+    "NET3_SIGN": "EMA20 net change over 3 closed bars must have the trade direction; no minimum magnitude.",
+    "NET3_2PCT_BB": "Same direction plus absolute 3-bar EMA20 change >= 2% of current Bollinger bandwidth.",
+    "NET3_4PCT_BB": "Same direction plus absolute 3-bar EMA20 change >= 4% of current Bollinger bandwidth."
+  },
+  "exit_robustness_cube": {
+    "target_fraction_of_bb_width": [0.30, 0.40, 0.50],
+    "max_holding_bars": [2, 3, 4],
+    "cost_r": [0.03, 0.045, 0.06],
+    "base_configuration": {"target_fraction": 0.40, "holding_bars": 3, "cost_r": 0.03}
+  },
+  "robustness_checks": [
+    "base expectancy and profit factor",
+    "2x cost survival",
+    "neighboring target and holding-period perturbations",
+    "positive-expectancy share across perturbation cube",
+    "positive market share across ES/NQ/YM/RTY",
+    "quarter stability",
+    "moving-block bootstrap p05 total-R"
+  ],
+  "promotion_policy": {
+    "minimum_crossmarket_trades_base": 30,
+    "base_expectancy_must_be_positive": true,
+    "two_x_cost_expectancy_must_be_positive": true,
+    "minimum_positive_perturbation_share": 0.60,
+    "minimum_positive_market_share": 0.50,
+    "bootstrap_p05_total_r_must_be_positive": true,
+    "selection_rule": "Do not choose the highest-return parameter. Promote every slope interpretation that passes all hard robustness gates; if none pass, promote none."
+  },
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_ROBUSTNESS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  }
+}
