@@ -16,7 +16,8 @@
   "change_from_v1": [
     "SHORT ONLY",
     "Removed the requirement to sell only after sweeping/breaking above a prior structural high",
-    "The mirrored LONG structural-low sweep gate is also removed from the strategy definition",
+    "The mirrored LONG structural-low sweep gate is removed from the general strategy definition",
+    "The 3-candle exit now requires three consecutive candles in the trend color: red for SHORT",
     "All other V1 conditions remain fixed"
   ],
   "session_rule": "No hard 09:00-12:00 ET gate. NY anchor is contextual only.",
@@ -56,8 +57,7 @@
   },
   "exit_v2": {
     "target": "40% of Bollinger bandwidth measured at signal close, projected downward from entry",
-    "maximum_holding_bars": 3,
-    "time_exit": "Close of the third bar after entry if neither target nor stop was hit",
+    "three_candle_exit": "Exit at the close of the third consecutive bearish (red) candle after entry if target or stop has not triggered first. A green/doji candle resets the consecutive-red count.",
     "same_bar_target_and_stop": "Conservative stop-first",
     "ema9_ema20_extension": "DISABLED_IN_V2"
   },
