@@ -1,0 +1,46 @@
+{
+  "name": "bollinger_ema_sar_v2",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "purpose": "Retest the unchanged V1 setup while replacing only the overly restrictive monotonic EMA20 filter with a causal net-slope / non-lateral filter.",
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "unchanged_from_v1": [
+    "Bollinger 20/2",
+    "EMA 3/9/20/50/200",
+    "Parabolic SAR 0.02/0.20",
+    "2-left/2-right confirmed structural swing",
+    "structure sweep and reclaim",
+    "Bollinger touch/pierce",
+    "EMA3/EMA9 signal-bar cross",
+    "close beyond EMA9",
+    "PSAR confirmation",
+    "rocket rejection or body engulfing signal",
+    "higher signal low for LONG / lower signal high for SHORT",
+    "entry next bar open",
+    "stop on candle immediately before signal",
+    "40% Bollinger bandwidth target",
+    "maximum 3 one-minute bars",
+    "same-bar ambiguity stop-first",
+    "EMA9/20 extension disabled",
+    "EMA50/200 context only",
+    "no hard NY 09:00-12:00 time gate"
+  ],
+  "single_change_v2": {
+    "name": "EMA20 causal slope / non-lateral filter",
+    "lookback_bars": 5,
+    "normalization": "Bollinger bandwidth at signal close",
+    "minimum_absolute_slope": "5% of Bollinger bandwidth over 5 closed bars",
+    "long": "EMA20(signal) - EMA20(signal-5) >= 0.05 * BollingerBandwidth(signal)",
+    "short": "EMA20(signal-5) - EMA20(signal) >= 0.05 * BollingerBandwidth(signal)",
+    "sideways": "NO_TRADE when the directional slope threshold is not met",
+    "optimization": "NONE; threshold fixed before rerun"
+  },
+  "comparison": "Compare V2 against sealed V1 discovery results, especially number of valid trades, expectancy, PF, drawdown, direction split, pattern split, session split and filter funnel. No promotion based on win rate alone."
+}
