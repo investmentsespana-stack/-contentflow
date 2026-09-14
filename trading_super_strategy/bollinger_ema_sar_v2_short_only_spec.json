@@ -1,0 +1,70 @@
+{
+  "name": "bollinger_ema_sar_v2_short_only",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {
+    "start": "2025-09-25",
+    "end": "2026-09-11"
+  },
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "change_from_v1": [
+    "SHORT ONLY",
+    "Removed the requirement to sell only after sweeping/breaking above a prior structural high",
+    "The mirrored LONG structural-low sweep gate is also removed from the strategy definition",
+    "All other V1 conditions remain fixed"
+  ],
+  "session_rule": "No hard 09:00-12:00 ET gate. NY anchor is contextual only.",
+  "indicators": {
+    "bollinger": {"period": 20, "stddev": 2.0, "std_ddof": 0},
+    "ema": [3, 9, 20, 50, 200],
+    "parabolic_sar": {"step": 0.02, "max_step": 0.20},
+    "all_signal_decisions_use_closed_bars": true
+  },
+  "market_regime_filter": {
+    "sideways": "NO_TRADE",
+    "slope_definition_v2": "EMA20 must be falling on each of the last 3 closed transitions for SHORT",
+    "note": "Slope rule is unchanged from V1 and is not optimized in this run."
+  },
+  "signal_candle": {
+    "allowed": ["rocket_rejection", "body_engulfing"],
+    "rocket_short": "Red body and upper wick >= 70% of body size.",
+    "engulfing_short": "Red body fully engulfs the prior candle body.",
+    "short_structure_shape": "Signal high < prior candle high."
+  },
+  "entry_conditions_short": [
+    "Prior bar or signal bar reaches/pierces upper Bollinger band",
+    "EMA20 is falling on each of the last 3 closed transitions",
+    "EMA3 crosses below EMA9 on the signal bar",
+    "Signal close < EMA9",
+    "Parabolic SAR is above the signal candle",
+    "Signal candle is rocket rejection or bearish body engulfing",
+    "Signal high < prior bar high"
+  ],
+  "removed_entry_condition": "NO requirement to sweep/break above a prior structural high before selling.",
+  "entry_execution": {
+    "timing": "Open of the bar immediately after the fully closed signal candle",
+    "lookahead": false
+  },
+  "stop": {
+    "short": "High of the candle immediately before the signal candle"
+  },
+  "exit_v2": {
+    "target": "40% of Bollinger bandwidth measured at signal close, projected downward from entry",
+    "maximum_holding_bars": 3,
+    "time_exit": "Close of the third bar after entry if neither target nor stop was hit",
+    "same_bar_target_and_stop": "Conservative stop-first",
+    "ema9_ema20_extension": "DISABLED_IN_V2"
+  },
+  "ema50_ema200": {
+    "role_v2": "Recorded as context only, not mandatory entry gates"
+  },
+  "cost_model": {
+    "baseline_cost_r": 0.03
+  }
+}
