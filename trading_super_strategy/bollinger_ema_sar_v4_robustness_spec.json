@@ -1,0 +1,59 @@
+{
+  "name": "bollinger_ema_sar_v4_robustness",
+  "status": "PREREGISTERED_DISCOVERY_ROBUSTNESS_ONLY",
+  "live_money": false,
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": ["2025-09-25", "2026-09-11"],
+  "candidate": "V4: V3 causal entry logic + stop active + profit exit at close of third consecutive candle in trade direction",
+  "core_rules_frozen": [
+    "Bollinger 20/2",
+    "EMA 3/9/20/50/200",
+    "Parabolic SAR 0.02/0.20",
+    "2-left/2-right causal confirmed structure swing",
+    "structure sweep and reclaim",
+    "rocket rejection wick >=70% of body OR body engulfing",
+    "higher low LONG / lower high SHORT signal shape",
+    "EMA3 crosses EMA9 on fully closed signal candle",
+    "EMA3 and EMA9 both slope in trade direction on signal bar",
+    "signal close beyond EMA9",
+    "PSAR confirmation",
+    "entry at next bar open",
+    "stop at low/high of candle immediately before signal candle",
+    "no hard NY time gate",
+    "EMA9/20 future crossing is diagnostic only and cannot be used retroactively"
+  ],
+  "baseline_exit": {
+    "consecutive_trade_color_candles": 3,
+    "opposite_color_or_doji_resets_count": true,
+    "stop_checked_intrabar_first": true,
+    "baseline_cost_r": 0.03
+  },
+  "robustness_tests": {
+    "cost_stress_r": [0.03, 0.045, 0.06],
+    "exit_neighborhood_consecutive_candles": [2, 3, 4],
+    "temporal": ["fixed first half vs second half", "calendar quarters"],
+    "cross_sectional_diagnostics": ["market", "direction", "market_direction", "pattern", "session"],
+    "moving_block_bootstrap": {"replications": 5000, "block_length_trades": 10, "seed": 260914}
+  },
+  "hard_promotion_gates": {
+    "baseline_minimum_trades": 300,
+    "baseline_expectancy_r": "> 0",
+    "baseline_profit_factor": "> 1.05",
+    "cost_1_5x_expectancy_r": "> 0",
+    "cost_2x_expectancy_r": ">= 0",
+    "both_fixed_time_halves_expectancy_r": "> 0",
+    "positive_calendar_quarter_fraction": ">= 0.60",
+    "positive_market_fraction": ">= 0.75",
+    "exit_neighbors_2_and_4_expectancy_r": ">= 0",
+    "moving_block_bootstrap_p05_total_r": "> 0"
+  },
+  "selection_policy": "Robustness is a rejection test, not a parameter search. Do not choose 2, 3, or 4 candles because it has the highest discovery return. Baseline remains 3; neighbors only test whether the edge collapses.",
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "next_stage_if_pass": "Freeze V4 baseline unchanged and run once on untouched 2022-09-01 through 2025-09-24 confirmatory data. Do not unseal final holdout.",
+  "if_fail": "Do not retune on confirmatory or holdout data. Diagnose failure inside discovery only."
+}
