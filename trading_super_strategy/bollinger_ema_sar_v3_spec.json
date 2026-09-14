@@ -1,0 +1,52 @@
+{
+  "name": "bollinger_ema_sar_v3_crossover_slope",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "purpose": "Correct the lateral/slope interpretation without changing the core setup. The EMA3/EMA9 cross is allowed to create the initial slope; EMA20 is not required to have been sloping before the signal.",
+  "unchanged_from_v1": [
+    "Bollinger 20/2",
+    "EMA 3/9/20/50/200",
+    "Parabolic SAR 0.02/0.20",
+    "2-left/2-right confirmed structure swing",
+    "structure sweep and reclaim",
+    "Bollinger touch/pierce",
+    "EMA3/EMA9 signal-bar cross",
+    "close beyond EMA9",
+    "PSAR confirmation",
+    "rocket rejection or body engulfing signal",
+    "higher signal low for LONG / lower signal high for SHORT",
+    "entry at next bar open",
+    "stop on candle immediately before signal",
+    "40% Bollinger-bandwidth target",
+    "maximum 3 one-minute bars",
+    "same-bar ambiguity stop-first",
+    "EMA9/20 extension disabled",
+    "EMA50/200 context only",
+    "no hard NY 09:00-12:00 gate"
+  ],
+  "single_change_v3": {
+    "removed": "EMA20 must already be monotonic for 3 prior transitions",
+    "long_nonlateral": "On the closed signal bar EMA3 is rising and EMA9 is rising, while EMA3 crosses above EMA9.",
+    "short_nonlateral": "On the closed signal bar EMA3 is falling and EMA9 is falling, while EMA3 crosses below EMA9.",
+    "sideways": "NO_TRADE when the fast and signal averages do not slope together in the trade direction at the cross.",
+    "magnitude_threshold": "NONE in V3; no optimized slope threshold is introduced."
+  },
+  "ema9_20_diagnostic": {
+    "entry_gate": false,
+    "extension": false,
+    "record": [
+      "whether EMA9 is already on the trade side of EMA20 at signal close",
+      "whether EMA9 crosses EMA20 during the three-bar holding window"
+    ],
+    "reason": "Test the user's observation that the 3/9 and 9/20 crossover sequence is where moving averages acquire slope, without delaying the primary entry or changing the V1 exit rule."
+  },
+  "comparison": "Compare V1, V2 and V3 on sample size, expectancy, PF, drawdown, direction, pattern, session and EMA9/20 diagnostic cohorts. No promotion by win rate alone."
+}
