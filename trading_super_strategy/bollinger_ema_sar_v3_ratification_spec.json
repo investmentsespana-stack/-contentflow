@@ -1,0 +1,48 @@
+{
+  "name": "bollinger_ema_sar_v3_ratification",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "clarified_indicator_logic": {
+    "ema3_ema9": "Fresh 3/9 cross is the early directional trigger. The indicator state/color remains in that direction until the next opposite 3/9 cross.",
+    "ema9_ema20": "9/20 is slower confirmation/ratification. It is measured separately and is not required for entry in this experiment.",
+    "reason": "The user-provided chart shows the fast 3/9 state turning first and the 9/20 relationship confirming later during stronger directional movement."
+  },
+  "entry_logic": {
+    "unchanged_core": [
+      "2-left/2-right confirmed structure swing",
+      "LONG: prior bar sweeps below latest confirmed structural low and signal closes back above it",
+      "SHORT: prior bar sweeps above latest confirmed structural high and signal closes back below it",
+      "Bollinger 20/2 touch or pierce on prior/signal bar",
+      "fresh EMA3/EMA9 cross on the fully closed signal candle",
+      "signal closes beyond EMA9 in trade direction",
+      "Parabolic SAR confirms direction",
+      "signal is rocket rejection or body engulfing",
+      "LONG signal low > prior low; SHORT signal high < prior high",
+      "entry at next 1m bar open",
+      "stop at low/high of candle immediately before signal"
+    ],
+    "non_lateral_filter_v3": "EMA9 must have directional slope on the signal bar: EMA9[t] > EMA9[t-1] for LONG; EMA9[t] < EMA9[t-1] for SHORT. No optimized magnitude threshold.",
+    "why_change": "Replaces the V1 three-transition EMA20 monotonic filter and avoids the tuned 5-bar/5%-bandwidth threshold used in V2."
+  },
+  "exit": {
+    "target": "40% of Bollinger bandwidth measured at signal close",
+    "maximum_holding_bars": 3,
+    "time_exit": "close of third bar if target/stop not hit",
+    "same_bar_ambiguity": "stop-first",
+    "ema9_ema20_extension": "DISABLED; ratification is observation only in this run"
+  },
+  "ratification_measurement": {
+    "aligned_at_signal": "Whether EMA9 is already on the same side of EMA20 at signal close",
+    "fresh_cross_during_trade": "Whether 9/20 crosses in the trade direction after entry and before the V3 trade exits",
+    "bars_to_ratification": "Number of held bars from entry to the fresh 9/20 ratification event",
+    "comparison": "Report performance for already-ratified, ratifies-during-trade, and unratified groups without changing exits."
+  }
+}
