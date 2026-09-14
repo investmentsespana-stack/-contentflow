@@ -1,0 +1,42 @@
+{
+  "name": "bollinger_ema_sar_v1_1_slope_ab",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "purpose": "Test only the interpretation of 'operate if and only if there is slope' while holding every other v1 rule fixed.",
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "fixed_from_v1": [
+    "Bollinger 20/2",
+    "EMA 3/9/20/50/200",
+    "Parabolic SAR 0.02/0.20",
+    "2-left/2-right causal structure swing",
+    "structure sweep and reclaim",
+    "lower/upper Bollinger interaction",
+    "EMA3/EMA9 signal-bar cross",
+    "signal close beyond EMA9",
+    "SAR confirmation",
+    "rocket rejection wick >=70% of body OR body engulfing",
+    "LONG signal low > prior low; SHORT signal high < prior high",
+    "entry next bar open",
+    "stop at low/high of candle immediately before signal candle",
+    "target 40% of Bollinger bandwidth at signal close",
+    "maximum 3 entry bars",
+    "stop-first on same-minute OHLC ambiguity",
+    "EMA9/20 extension disabled",
+    "EMA50/200 context only"
+  ],
+  "slope_variants": {
+    "monotonic3_baseline": "Original v1: EMA20 must rise/fall on each of the last 3 closed transitions.",
+    "current_slope": "Literal slope at signal: LONG EMA20[t] > EMA20[t-1]; SHORT EMA20[t] < EMA20[t-1].",
+    "net3_slope": "Smoothed direction without monotonic requirement: LONG EMA20[t] > EMA20[t-3]; SHORT EMA20[t] < EMA20[t-3]."
+  },
+  "selection_rule": "This is a diagnostic discovery comparison. Do not select a variant on PnL alone; compare sample size, expectancy, PF, drawdown, direction balance, session concentration, and stability before any confirmatory promotion.",
+  "session_rule": "No hard 09:00-12:00 ET gate. NY anchor remains contextual only.",
+  "live_rule": "No live trading implied or enabled."
+}
