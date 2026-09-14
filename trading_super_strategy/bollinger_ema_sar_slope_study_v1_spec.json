@@ -1,0 +1,36 @@
+{
+  "name": "bollinger_ema_sar_slope_study_v1",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "purpose": "Replace only the overly restrictive lateral/trend interpretation from Bollinger EMA SAR V1 while holding every other rule fixed.",
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_STUDY",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "fixed_rules": {
+    "all_rules_other_than_market_slope_filter": "IDENTICAL_TO_bollinger_ema_sar_v1",
+    "bollinger": "20 periods / 2 standard deviations",
+    "ema": [3, 9, 20, 50, 200],
+    "parabolic_sar": "0.02 step / 0.20 max",
+    "structure": "causal confirmed 2-left / 2-right swing",
+    "sideways": "NO_TRADE",
+    "signal_patterns": "rocket rejection with wick >=70% of body OR body engulfing",
+    "entry": "next 1m bar open after fully closed signal candle",
+    "stop": "low/high of candle immediately before signal candle",
+    "exit": "40% of Bollinger bandwidth or close after maximum 3 bars",
+    "ema9_ema20_extension": "DISABLED",
+    "ny_anchor": "context only, never a hard session gate"
+  },
+  "slope_variants": {
+    "strict3_baseline": "EMA20 must rise/fall on each of the last three closed one-bar transitions. Reproduces V1 baseline.",
+    "directional3": "LONG if EMA20_now > EMA20_3_bars_ago; SHORT if EMA20_now < EMA20_3_bars_ago. No monotonic path requirement.",
+    "bbnorm_2p5": "directional3 plus absolute 3-bar EMA20 displacement >= 2.5% of current Bollinger bandwidth.",
+    "bbnorm_5": "directional3 plus absolute 3-bar EMA20 displacement >= 5% of current Bollinger bandwidth."
+  },
+  "selection_rule": "Discovery only. Compare trade count, expectancy, PF, drawdown, target/stop/time exits, direction, market and session. Do not promote solely on best return. A candidate slope definition must materially improve sample size while preserving a coherent non-sideways interpretation; it still requires later confirmatory validation.",
+  "anti_overfit": "No parameter search beyond these four preregistered definitions. No changes to Bollinger, SAR, EMA crossing, structure, signal candle, stop, target or holding period in this experiment."
+}
