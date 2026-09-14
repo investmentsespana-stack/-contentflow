@@ -75,8 +75,12 @@ def main():
     if not frames:
         raise SystemExit("No robustness trade artifacts found")
     df = pd.concat(frames, ignore_index=True)
-    df["entry_time_et"] = pd.to_datetime(df["entry_time_et"], errors="coerce")
-    df["quarter"] = df["entry_time_et"].dt.to_period("Q").astype(str)
+    # entry_time_et spans DST boundaries, so rows can carry different UTC offsets
+    # (-04:00/-05:00). Normalize through UTC, then convert back to New York time
+    # before deriving calendar quarters. This changes only transport/parsing, not
+    # any preregistered robustness metric or hard gate.
+    df["entry_time_et"] = pd.to_datetime(df["entry_time_et"], errors="coerce", utc=True).dt.tz_convert("America/New_York")
+    df["quarter"] = df["entry_time_et"].dt.tz_localize(None).dt.to_period("Q").astype(str)
     df.to_csv(OUT / "all_robustness_trades.csv", index=False)
 
     result = {
