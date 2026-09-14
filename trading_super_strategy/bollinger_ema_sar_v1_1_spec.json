@@ -1,0 +1,45 @@
+{
+  "name": "bollinger_ema_sar_v1_1",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "purpose": "Change only the market-slope / sideways filter from v1; keep every other rule identical.",
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "unchanged_from_v1": [
+    "Bollinger 20/2",
+    "EMA 3/9/20/50/200",
+    "Parabolic SAR 0.02/0.20",
+    "2-left/2-right confirmed structure swings",
+    "structure sweep and reclaim",
+    "rocket rejection wick >=70% of body or body engulfing",
+    "signal low higher than prior low for LONG / signal high lower than prior high for SHORT",
+    "EMA3/EMA9 signal-bar cross",
+    "signal close beyond EMA9",
+    "entry at next bar open",
+    "stop at low/high of candle immediately before signal candle",
+    "40% Bollinger bandwidth target",
+    "maximum 3 bars holding",
+    "EMA9/EMA20 extension disabled",
+    "EMA50/EMA200 context only",
+    "no hard NY session gate"
+  ],
+  "market_regime_filter_v1_1": {
+    "goal": "Operate if and only if there is directional slope; reject the flattest regime without requiring every one-minute EMA20 step to be monotonic.",
+    "slope_window_bars": 3,
+    "slope_delta": "EMA20[t] - EMA20[t-3]",
+    "direction_long": "slope_delta > 0",
+    "direction_short": "slope_delta < 0",
+    "strength": "abs(slope_delta) / ATR14[t]",
+    "sideways_threshold": "25th percentile of slope strength over the prior 60 closed bars, shifted one bar so the threshold never uses the current observation",
+    "minimum_history_for_threshold": 20,
+    "trade_rule": "Correct slope direction AND current slope_strength > prior rolling Q25; otherwise NO_TRADE",
+    "optimization": "NONE; Q25, 60 bars and 3-bar slope are fixed before this run"
+  },
+  "comparison": "v1 strict 3-step monotonic EMA20 vs v1.1 adaptive directional slope. Judge on sample size, expectancy, PF, drawdown, direction and pattern distribution; do not select by win rate alone."
+}
