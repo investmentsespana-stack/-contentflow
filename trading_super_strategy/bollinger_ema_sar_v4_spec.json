@@ -1,0 +1,40 @@
+{
+  "name": "bollinger_ema_sar_v4_three_color_exit",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "purpose": "Keep the latest crossover-derived non-lateral entry logic and change profit management to only three consecutive candles in the trade direction.",
+  "entry_logic_from_v3": {
+    "bollinger": "20/2",
+    "ema": [3, 9, 20, 50, 200],
+    "parabolic_sar": "0.02/0.20",
+    "structure": "2-left / 2-right confirmed swing; prior bar sweeps structure and signal reclaims",
+    "pattern": "rocket rejection wick >=70% of body OR body engulfing",
+    "signal_shape": "higher low LONG / lower high SHORT",
+    "non_lateral": "EMA3 and EMA9 both slope in trade direction on the closed signal bar while EMA3 crosses EMA9",
+    "entry": "next bar open",
+    "stop": "low/high of candle immediately before signal",
+    "ema50_200": "context only",
+    "ny_anchor": "contextual only; never a hard time gate"
+  },
+  "single_change_v4_exit": {
+    "remove_40pct_bollinger_target": true,
+    "remove_three_total_bar_timeout": true,
+    "profit_rule": "Exit at the close of the third consecutive candle whose body color matches the trade direction.",
+    "long_color": "green: close > open",
+    "short_color": "red: close < open",
+    "opposite_color_or_doji": "reset consecutive count to zero",
+    "stop_remains_active": true,
+    "ordering": "stop is checked intrabar first; color-based profit exit is evaluated only at candle close",
+    "ema9_20_extension": "DISABLED",
+    "dataset_end": "force close only for bookkeeping if a position remains open at the end of the research sample"
+  },
+  "comparison": "Compare V4 with prior discovery variants on trade count, expectancy, PF, drawdown, LONG/SHORT, pattern, session, EMA9/20 phase, stop rate and three-color exit rate. No live promotion from discovery alone."
+}
