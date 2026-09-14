@@ -1,12 +1,12 @@
-name: Trading Bollinger EMA SAR V1.1
+name: Trading Bollinger EMA SAR V1.1 Robustness
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - 'trading_super_strategy/bollinger_ema_sar_v1_1_spec.json'
-      - 'trading_super_strategy/bollinger_ema_sar_v1_1_backtest.py'
+      - 'trading_super_strategy/bollinger_ema_sar_v1_1_robustness_spec.json'
+      - 'trading_super_strategy/bollinger_ema_sar_v1_1_robustness.py'
       - 'trading_super_strategy/bollinger_ema_sar_v1_1_consolidate.py'
       - '.github/workflows/trading-bollinger-ema-sar-v1-1.yml'
 
@@ -15,9 +15,9 @@ permissions:
   actions: read
 
 jobs:
-  backtest:
+  robustness:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -30,25 +30,27 @@ jobs:
           python-version: '3.12'
       - name: Install research dependencies
         run: python -m pip install --upgrade pip && python -m pip install databento pandas numpy
-      - name: Compile adaptive slope study
-        run: python -m py_compile trading_super_strategy/bollinger_ema_sar_v1_1_backtest.py
-      - name: Run discovery-only 1m slope follow-up
+      - name: Compile robustness study
+        run: |
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v1_backtest.py
+          python -m py_compile trading_super_strategy/bollinger_ema_sar_v1_1_robustness.py
+      - name: Run discovery-only robustness cube
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           BES_SYMBOL: ${{ matrix.symbol }}
-        run: python trading_super_strategy/bollinger_ema_sar_v1_1_backtest.py
-      - name: Upload market evidence
+        run: python trading_super_strategy/bollinger_ema_sar_v1_1_robustness.py
+      - name: Upload market robustness evidence
         uses: actions/upload-artifact@v4
         with:
-          name: bes-v1-1-${{ matrix.symbol }}
-          path: bollinger_ema_sar_v1_1_output/
+          name: bes-v1-1-robustness-${{ matrix.symbol }}
+          path: bollinger_ema_sar_v1_1_robustness_output/
           if-no-files-found: error
           retention-days: 90
 
   consolidate:
-    needs: backtest
+    needs: robustness
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -56,17 +58,17 @@ jobs:
           python-version: '3.12'
       - name: Install consolidation dependencies
         run: python -m pip install pandas numpy
-      - name: Download all market artifacts
+      - name: Download all market robustness artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: bes-v1-1-*
+          pattern: bes-v1-1-robustness-*
           path: bollinger_ema_sar_v1_1_downloads
-      - name: Consolidate cross-market results
+      - name: Consolidate and apply preregistered hard gates
         run: python trading_super_strategy/bollinger_ema_sar_v1_1_consolidate.py
-      - name: Upload cross-market evidence
+      - name: Upload cross-market robustness evidence
         uses: actions/upload-artifact@v4
         with:
-          name: bes-v1-1-crossmarket
+          name: bes-v1-1-robustness-crossmarket
           path: bollinger_ema_sar_v1_1_crossmarket/
           if-no-files-found: error
           retention-days: 90
