@@ -1,0 +1,42 @@
+{
+  "name": "bollinger_ema_sar_v3_5m",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "purpose": "Change only the chart timeframe from 1 minute to 5 minutes while preserving the V2 trading logic and data-governance rules.",
+  "timeframe": "5m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "single_change_vs_v2": "Timeframe 1m -> 5m only",
+  "bar_construction": "Causal 5-minute OHLCV aggregation from Databento 1-minute bars using open=first, high=max, low=min, close=last, volume=sum.",
+  "unchanged_logic": [
+    "Bollinger 20/2",
+    "EMA 3/9/20/50/200",
+    "Parabolic SAR 0.02/0.20",
+    "2-left/2-right confirmed structural swing on the active 5m bars",
+    "structure sweep and reclaim",
+    "Bollinger touch/pierce",
+    "EMA20 non-lateral slope filter: 5-bar directional EMA20 move >= 5% of current Bollinger bandwidth",
+    "EMA3/EMA9 signal-bar cross",
+    "signal close beyond EMA9",
+    "PSAR confirmation",
+    "rocket rejection or body engulfing signal",
+    "rocket wick >= 70% of candle body",
+    "body-only engulfing",
+    "higher signal low for LONG / lower signal high for SHORT",
+    "entry at next 5m bar open",
+    "stop at low/high of candle immediately before signal",
+    "target = 40% of Bollinger bandwidth at signal close",
+    "maximum holding = 3 bars (15 minutes on 5m chart)",
+    "same-bar target/stop ambiguity = stop first",
+    "EMA9/20 extension disabled",
+    "EMA50/200 context only",
+    "sideways = NO_TRADE",
+    "NY anchor contextual only, never a hard 09:00-12:00 gate"
+  ],
+  "comparison": "Compare against V1 1m and V2 1m without changing any other rule. Primary goals: increase usable sample, reduce microstructure noise, and measure expectancy/PF/DD rather than win rate alone."
+}
