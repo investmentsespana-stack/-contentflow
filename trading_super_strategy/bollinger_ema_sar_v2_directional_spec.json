@@ -1,0 +1,49 @@
+{
+  "name": "bollinger_ema_sar_v2_directional_slope",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "purpose": "Repeat the V1 setup without changing Bollinger, EMA cross, SAR, structure, candle pattern, stop, or 3-bar/40%-band exit; replace only the overly restrictive monotonic EMA20 regime filter with a causal directional slope filter, and test LONG and SHORT as completely separate experiments.",
+  "timeframe": "1m",
+  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "directions": ["LONG", "SHORT"],
+  "discovery_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "unchanged_from_v1": {
+    "bollinger": "20 periods, 2 standard deviations",
+    "ema": [3, 9, 20, 50, 200],
+    "parabolic_sar": "0.02 step / 0.20 max",
+    "structure": "causal confirmed 2-left / 2-right swing",
+    "long_structure": "prior bar sweeps below latest confirmed swing low; signal closes back above it; signal low > prior low",
+    "short_structure": "prior bar sweeps above latest confirmed swing high; signal closes back below it; signal high < prior high",
+    "signal_patterns": "rocket rejection with wick >=70% body OR body engulfing",
+    "ema_cross": "EMA3/EMA9 cross on the fully closed signal bar",
+    "ema9_close": "signal closes on the correct side of EMA9",
+    "sar": "below LONG signal / above SHORT signal",
+    "entry": "open of the bar immediately after the fully closed signal candle",
+    "stop": "LONG low of candle before signal; SHORT high of candle before signal",
+    "exit": "40% of Bollinger bandwidth from entry OR close after maximum 3 one-minute bars; active stop; conservative stop-first on same-bar ambiguity",
+    "ema9_ema20_extension": "DISABLED",
+    "ema50_ema200": "context only"
+  },
+  "only_change_from_v1": {
+    "old_filter": "EMA20 had to move monotonically in the trade direction on each of the last 3 closed transitions.",
+    "new_filter": "EMA20 directional slope over 5 closed bars, normalized by ATR14.",
+    "formula": "ema20_slope5_atr = (EMA20[t] - EMA20[t-5]) / ATR14[t]",
+    "long_gate": "ema20_slope5_atr >= +0.10",
+    "short_gate": "ema20_slope5_atr <= -0.10",
+    "sideways": "NO_TRADE when the relevant directional threshold is not met",
+    "optimization": "Threshold 0.10 is fixed before this run and is not optimized in this discovery test."
+  },
+  "direction_isolation": {
+    "LONG": "LONG signals only; SHORT signals are ignored and cannot affect position sequencing.",
+    "SHORT": "SHORT signals only; LONG signals are ignored and cannot affect position sequencing.",
+    "no_mixed_score": true
+  },
+  "session_rule": "No hard 09:00-12:00 ET gate. The NY anchor remains contextual only.",
+  "cost_model": {"baseline_cost_r": 0.03},
+  "decision": "RESEARCH_ONLY_NO_LIVE"
+}
