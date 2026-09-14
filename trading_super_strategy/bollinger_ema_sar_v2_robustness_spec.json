@@ -1,0 +1,43 @@
+{
+  "name": "bollinger_ema_sar_v2_robustness",
+  "status": "PREREGISTERED_DISCOVERY_ROBUSTNESS_ONLY",
+  "live_money": false,
+  "purpose": "Test whether the V2 non-lateral slope result is stable without changing any entry, stop, target, pattern, structure, session, or indicator rule.",
+  "data_window": {"start": "2025-09-25", "end": "2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "primary_rule": {
+    "slope_formula": "(EMA20[t]-EMA20[t-3])/ATR14[t]",
+    "threshold": 0.05,
+    "status": "PRIMARY_FIXED_BEFORE_ROBUSTNESS"
+  },
+  "parameter_perturbation": {
+    "thresholds": [0.025, 0.05, 0.075, 0.10],
+    "purpose": "Robustness plateau only; do not pick the best threshold from this discovery window."
+  },
+  "cost_stress": {
+    "baseline_cost_r": 0.03,
+    "stress_1_5x_cost_r": 0.045,
+    "stress_2x_cost_r": 0.06
+  },
+  "temporal_checks": [
+    "first half vs second half of discovery window",
+    "calendar-quarter breakdown"
+  ],
+  "dependency_check": [
+    "LONG vs SHORT",
+    "ES/NQ/YM/RTY separately",
+    "rocket vs engulfing",
+    "session breakdown"
+  ],
+  "monte_carlo": {
+    "method": "moving-block bootstrap of chronological trade net-R sequence",
+    "block_length_trades": 5,
+    "replications": 2000,
+    "seed": 260913
+  },
+  "decision_rule": "This stage may reject instability but may not authorize live trading, open confirmatory data, or unseal the final holdout."
+}
