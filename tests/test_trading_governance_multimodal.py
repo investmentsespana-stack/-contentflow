@@ -91,3 +91,13 @@ def test_promotion_gate_is_fail_closed_until_pbo_threshold_is_configured():
 
     allowed = evaluate_promotion(evidence, PromotionPolicy(max_pbo=0.20))
     assert allowed.allowed
+
+
+def test_director_routes_multimodal_and_experiment_audit_tasks():
+    from trading_super_strategy.agent_orchestrator import DirectorOrchestrator, ResearchTask, default_agent_pool
+
+    director = DirectorOrchestrator(default_agent_pool())
+    fusion = director.assign(ResearchTask("FUSION-TEST", "multimodal_context"))
+    audit = director.assign(ResearchTask("AUDIT-TEST", "experiment_audit"))
+    assert fusion.agent_name == "multimodal_fusion_agent"
+    assert audit.agent_name == "robustness_agent"
