@@ -48,6 +48,16 @@
   "rewrites": [
     {
       "source": "/",
+      "has": [{ "type": "host", "value": "investmentsespana.space" }],
+      "destination": "/cygnus-academy.html"
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.investmentsespana.space" }],
+      "destination": "/cygnus-academy.html"
+    },
+    {
+      "source": "/",
       "has": [{ "type": "host", "value": "cygnusacademyai.com" }],
       "destination": "/cygnus-academy.html"
     },
