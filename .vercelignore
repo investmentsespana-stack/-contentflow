@@ -1,0 +1,6 @@
+.github/
+backups/
+certification-evidence/
+trading_super_strategy/
+**/__pycache__/
+*.pyc
