@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "as_of": "2026-09-16",
+  "mode": "RESEARCH_HOLD_FAIL_CLOSED",
+  "promotion_allowed": false,
+  "live_money_allowed": false,
+  "scope": "NQ 15m discovery survivors and multi-instrument portability falsification",
+  "evidence_window": {
+    "provider": "yfinance via OpenBB",
+    "start": "2026-07-20",
+    "end": "2026-09-16",
+    "note": "Recent discovery window reused for stress tests; not untouched OOS and not multi-year certification data."
+  },
+  "global_fail_closed_reasons": [
+    "No multi-year independent OOS dataset has been completed.",
+    "The current Yahoo window was already used for discovery and cannot be treated as untouched OOS.",
+    "All five NQ survivors failed the current harsh Monte Carlo tail screen: p05 total R remained negative and ruin probability remained above 5 percent.",
+    "The PBO promotion threshold remains intentionally unconfigured, so the existing promotion gate remains fail-closed.",
+    "Yahoo continuous futures may contain contract-roll effects that require independent verification."
+  ],
+  "candidates": {
+    "R2_ER_SWITCH_T20_SHORT": {
+      "status": "RESEARCH_HOLD",
+      "nq_4tick_cost_stress_positive": true,
+      "nq_positive_temporal_segments": "3/4",
+      "parameter_neighborhood_positive": "11/11",
+      "cross_market_positive_1tick": "1/3",
+      "cross_market_markets": {"ES": false, "YM": false, "RTY": true},
+      "monte_carlo": {"profitable_probability": 0.7434, "ruin_probability": 0.409, "p05_total_r": -10.4961},
+      "promotion_blockers": ["MC tail screen failed", "multi-market portability weak", "no independent multi-year OOS"]
+    },
+    "R2_ER_SWITCH_T60_SHORT": {
+      "status": "RESEARCH_HOLD",
+      "nq_4tick_cost_stress_positive": true,
+      "nq_positive_temporal_segments": "2/4",
+      "parameter_neighborhood_positive": "11/11",
+      "cross_market_positive_1tick": "0/3",
+      "cross_market_markets": {"ES": false, "YM": false, "RTY": false},
+      "monte_carlo": {"profitable_probability": 0.5352, "ruin_probability": 0.625, "p05_total_r": -17.1070},
+      "promotion_blockers": ["MC tail screen failed", "temporal split weak", "cross-market portability failed", "no independent multi-year OOS"]
+    },
+    "R1_PAST_RETURN_20_SHORT": {
+      "status": "RESEARCH_HOLD",
+      "nq_4tick_cost_stress_positive": true,
+      "nq_positive_temporal_segments": "3/4",
+      "parameter_neighborhood_positive": "2/3",
+      "cross_market_positive_1tick": "0/3",
+      "cross_market_markets": {"ES": false, "YM": false, "RTY": false},
+      "monte_carlo": {"profitable_probability": 0.905, "ruin_probability": 0.353, "p05_total_r": -4.00584},
+      "promotion_blockers": ["MC tail screen failed", "parameter neighborhood has a losing perturbation", "cross-market portability failed", "no independent multi-year OOS"]
+    },
+    "R1_MA_10_30_SHORT": {
+      "status": "RESEARCH_HOLD",
+      "nq_4tick_cost_stress_positive": true,
+      "nq_positive_temporal_segments": "3/4",
+      "parameter_neighborhood_positive": "4/5",
+      "cross_market_positive_1tick": "0/3",
+      "cross_market_markets": {"ES": false, "YM": false, "RTY": false},
+      "monte_carlo": {"profitable_probability": 0.5122, "ruin_probability": 0.4666, "p05_total_r": -15.2142},
+      "promotion_blockers": ["MC tail screen failed", "parameter neighborhood has a losing perturbation", "cross-market portability failed", "no independent multi-year OOS"]
+    },
+    "R3_NQ_VOL_MR_SHORT": {
+      "status": "RESEARCH_HOLD",
+      "nq_only_by_design": true,
+      "nq_4tick_cost_stress_positive": true,
+      "nq_positive_temporal_segments": "3/4",
+      "parameter_neighborhood_positive": "11/11",
+      "cross_market_test": "NOT_APPLICABLE_PREREGISTERED_NQ_ONLY",
+      "monte_carlo": {"profitable_probability": 0.6968, "ruin_probability": 0.2686, "p05_total_r": -9.40636},
+      "promotion_blockers": ["MC tail screen failed", "no independent multi-year OOS"]
+    }
+  },
+  "required_next_evidence": [
+    "Acquire independent multi-year intraday history with explicit contract rolls and verified timestamps.",
+    "Run untouched OOS and rolling walk-forward with realistic per-instrument costs.",
+    "Repeat Monte Carlo and perturbation tests on independent data rather than the discovery window.",
+    "Compute DSR using the complete trial registry and CSCV/PBO after the PBO research threshold is explicitly approved.",
+    "Only then may a candidate be considered for paper/shadow promotion; live execution remains separately disabled."
+  ]
+}
