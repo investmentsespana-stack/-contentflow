@@ -1,5 +1,5 @@
 {
-  "version": "0.9",
+  "version": "0.9.1",
   "mode": "research_paper_only",
   "live_money": false,
   "order_execution_authority_for_agents": false,
@@ -19,10 +19,11 @@
     {"name": "strategy_builder", "role": "research", "capabilities": ["strategy_research"]},
     {"name": "coalition_researcher", "role": "research", "capabilities": ["coalition_research"]},
     {"name": "backtest_agent", "role": "research", "capabilities": ["backtest", "walk_forward"]},
-    {"name": "robustness_agent", "role": "research", "capabilities": ["robustness", "monte_carlo", "anti_overfit"]},
+    {"name": "robustness_agent", "role": "research", "capabilities": ["robustness", "monte_carlo", "anti_overfit", "experiment_audit"]},
     {"name": "prop_firm_agent", "role": "research", "capabilities": ["prop_firm"]},
     {"name": "macro_agent", "role": "research", "capabilities": ["macro_fundamental"]},
     {"name": "microstructure_agent", "role": "research", "capabilities": ["order_flow", "mbo", "mbp", "liquidity"]},
+    {"name": "multimodal_fusion_agent", "role": "research", "capabilities": ["multimodal_fusion", "news_encoding", "cross_attention"]},
     {"name": "qa_judge", "role": "qa_judge", "capabilities": ["qa_judge"]},
     {"name": "rara_repair", "role": "repair", "capabilities": ["repair", "root_cause"]}
   ],
@@ -31,9 +32,11 @@
     {"task_id": "COAL-001", "task_type": "coalition_discovery", "objective": "Search compatible LONG and SHORT coalitions by context."},
     {"task_id": "BT-001", "task_type": "backtest", "objective": "Run train/validation/OOS and compare coalitions against individual baselines."},
     {"task_id": "ROB-001", "task_type": "monte_carlo", "objective": "Run Monte Carlo, cost, missed-trade, parameter and coalition-dropout stress."},
+    {"task_id": "AUDIT-001", "task_type": "experiment_audit", "objective": "Register every trial and compute DSR/PBO before any research promotion."},
     {"task_id": "PROP-001", "task_type": "prop_firm_simulation", "objective": "Rank coalitions by payout and account-survival probability under prop-firm profiles."},
     {"task_id": "MACRO-001", "task_type": "macro_context", "objective": "Define point-in-time macro/event features and veto interface."},
     {"task_id": "FLOW-001", "task_type": "microstructure_research", "objective": "Build MBP/MBO liquidity, absorption, stacking/pulling and queue-pressure features."},
+    {"task_id": "FUSION-001", "task_type": "multimodal_context", "objective": "Fuse market/order-flow state with point-in-time finance-news embeddings using causal cross-attention in shadow mode."},
     {"task_id": "DATA-001", "task_type": "data_quality", "objective": "Audit timestamp, gaps, symbol mapping, costs and no-lookahead assumptions."}
   ]
 }
