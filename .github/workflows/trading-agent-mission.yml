@@ -33,11 +33,11 @@ jobs:
           python-version: '3.11'
       - name: Validate research agent pool
         env:
-          PYTHONPATH: .
+          PYTHONPATH: .:trading_super_strategy
         run: python -m unittest trading_super_strategy.test_agent_orchestrator -v
       - name: Assign parallel research mission
         env:
-          PYTHONPATH: .
+          PYTHONPATH: .:trading_super_strategy
         run: python trading_super_strategy/run_agent_mission.py
       - name: Upload mission assignment artifact
         uses: actions/upload-artifact@v4
