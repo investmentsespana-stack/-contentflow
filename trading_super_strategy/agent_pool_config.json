@@ -1,8 +1,25 @@
 {
-  "version": "0.9.2",
+  "version": "0.9.3",
   "mode": "research_paper_only",
   "live_money": false,
   "order_execution_authority_for_agents": false,
+  "candidate_promotion_gate": {
+    "mode": "fail_closed",
+    "status_file": "trading_super_strategy/candidate_falsification_status_v1.json",
+    "promotion_allowed": false,
+    "required_evidence": [
+      "multi_year_independent_oos",
+      "rolling_walk_forward",
+      "realistic_cost_stress",
+      "monte_carlo_and_trade_dropout",
+      "parameter_perturbation",
+      "trial_registry_integrity",
+      "deflated_sharpe_ratio",
+      "cscv_pbo_with_explicitly_approved_threshold"
+    ],
+    "director_action": "Block paper/shadow candidate promotion while the referenced status file has promotion_allowed=false.",
+    "rara_action": "Reject any result that treats discovery-window profitability, parameter stability, or a single-market backtest as robustness certification."
+  },
   "director_cycle": {
     "review_interval_minutes": 5,
     "max_attempts_before_block": 3,
