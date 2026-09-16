@@ -5,6 +5,10 @@ on:
     paths:
       - 'trading_super_strategy/**'
       - '.github/workflows/trading-super-strategy-ci.yml'
+  pull_request:
+    paths:
+      - 'trading_super_strategy/**'
+      - '.github/workflows/trading-super-strategy-ci.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,6 +17,7 @@ permissions:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,6 +25,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install trading test dependencies
+        run: python -m pip install --disable-pip-version-check numpy
       - name: Run trading super strategy tests
-        working-directory: trading_super_strategy
-        run: python -m unittest discover -v -p 'test_*.py'
+        env:
+          PYTHONPATH: .:trading_super_strategy
+        run: python -m unittest discover -v -s trading_super_strategy -t . -p 'test_*.py'

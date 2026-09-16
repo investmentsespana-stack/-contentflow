@@ -77,9 +77,12 @@ class DirectorOrchestrator:
         "walk_forward": "backtest",
         "monte_carlo": "robustness",
         "anti_overfit": "robustness",
+        "experiment_audit": "robustness",
         "prop_firm_simulation": "prop_firm",
         "macro_context": "macro_fundamental",
         "microstructure_research": "order_flow",
+        "multimodal_context": "multimodal_fusion",
+        "news_encoding": "multimodal_fusion",
         "data_quality": "data_quality",
         "qa_review": "qa_judge",
         "repair": "repair",
@@ -139,8 +142,6 @@ class DirectorOrchestrator:
             task.last_error = f"NO_AGENT_FOR_CAPABILITY:{capability}"
             raise LookupError(task.last_error)
 
-        # Deterministic routing keeps research runs reproducible. A production
-        # router may later score candidates by calibration/latency/cost.
         chosen = sorted(candidates, key=lambda a: (a.model_slot, a.name))[0]
         task.assigned_agent = chosen.name
         task.state = TaskState.CLAIMED
@@ -202,6 +203,7 @@ def default_agent_pool() -> List[AgentSpec]:
         AgentSpec("prop_firm_agent", "research", ("prop_firm",), "production"),
         AgentSpec("macro_agent", "research", ("macro_fundamental",), "production"),
         AgentSpec("microstructure_agent", "research", ("order_flow",), "production"),
+        AgentSpec("multimodal_fusion_agent", "research", ("multimodal_fusion",), "production"),
         AgentSpec("qa_judge", "qa_judge", ("qa_judge",), "qa_judge"),
         AgentSpec("rara_repair", "repair", ("repair",), "fallback"),
     ]

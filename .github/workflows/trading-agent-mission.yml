@@ -8,6 +8,13 @@ on:
       - 'trading_super_strategy/run_agent_mission.py'
       - 'trading_super_strategy/test_agent_orchestrator.py'
       - '.github/workflows/trading-agent-mission.yml'
+  pull_request:
+    paths:
+      - 'trading_super_strategy/agent_orchestrator.py'
+      - 'trading_super_strategy/agent_pool_config.json'
+      - 'trading_super_strategy/run_agent_mission.py'
+      - 'trading_super_strategy/test_agent_orchestrator.py'
+      - '.github/workflows/trading-agent-mission.yml'
   workflow_dispatch:
 
 permissions:
@@ -25,8 +32,12 @@ jobs:
         with:
           python-version: '3.11'
       - name: Validate research agent pool
-        run: python -m unittest discover -s trading_super_strategy -p 'test_agent_orchestrator.py' -v
+        env:
+          PYTHONPATH: .:trading_super_strategy
+        run: python -m unittest trading_super_strategy.test_agent_orchestrator -v
       - name: Assign parallel research mission
+        env:
+          PYTHONPATH: .:trading_super_strategy
         run: python trading_super_strategy/run_agent_mission.py
       - name: Upload mission assignment artifact
         uses: actions/upload-artifact@v4
