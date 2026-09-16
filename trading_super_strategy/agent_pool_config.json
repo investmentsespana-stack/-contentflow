@@ -1,5 +1,5 @@
 {
-  "version": "0.9.1",
+  "version": "0.9.2",
   "mode": "research_paper_only",
   "live_money": false,
   "order_execution_authority_for_agents": false,
@@ -29,14 +29,22 @@
   ],
   "initial_parallel_mission": [
     {"task_id": "STRAT-001", "task_type": "strategy_generation", "objective": "Expand deterministic strategy families and directional variants."},
+    {"task_id": "STRAT-R01", "task_type": "strategy_generation", "objective": "Implement preregistered multi-horizon time-series momentum/trend candidates: past-return sign, moving-average crossover, channel breakout and volatility-scaled trend. Keep LONG/SHORT and ES/NQ/YM/RTY separate; no parameter optimization."},
+    {"task_id": "STRAT-R02", "task_type": "strategy_generation", "objective": "Implement deterministic regime-switch candidate that chooses trend, mean-reversion or NO_TRADE from causal volatility, bandwidth, directional-efficiency, VWAP-distance/slope and session features."},
+    {"task_id": "STRAT-R03", "task_type": "strategy_generation", "objective": "Implement NQ volatility-conditioned mean-reversion candidate using displacement measured in volatility units, with separate LONG and SHORT variants and no hand-tuned point thresholds."},
     {"task_id": "COAL-001", "task_type": "coalition_discovery", "objective": "Search compatible LONG and SHORT coalitions by context."},
     {"task_id": "BT-001", "task_type": "backtest", "objective": "Run train/validation/OOS and compare coalitions against individual baselines."},
+    {"task_id": "BT-R01", "task_type": "backtest", "objective": "Backtest R1-R4 independently against frozen baselines using next-bar execution, realistic costs and separate instrument/direction/timeframe reporting. One-day Databento sample is mechanics-only and cannot support promotion."},
     {"task_id": "ROB-001", "task_type": "monte_carlo", "objective": "Run Monte Carlo, cost, missed-trade, parameter and coalition-dropout stress."},
+    {"task_id": "ROB-R01", "task_type": "monte_carlo", "objective": "Attempt to falsify R1-R4 with parameter perturbation, cost/slippage/latency stress, trade dropout, block bootstrap/Monte Carlo, year/regime/instrument/direction splits and minimum-sample gates."},
     {"task_id": "AUDIT-001", "task_type": "experiment_audit", "objective": "Register every trial and compute DSR/PBO before any research promotion."},
+    {"task_id": "AUDIT-R01", "task_type": "experiment_audit", "objective": "Record every R1-R4 parameterization including failures; prohibit cherry-picking and require CSCV/PBO plus Deflated Sharpe before promotion."},
     {"task_id": "PROP-001", "task_type": "prop_firm_simulation", "objective": "Rank coalitions by payout and account-survival probability under prop-firm profiles."},
     {"task_id": "MACRO-001", "task_type": "macro_context", "objective": "Define point-in-time macro/event features and veto interface."},
     {"task_id": "FLOW-001", "task_type": "microstructure_research", "objective": "Build MBP/MBO liquidity, absorption, stacking/pulling and queue-pressure features."},
     {"task_id": "FUSION-001", "task_type": "multimodal_context", "objective": "Fuse market/order-flow state with point-in-time finance-news embeddings using causal cross-attention in shadow mode."},
-    {"task_id": "DATA-001", "task_type": "data_quality", "objective": "Audit timestamp, gaps, symbol mapping, costs and no-lookahead assumptions."}
+    {"task_id": "FUSION-R01", "task_type": "multimodal_context", "objective": "Admit robust technical experts/context only after screening; compare technical-only, news-only, simple concatenation, equal-weight ensemble and cross-attention OOS. Reject cross-attention if it adds no stable incremental value."},
+    {"task_id": "DATA-001", "task_type": "data_quality", "objective": "Audit timestamp, gaps, symbol mapping, costs and no-lookahead assumptions."},
+    {"task_id": "DATA-R01", "task_type": "data_quality", "objective": "Verify multi-year point-in-time historical coverage, rolls, sessions and realistic costs before any robustness conclusion; mark the 2026-09-11 one-day Databento fixture as mechanics-only."}
   ]
 }
