@@ -1,0 +1,77 @@
+{
+  "version": "1.0",
+  "status": "RESEARCH_ONLY",
+  "live_money": false,
+  "candidates": [
+    {
+      "id": "R1_TSMOM_TREND",
+      "priority": 1,
+      "family": "time_series_momentum_trend",
+      "directions": ["LONG", "SHORT"],
+      "instruments": ["ES", "NQ", "YM", "RTY"],
+      "variants": ["past_return_sign", "ma_crossover", "channel_breakout", "vol_scaled_trend"],
+      "timeframes_to_screen": ["15m", "30m", "60m", "daily"],
+      "research_prior": "strong_cross_market_long_sample",
+      "parameter_policy": "preregister_small_grid_no_optimization",
+      "cross_attention_role": "expert_and_context",
+      "required_tests": ["causality", "oos", "walk_forward", "cost_stress", "parameter_perturbation", "trade_dropout", "bootstrap_monte_carlo", "regime_split", "sample_size", "pbo", "dsr"]
+    },
+    {
+      "id": "R2_REGIME_SWITCH_MR_MOM",
+      "priority": 2,
+      "family": "regime_switch",
+      "directions": ["LONG", "SHORT", "NO_TRADE"],
+      "instruments": ["ES", "NQ", "YM", "RTY"],
+      "experts": ["trend", "mean_reversion"],
+      "initial_regime_features": ["realized_vol_percentile", "bollinger_bandwidth", "directional_efficiency", "vwap_distance", "vwap_slope", "session_bucket"],
+      "optional_point_in_time_features": ["VIX", "VXN"],
+      "parameter_policy": "fixed_threshold_families_then_ablation",
+      "cross_attention_role": "router_context",
+      "required_tests": ["causality", "oos", "walk_forward", "regime_confusion", "expert_ablation", "cost_stress", "parameter_perturbation", "pbo", "dsr"]
+    },
+    {
+      "id": "R3_VOL_CONDITIONED_NQ_MR",
+      "priority": 3,
+      "family": "volatility_conditioned_mean_reversion",
+      "directions": ["LONG", "SHORT"],
+      "instruments": ["NQ"],
+      "signal_basis": "displacement_in_volatility_units",
+      "volatility_inputs": ["implied_volatility_if_available", "realized_volatility_proxy"],
+      "parameter_policy": "coarse_preregistered_thresholds",
+      "cross_attention_role": "expert_candidate",
+      "required_tests": ["causality", "oos", "walk_forward", "cost_stress", "parameter_perturbation", "regime_split", "sample_size", "pbo", "dsr"]
+    },
+    {
+      "id": "R4_BB14_USER_RULE_BASELINE",
+      "priority": 4,
+      "family": "existing_user_rule_baseline",
+      "directions": ["LONG", "SHORT"],
+      "instruments": ["ES", "NQ", "YM", "RTY"],
+      "frozen": true,
+      "parameter_policy": "no_search",
+      "cross_attention_role": "baseline_and_expert_candidate",
+      "required_tests": ["causality", "oos", "walk_forward", "cost_stress", "parameter_perturbation_non_rule_inputs", "regime_split", "sample_size", "pbo", "dsr"]
+    }
+  ],
+  "negative_controls": [
+    "generic_ohlcv_opening_range_breakout",
+    "generic_gap_continuation_low_sample",
+    "standalone_value_area_breakout",
+    "simple_open_move_reversal_without_cost_filter"
+  ],
+  "promotion_order": [
+    "causality",
+    "train_validation",
+    "untouched_oos",
+    "walk_forward",
+    "cost_slippage_latency",
+    "parameter_perturbation",
+    "missed_fill_trade_dropout",
+    "bootstrap_monte_carlo",
+    "regime_year_instrument_direction_stability",
+    "minimum_sample_size",
+    "cscv_pbo",
+    "deflated_sharpe",
+    "paper_shadow"
+  ]
+}
