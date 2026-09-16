@@ -1,0 +1,62 @@
+name: Trading OpenBB NQ15 Survivor Stress V1
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/run_openbb_nq15_survivor_stress.py'
+      - 'trading_super_strategy/openbb_history_adapter.py'
+      - 'trading_super_strategy/trend_candidates.py'
+      - 'trading_super_strategy/regime_switch_candidates.py'
+      - 'trading_super_strategy/nq_vol_mean_reversion.py'
+      - 'trading_super_strategy/backtest_engine.py'
+      - 'trading_super_strategy/robustness_engine.py'
+      - '.github/workflows/trading-openbb-nq15-survivor-stress-v1.yml'
+  pull_request:
+    paths:
+      - 'trading_super_strategy/run_openbb_nq15_survivor_stress.py'
+      - 'trading_super_strategy/openbb_history_adapter.py'
+      - 'trading_super_strategy/trend_candidates.py'
+      - 'trading_super_strategy/regime_switch_candidates.py'
+      - 'trading_super_strategy/nq_vol_mean_reversion.py'
+      - 'trading_super_strategy/backtest_engine.py'
+      - 'trading_super_strategy/robustness_engine.py'
+      - '.github/workflows/trading-openbb-nq15-survivor-stress-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  survivor-stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install OpenBB Yahoo provider
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install openbb openbb-yfinance
+          openbb-build
+
+      - name: Run NQ15 survivor stress study
+        env:
+          PYTHONPATH: .
+          START_DATE: '2026-07-20'
+          END_DATE: '2026-09-16'
+          STRESS_OUT: openbb_nq15_survivor_stress_output
+        run: python -m trading_super_strategy.run_openbb_nq15_survivor_stress
+
+      - name: Upload survivor stress evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbb-nq15-survivor-stress-v1
+          path: openbb_nq15_survivor_stress_output/
+          if-no-files-found: warn
