@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
-from dataclasses import asdict
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -91,9 +90,13 @@ def _serialize_result(label, result):
 
 
 def main():
-    # Yahoo/CME intraday timestamps may be returned without timezone by some
-    # OpenBB/yfinance versions. If so, treat them explicitly as CME local time
-    # rather than silently guessing inside the adapter.
+    # OpenBB/yfinance can expose timezone-naive futures timestamps. In the live
+    # evidence run on 2026-09-16, treating those values as America/Chicago put
+    # the latest bar one hour into the future relative to the workflow clock.
+    # The Yahoo/OpenBB presentation clock for this endpoint is therefore pinned
+    # explicitly to America/New_York in this research runner. This changes only
+    # timestamp provenance; the ordered OHLCV values and strategy calculations
+    # are otherwise unchanged because these candidates have no session filter.
     bars, stats = fetch_openbb_futures(
         symbol="NQ",
         interval="15m",
@@ -101,7 +104,7 @@ def main():
         end_date=END,
         provider="yfinance",
         transport="python",
-        naive_timezone=ZoneInfo("America/Chicago"),
+        naive_timezone=ZoneInfo("America/New_York"),
     )
     runners = _runners()
 
@@ -129,6 +132,7 @@ def main():
     payload = {
         "study": "openbb_nq15_r1_r2_r3_discovery_smoke_v1",
         "purpose": "mechanics/discovery only; not robustness certification",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "source": {
             "provider": stats.provider,
             "transport": stats.transport,
@@ -141,7 +145,7 @@ def main():
             "missing_volume_rows": stats.missing_volume_rows,
             "first_timestamp": stats.first_timestamp.isoformat(),
             "last_timestamp": stats.last_timestamp.isoformat(),
-            "naive_timezone_policy": "America/Chicago only if provider returned naive timestamps",
+            "naive_timezone_policy": "America/New_York only if provider returned naive timestamps",
         },
         "runner_count": len(runners),
         "runs": outputs,
