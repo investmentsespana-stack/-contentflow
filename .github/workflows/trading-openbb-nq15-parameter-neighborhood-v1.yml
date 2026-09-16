@@ -1,0 +1,60 @@
+name: Trading OpenBB NQ15 Parameter Neighborhood V1
+
+on:
+  push:
+    paths:
+      - 'trading_super_strategy/run_openbb_nq15_parameter_neighborhood.py'
+      - 'trading_super_strategy/openbb_history_adapter.py'
+      - 'trading_super_strategy/trend_candidates.py'
+      - 'trading_super_strategy/regime_switch_candidates.py'
+      - 'trading_super_strategy/nq_vol_mean_reversion.py'
+      - 'trading_super_strategy/backtest_engine.py'
+      - '.github/workflows/trading-openbb-nq15-parameter-neighborhood-v1.yml'
+  pull_request:
+    paths:
+      - 'trading_super_strategy/run_openbb_nq15_parameter_neighborhood.py'
+      - 'trading_super_strategy/openbb_history_adapter.py'
+      - 'trading_super_strategy/trend_candidates.py'
+      - 'trading_super_strategy/regime_switch_candidates.py'
+      - 'trading_super_strategy/nq_vol_mean_reversion.py'
+      - 'trading_super_strategy/backtest_engine.py'
+      - '.github/workflows/trading-openbb-nq15-parameter-neighborhood-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parameter-neighborhood:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install OpenBB Yahoo provider
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install openbb openbb-yfinance
+          openbb-build
+
+      - name: Run NQ15 parameter neighborhood stress
+        env:
+          PYTHONPATH: .
+          START_DATE: '2026-07-20'
+          END_DATE: '2026-09-16'
+          OUT_DIR: openbb_nq15_parameter_neighborhood_output
+        run: python -m trading_super_strategy.run_openbb_nq15_parameter_neighborhood
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openbb-nq15-parameter-neighborhood-v1
+          path: openbb_nq15_parameter_neighborhood_output/
+          if-no-files-found: warn
