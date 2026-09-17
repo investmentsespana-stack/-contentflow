@@ -20,8 +20,8 @@ APP_NAME = "Cygnus SQX Bridge"
 KEYRING_SERVICE = "CygnusSQXBridge"
 CONTROL_URL = "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-bridge"
 DEFAULT_SQCLI_PATH = r"C:\OI\sqcli.exe"
-ALLOWLIST = {"list_projects", "list_databanks", "run_project", "stop_project"}
-READ_ONLY = {"list_projects", "list_databanks"}
+ALLOWLIST = {"list_projects", "list_databanks", "status_project", "run_project", "stop_project"}
+READ_ONLY = {"list_projects", "list_databanks", "status_project"}
 
 
 def config_dir() -> Path:
@@ -104,22 +104,28 @@ def run_sqcli(path: str, args: list[str], timeout: int = 180) -> dict[str, Any]:
     return {"returncode": cp.returncode, "stdout": stdout, "stderr": stderr}
 
 
+def _project_from_payload(name: str, payload: dict[str, Any]) -> str:
+    project = str(payload.get("project") or payload.get("name") or "").strip()
+    if not project:
+        raise RuntimeError(f"{name} requiere payload.project")
+    return project
+
+
 def sqx_call(cfg: BridgeConfig, name: str, payload: dict[str, Any]) -> dict[str, Any]:
     if name not in ALLOWLIST:
         raise RuntimeError(f"Comando bloqueado por allowlist: {name}")
     if name == "list_projects":
         result = run_sqcli(cfg.sqcli_path, ["-project", "action=list"])
     elif name == "list_databanks":
-        project = str(payload.get("project") or "").strip()
-        if not project:
-            raise RuntimeError("list_databanks requiere payload.project")
+        project = _project_from_payload(name, payload)
         result = run_sqcli(cfg.sqcli_path, ["-databank", "action=list", f"project={project}"])
+    elif name == "status_project":
+        project = _project_from_payload(name, payload)
+        result = run_sqcli(cfg.sqcli_path, ["-project", "action=status", f"name={project}"])
     elif name in {"run_project", "stop_project"}:
         if not cfg.allow_project_control:
             raise RuntimeError("Control start/stop está deshabilitado localmente")
-        project = str(payload.get("project") or payload.get("name") or "").strip()
-        if not project:
-            raise RuntimeError(f"{name} requiere payload.project")
+        project = _project_from_payload(name, payload)
         action = "start" if name == "run_project" else "stop"
         result = run_sqcli(cfg.sqcli_path, ["-project", f"action={action}", f"name={project}"], timeout=3600)
     else:
