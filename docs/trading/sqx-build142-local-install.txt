@@ -1,0 +1,14 @@
+CYGNUS SQX BRIDGE - LOCAL PAIRING HANDOFF
+
+1. Close the normal StrategyQuant X graphical application.
+2. Download and unzip the GitHub Actions artifact Cygnus-SQX-Bridge-Windows-Build142.
+3. Run CygnusSQXBridge.exe.
+4. Confirm path: C:\OI\sqcli.exe
+5. Enter the current one-time pairing code supplied in the active ChatGPT session.
+6. Keep project start/stop disabled for initial certification.
+7. The app should show SQX CLI connected and return actual StrategyQuant projects.
+8. After pairing, cloud should show one ACTIVE device with recent last_seen_at and last_health.transport=sqcli_process.
+9. Queue a list_projects command for that device.
+10. Certification PASS requires command state SUCCEEDED and result.stdout containing the real project inventory.
+
+Do not mark CONNECTED before step 10 passes.
