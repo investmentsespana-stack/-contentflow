@@ -55,7 +55,11 @@ async function sqxReadOnly(user:any,b:any,url:string,h:Record<string,string>){
    if(!c || !["list_projects","list_databanks"].includes(c.command_type))
      return respond({ok:false,error:"sqx_read_only_command_not_found"},404);
    // Never return stderr/vendor HTTP logs, claim nonces, tokens or raw health excerpts.
+   const stdout=String(c.result?.stdout||"");
+   const inventory=c.command_type==="list_projects"?stdout.match(/List of available projects\s*\r?\n-+\s*\r?\n([\s\S]*?)\r?\nAll tasks completed/):null;
+   const projects=inventory?inventory[1].split(/\r?\n/).map(x=>x.trim()).filter(Boolean):null;
    return respond({ok:true,command_id:c.id,command_type:c.command_type,state:c.state,
+     projects,
      completed:c.state==="SUCCEEDED"||c.state==="FAILED",success:c.state==="SUCCEEDED",
      returncode:c.result?.returncode??null,output_stored:c.state==="SUCCEEDED",
      created_at:c.created_at,claimed_at:c.claimed_at,completed_at:c.completed_at,
