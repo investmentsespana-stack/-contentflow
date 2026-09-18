@@ -1,0 +1,33 @@
+{
+  "name": "bollinger_ema_sar_v1_1_slope_study",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "purpose": "Replace the overly restrictive monotonic EMA20 slope interpretation with controlled alternatives while keeping every other V1 rule unchanged.",
+  "timeframe": "1m",
+  "symbols": ["ES.v.0","NQ.v.0","YM.v.0","RTY.v.0"],
+  "discovery_window": {"start":"2025-09-25","end":"2026-09-11"},
+  "data_governance": {
+    "confirmatory_2022_2025":"UNTOUCHED",
+    "consumed_2018_2019":"NOT_USED",
+    "sealed_holdout_2020_2022":"DO_NOT_TOUCH"
+  },
+  "fixed_rules": {
+    "bollinger":"20,2",
+    "ema":[3,9,20,50,200],
+    "parabolic_sar":"0.02/0.20",
+    "structure":"confirmed 2-left/2-right swing; prior bar sweeps structure and signal reclaims",
+    "signal_candle":"rocket rejection wick >=70% body OR body engulfing",
+    "signal_shape":"LONG higher low vs prior bar; SHORT lower high vs prior bar",
+    "entry":"next bar open after fully closed signal candle",
+    "stop":"prior bar low for LONG; prior bar high for SHORT",
+    "exit":"40% Bollinger bandwidth target OR close of third entry bar; stop active; stop-first same-bar ambiguity",
+    "ema9_ema20_extension":"DISABLED",
+    "ema50_ema200":"context only"
+  },
+  "slope_variants": {
+    "A_MONOTONIC3":"Original V1: EMA20 must rise/fall on each of the last 3 one-bar transitions.",
+    "B_NET3":"EMA20 now vs EMA20 3 bars ago must be directionally positive/negative; intermediate one-bar wiggles allowed.",
+    "C_ATR5":"EMA20 net change over 5 bars must be at least 0.05 ATR14 in trade direction."
+  },
+  "decision_rule":"This is a discovery diagnostic. Do not pick a variant only because it has the highest return. Compare sample size, expectancy, PF, drawdown, direction balance, session concentration and stability before any confirmatory test."
+}
