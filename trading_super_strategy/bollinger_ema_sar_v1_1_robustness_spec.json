@@ -3,9 +3,17 @@
   "status": "PREREGISTERED_DISCOVERY_ROBUSTNESS_ONLY",
   "live_money": false,
   "purpose": "Relax only the overly restrictive lateral-market slope interpretation while keeping the user's core setup unchanged, then stress the surviving interpretation instead of selecting the highest-return configuration.",
-  "discovery_window": ["2025-09-25", "2026-09-11"],
+  "discovery_window": [
+    "2025-09-25",
+    "2026-09-11"
+  ],
   "timeframe": "1m",
-  "symbols": ["ES.v.0", "NQ.v.0", "YM.v.0", "RTY.v.0"],
+  "symbols": [
+    "ES.v.0",
+    "NQ.v.0",
+    "YM.v.0",
+    "RTY.v.0"
+  ],
   "core_rules_held_fixed": [
     "Bollinger 20/2",
     "EMA 3/9/20/50/200",
@@ -28,10 +36,26 @@
     "NET3_4PCT_BB": "Same direction plus absolute 3-bar EMA20 change >= 4% of current Bollinger bandwidth."
   },
   "exit_robustness_cube": {
-    "target_fraction_of_bb_width": [0.30, 0.40, 0.50],
-    "max_holding_bars": [2, 3, 4],
-    "cost_r": [0.03, 0.045, 0.06],
-    "base_configuration": {"target_fraction": 0.40, "holding_bars": 3, "cost_r": 0.03}
+    "target_fraction_of_bb_width": [
+      0.3,
+      0.4,
+      0.5
+    ],
+    "max_holding_bars": [
+      2,
+      3,
+      4
+    ],
+    "cost_r": [
+      0.03,
+      0.045,
+      0.06
+    ],
+    "base_configuration": {
+      "target_fraction": 0.4,
+      "holding_bars": 3,
+      "cost_r": 0.03
+    }
   },
   "robustness_checks": [
     "base expectancy and profit factor",
@@ -46,8 +70,8 @@
     "minimum_crossmarket_trades_base": 30,
     "base_expectancy_must_be_positive": true,
     "two_x_cost_expectancy_must_be_positive": true,
-    "minimum_positive_perturbation_share": 0.60,
-    "minimum_positive_market_share": 0.50,
+    "minimum_positive_perturbation_share": 0.6,
+    "minimum_positive_market_share": 0.5,
     "bootstrap_p05_total_r_must_be_positive": true,
     "selection_rule": "Do not choose the highest-return parameter. Promote every slope interpretation that passes all hard robustness gates; if none pass, promote none."
   },
@@ -55,5 +79,6 @@
     "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_ROBUSTNESS_RUN",
     "consumed_2018_2019": "NOT_USED",
     "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
-  }
+  },
+  "execution_authorization": "User approved execution on 2026-09-18; preregistered gates and parameters unchanged."
 }
