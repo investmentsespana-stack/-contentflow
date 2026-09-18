@@ -551,6 +551,8 @@ class BridgeWorker(threading.Thread):
         self.stop_event = threading.Event()
         self.control = ControlPlane(token)
         self.last_heartbeat = 0.0
+        self.last_probe = 0.0
+        self.cached_probe_excerpt = ""
         self.runtime = SqCliRuntime(cfg.sqcli_path)
 
     def emit(self, kind: str, text: str, **extra: Any) -> None:
@@ -566,9 +568,16 @@ class BridgeWorker(threading.Thread):
             sqx_ok = True
             probe_excerpt = f"active:{active.get('project')} pid={active.get('pid')} elapsed={active.get('elapsed_seconds')}s"
         else:
-            probe = sqx_call(self.cfg, self.runtime, "list_projects", {})
+            # Heartbeats must not restart SQX every 30 seconds. A cached probe
+            # is explicitly timestamped; on-demand commands still run afresh.
+            if not self.last_probe or time.monotonic() - self.last_probe >= 300:
+                self.last_probe = 0.0
+                self.cached_probe_excerpt = ""
+                probe = sqx_call(self.cfg, self.runtime, "list_projects", {})
+                self.cached_probe_excerpt = probe.get("stdout", "")[:1200]
+                self.last_probe = time.monotonic()
             sqx_ok = True
-            probe_excerpt = probe.get("stdout", "")[:1200]
+            probe_excerpt = self.cached_probe_excerpt
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
@@ -578,6 +587,8 @@ class BridgeWorker(threading.Thread):
             "capabilities": sorted(ALLOWLIST),
             "project_control_enabled": self.cfg.allow_project_control,
             "probe_excerpt": probe_excerpt,
+            "probe_age_seconds": round(time.monotonic() - self.last_probe, 1) if self.last_probe else None,
+            "probe_interval_seconds": 300,
             **runtime_health,
         }
         self.control.post({"action": "heartbeat", "health": health})
