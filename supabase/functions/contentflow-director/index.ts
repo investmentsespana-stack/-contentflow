@@ -21,13 +21,89 @@ const costOf=(id:string,i:number,o:number)=>{const m=modelById(id);return m?((i/
 const parseJudge=(s:string)=>{try{const j=JSON.parse(s.match(/\{[\s\S]*\}/)?.[0]||"");return{pass:Boolean(j.pass),score:Math.max(0,Math.min(100,Number(j.score)||0)),reason:String(j.reason||"")}}catch{return{pass:false,score:0,reason:"judge_parse_failed"}}};
 const refusalLike=(s:string)=>/^\s*(?:error\s*[:\-]|cannot comply\b|i cannot\b|i can['’]?t\b|no puedo\b|no es posible\b|lo siento,? no)/i.test(s);
 
+// BEGIN SQX READ-ONLY ADAPTER. Explicit approved account/device binding; no model-generated commands.
+async function sqxReadOnly(user:any,b:any,url:string,h:Record<string,string>){
+ const respond=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers:h});
+ if(user.id!=="8138f5a9-82d0-4d2f-9a7a-41e96cb7743b" || user.email?.toLowerCase()!=="investmentsespana@gmail.com" || !user.email_confirmed_at)
+   return respond({ok:false,error:"sqx_forbidden"},403);
+ const deviceId="87fb6dfc-e27a-4bc3-822d-180222125347";
+ const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+ if(!key)return respond({ok:false,error:"sqx_server_not_configured"},503);
+ const db=createClient(url,key,{auth:{persistSession:false}});
+ const {data:device,error:de}=await db.from("trading_sqx_bridge_devices")
+   .select("id,status,last_seen_at,last_health,capabilities").eq("id",deviceId).maybeSingle();
+ if(de)return respond({ok:false,error:"sqx_device_lookup_failed"},503);
+ if(!device)return respond({ok:false,error:"sqx_device_not_found"},404);
+ const health=device.last_health||{};
+ const age=Math.max(0,(Date.now()-Date.parse(device.last_seen_at))/1000);
+ const probeAge=Number(health.probe_age_seconds);
+ const ready=device.status==="ACTIVE"&&Number.isFinite(age)&&age<120&&health.sqx_cli_ok===true
+   &&health.probe_age_seconds!=null&&Number.isFinite(probeAge)&&probeAge<360;
+ if(b.action==="sqx_status")return respond({ok:true,ready,device_id:deviceId,
+   bridge_version:health.bridge_version,heartbeat_age_seconds:Math.round(age),
+   probe_age_seconds:health.probe_age_seconds,probe_interval_seconds:health.probe_interval_seconds,
+   mode:"read_only",no_broker_execution:true});
+ const id=String(b.request_id||"");
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+   return respond({ok:false,error:"sqx_request_id_uuid_required"},400);
+ const read=()=>db.from("trading_sqx_bridge_commands")
+   .select("id,command_type,state,created_at,claimed_at,completed_at,result")
+   .eq("id",id).eq("device_id",deviceId).maybeSingle();
+ if(b.action==="sqx_result"){
+   const {data:c,error}=await read();
+   if(error)return respond({ok:false,error:"sqx_result_lookup_failed"},503);
+   if(!c || !["list_projects","list_databanks"].includes(c.command_type))
+     return respond({ok:false,error:"sqx_read_only_command_not_found"},404);
+   // Never return stderr/vendor HTTP logs, claim nonces, tokens or raw health excerpts.
+   return respond({ok:true,command_id:c.id,command_type:c.command_type,state:c.state,
+     completed:c.state==="SUCCEEDED"||c.state==="FAILED",success:c.state==="SUCCEEDED",
+     returncode:c.result?.returncode??null,output_stored:c.state==="SUCCEEDED",
+     created_at:c.created_at,claimed_at:c.claimed_at,completed_at:c.completed_at,
+     error:c.state==="FAILED"?"sqx_query_failed":null});
+ }
+ const command=String(b.command_type||"");
+ if(!["list_projects","list_databanks"].includes(command))
+   return respond({ok:false,error:"sqx_read_only_command_required"},400);
+ if(b.payload!=null && (typeof b.payload!=="object"||Array.isArray(b.payload)||Object.keys(b.payload).length))
+   return respond({ok:false,error:"sqx_empty_payload_required"},400);
+ const {data:existing,error:ee}=await read();
+ if(ee)return respond({ok:false,error:"sqx_command_lookup_failed"},503);
+ if(existing){
+   if(existing.command_type!==command)return respond({ok:false,error:"sqx_idempotency_conflict"},409);
+   return respond({ok:true,command_id:id,state:existing.state,reused:true},200);
+ }
+ if(!ready)return respond({ok:false,error:"sqx_device_not_ready"},409);
+ if(!device.capabilities?.allowlist?.includes(command))return respond({ok:false,error:"sqx_capability_unavailable"},409);
+ const {data:pending,error:pe}=await db.from("trading_sqx_bridge_commands").select("id")
+   .eq("device_id",deviceId).in("state",["QUEUED","CLAIMED"]).limit(1);
+ if(pe)return respond({ok:false,error:"sqx_queue_lookup_failed"},503);
+ if(pending?.length)return respond({ok:false,error:"sqx_device_busy"},409);
+ const {error:ie}=await db.from("trading_sqx_bridge_commands")
+   .insert({id,device_id:deviceId,command_type:command,payload:{},state:"QUEUED"});
+ if(ie){
+   if(ie.code==="23505"){
+     const {data:c,error}=await read();
+     if(!error&&c?.command_type===command)return respond({ok:true,command_id:id,state:c.state,reused:true});
+     return respond({ok:false,error:"sqx_idempotency_conflict"},409);
+   }
+   return respond({ok:false,error:"sqx_enqueue_failed"},503);
+ }
+ return respond({ok:true,command_id:id,state:"QUEUED",mode:"read_only",success:false},202);
+}
+// END SQX READ-ONLY ADAPTER.
+
 Deno.serve(async(req)=>{
  const h={"content-type":"application/json","cache-control":"no-store"};
  if(req.method!=="POST")return new Response(JSON.stringify({ok:false,error:"POST required"}),{status:405,headers:h});
  const auth=req.headers.get("Authorization")||"";const url=Deno.env.get("SUPABASE_URL")!,anon=Deno.env.get("SUPABASE_ANON_KEY")!;const sb=createClient(url,anon,{global:{headers:{Authorization:auth}}});
  const {data:{user}}=await sb.auth.getUser();if(!user)return new Response(JSON.stringify({ok:false,error:"unauthorized"}),{status:401,headers:h});
+ const b=await req.json().catch(()=>({}));
+ if(String(b.action||"").startsWith("sqx_")){
+   if(!["sqx_status","sqx_query","sqx_result"].includes(b.action))return new Response(JSON.stringify({ok:false,error:"sqx_unsupported_action"}),{status:400,headers:h});
+   try{return await sqxReadOnly(user,b,url,h);}catch{return new Response(JSON.stringify({ok:false,error:"sqx_internal_error"}),{status:503,headers:h});}
+ }
  const key=Deno.env.get("NEXOROUTER_API_KEY");if(!key)return new Response(JSON.stringify({ok:false,error:"missing_api_key"}),{status:500,headers:h});
- const b=await req.json().catch(()=>({}));const task=String(b.task||"").trim();if(!task)return new Response(JSON.stringify({ok:false,error:"task required"}),{status:400,headers:h});
+ const task=String(b.task||"").trim();if(!task)return new Response(JSON.stringify({ok:false,error:"task required"}),{status:400,headers:h});
  const project=String(b.project_key||"contentflow").replace(/[^a-zA-Z0-9_-]/g,"").slice(0,64)||"contentflow";const type:T=b.task_type||classify(task);const fp=await fingerprint(task);const qualityThreshold=Math.min(95,Math.max(60,Number(b.quality_threshold||80)));const maxOutput=Math.min(1200,Math.max(200,Number(b.max_output_tokens||700)));
  const preferred:string[]=Array.isArray(b.preferred_models)?b.preferred_models.map(String).filter((x:string)=>MODELS.some(m=>m.id===x)).slice(0,4):[];
  const {data:memory}=await sb.from("director_approved_solutions").select("id,solution,model_id,quality_score,usage_count").eq("project_key",project).eq("task_fingerprint",fp).gte("quality_score",qualityThreshold).maybeSingle();if(memory){await sb.from("director_approved_solutions").update({usage_count:(memory.usage_count||0)+1,last_used_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",memory.id);return new Response(JSON.stringify({ok:true,project_key:project,task_type:type,selected_model:memory.model_id,from_memory:true,quality_score:Number(memory.quality_score),result:memory.solution,total_cost_usd:0,usage:{input_tokens:0,output_tokens:0,judge_input_tokens:0,judge_output_tokens:0,total_tokens:0}}),{status:200,headers:h});}
