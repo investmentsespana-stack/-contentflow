@@ -1,5 +1,6 @@
 name: Trading Bollinger EMA SAR Slope Study V1
 
+# Execution trigger refreshed 2026-09-18. Strategy rules unchanged.
 on:
   workflow_dispatch:
   push:
