@@ -1,0 +1,127 @@
+{
+  "name": "bollinger_ema_sar_v1b",
+  "status": "PREREGISTERED_DISCOVERY_ONLY",
+  "live_money": false,
+  "timeframe": "1m",
+  "symbols": [
+    "ES.v.0",
+    "NQ.v.0",
+    "YM.v.0",
+    "RTY.v.0"
+  ],
+  "discovery_window": {
+    "start": "2025-09-25",
+    "end": "2026-09-11"
+  },
+  "data_governance": {
+    "confirmatory_2022_2025": "UNTOUCHED_BY_THIS_RUN",
+    "consumed_2018_2019": "NOT_USED",
+    "sealed_holdout_2020_2022": "DO_NOT_TOUCH"
+  },
+  "session_rule": "No hard 09:00-12:00 ET gate. NY anchor is contextual only. Strategy may operate across available futures sessions if all setup conditions are valid.",
+  "indicators": {
+    "bollinger": {
+      "period": 20,
+      "stddev": 2,
+      "std_ddof": 0
+    },
+    "ema": [
+      3,
+      9,
+      20,
+      50,
+      200
+    ],
+    "parabolic_sar": {
+      "step": 0.02,
+      "max_step": 0.2
+    },
+    "all_signal_decisions_use_closed_bars": true
+  },
+  "structure": {
+    "swing_definition": "2-left / 2-right confirmed swing",
+    "causal_confirmation": "A swing at bar j is usable only from bar j+2 onward.",
+    "long_sequence": "Bar before signal sweeps below latest confirmed swing low; signal bar has a higher low than that prior bar and closes back above the swept structure level.",
+    "short_sequence": "Bar before signal sweeps above latest confirmed swing high; signal bar has a lower high than that prior bar and closes back below the swept structure level."
+  },
+  "market_regime_filter": {
+    "sideways": "NO_TRADE",
+    "slope_definition_v1b": "EMA20 net movement over the last 5 closed bars must be >= 5% of current Bollinger bandwidth for LONG, or <= -5% for SHORT.",
+    "why_changed": "V1 monotonic EMA20 on three consecutive transitions was too restrictive and produced only 6 trades. V1B changes only this regime filter; all other signal, stop, entry and exit rules remain fixed.",
+    "optimization": "Threshold fixed before observing V1B results; do not tune inside this discovery run."
+  },
+  "signal_candle": {
+    "allowed": [
+      "rocket_rejection",
+      "body_engulfing"
+    ],
+    "rocket_long": "Green body and lower wick >= 70% of body size.",
+    "rocket_short": "Red body and upper wick >= 70% of body size.",
+    "engulfing_long": "Green body fully engulfs the prior candle body.",
+    "engulfing_short": "Red body fully engulfs the prior candle body.",
+    "long_structure_shape": "Signal low > prior candle low.",
+    "short_structure_shape": "Signal high < prior candle high."
+  },
+  "entry_conditions": {
+    "long": [
+      "Prior bar sweeps below latest confirmed 2-2 swing low",
+      "Signal bar closes back above swept swing low",
+      "Prior bar or signal bar reaches/pierces lower Bollinger band",
+      "EMA20 is rising on each of the last 3 closed transitions",
+      "EMA3 crosses above EMA9 on the signal bar",
+      "Signal close > EMA9",
+      "Parabolic SAR is below the signal candle",
+      "Signal candle is rocket rejection or bullish body engulfing",
+      "Signal low > prior bar low"
+    ],
+    "short": [
+      "Prior bar sweeps above latest confirmed 2-2 swing high",
+      "Signal bar closes back below swept swing high",
+      "Prior bar or signal bar reaches/pierces upper Bollinger band",
+      "EMA20 is falling on each of the last 3 closed transitions",
+      "EMA3 crosses below EMA9 on the signal bar",
+      "Signal close < EMA9",
+      "Parabolic SAR is above the signal candle",
+      "Signal candle is rocket rejection or bearish body engulfing",
+      "Signal high < prior bar high"
+    ]
+  },
+  "entry_execution": {
+    "timing": "Open of the bar immediately after the fully closed signal candle",
+    "lookahead": false
+  },
+  "stop": {
+    "long": "Low of the candle immediately before the signal candle",
+    "short": "High of the candle immediately before the signal candle"
+  },
+  "exit_v1": {
+    "target": "40% of Bollinger bandwidth measured at signal close, projected from entry in trade direction",
+    "maximum_holding_bars": 3,
+    "time_exit": "Close of the third bar after entry if neither target nor stop was hit",
+    "same_bar_target_and_stop": "Conservative stop-first",
+    "ema9_ema20_extension": "DISABLED_IN_V1"
+  },
+  "ema50_ema200": {
+    "role_v1": "Recorded as context only, not mandatory entry gates"
+  },
+  "cost_model": {
+    "baseline_cost_r": 0.03,
+    "note": "Net-R subtracts 0.03R per trade for consistency with existing research conventions; gross metrics are also retained."
+  },
+  "outputs": [
+    "trade_log",
+    "summary_by_symbol_direction",
+    "summary_total",
+    "entry_pattern_breakdown",
+    "session_breakdown",
+    "target_stop_time_exit_counts",
+    "EMA50_EMA200_context",
+    "Bollinger_width_at_entry",
+    "gross_and_net_R"
+  ],
+  "comparison": {
+    "baseline": "bollinger_ema_sar_v1",
+    "changed_parameter_only": "market_regime_filter",
+    "unchanged": "Bollinger 20/2, EMA 3/9/20/50/200, PSAR, swing 2-2, sweep/reclaim, rocket/engulfing, next-bar entry, prior-to-signal stop, 40% BB target, 3-bar maximum hold, costs, sessions"
+  }
+}
