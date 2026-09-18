@@ -1,0 +1,54 @@
+name: Build SQX VPS Bridge
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/sqx_bridge/vps_agent.py'
+      - 'trading_super_strategy/sqx_bridge/vps_requirements.txt'
+      - 'trading_super_strategy/sqx_bridge/cygnus-sqx-vps-bridge.service'
+      - 'trading_super_strategy/sqx_bridge/install_vps_bridge.sh'
+      - 'trading_super_strategy/sqx_bridge/VPS_README.md'
+      - '.github/workflows/build-sqx-vps-bridge.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r trading_super_strategy/sqx_bridge/vps_requirements.txt
+      - name: Compile bridge
+        run: python -m py_compile trading_super_strategy/sqx_bridge/vps_agent.py
+      - name: Verify safety invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path("trading_super_strategy/sqx_bridge/vps_agent.py").read_text()
+          assert "subprocess" not in s
+          assert "shell=True" not in s
+          assert "no_inbound_listener" in s
+          assert "LOCAL_ALLOWLIST" in s
+          print("safety invariants ok")
+          PY
+      - name: Package bridge
+        run: |
+          mkdir -p dist/cygnus-sqx-vps-bridge
+          cp trading_super_strategy/sqx_bridge/vps_agent.py dist/cygnus-sqx-vps-bridge/
+          cp trading_super_strategy/sqx_bridge/vps_requirements.txt dist/cygnus-sqx-vps-bridge/
+          cp trading_super_strategy/sqx_bridge/cygnus-sqx-vps-bridge.service dist/cygnus-sqx-vps-bridge/
+          cp trading_super_strategy/sqx_bridge/install_vps_bridge.sh dist/cygnus-sqx-vps-bridge/
+          cp trading_super_strategy/sqx_bridge/VPS_README.md dist/cygnus-sqx-vps-bridge/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cygnus-SQX-VPS-Bridge
+          path: dist/cygnus-sqx-vps-bridge/
+          retention-days: 30
