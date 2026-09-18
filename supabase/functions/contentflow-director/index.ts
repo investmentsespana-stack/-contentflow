@@ -38,7 +38,7 @@ async function sqxReadOnly(user:any,b:any,url:string,h:Record<string,string>){
  const age=Math.max(0,(Date.now()-Date.parse(device.last_seen_at))/1000);
  const probeAge=Number(health.probe_age_seconds);
  const ready=device.status==="ACTIVE"&&Number.isFinite(age)&&age<120&&health.sqx_cli_ok===true
-   &&health.probe_age_seconds!=null&&Number.isFinite(probeAge)&&probeAge<360;
+   &&health.probe_age_seconds!=null&&Number.isFinite(probeAge)&&probeAge+age<360;
  if(b.action==="sqx_status")return respond({ok:true,ready,device_id:deviceId,
    bridge_version:health.bridge_version,heartbeat_age_seconds:Math.round(age),
    probe_age_seconds:health.probe_age_seconds,probe_interval_seconds:health.probe_interval_seconds,
@@ -47,7 +47,7 @@ async function sqxReadOnly(user:any,b:any,url:string,h:Record<string,string>){
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
    return respond({ok:false,error:"sqx_request_id_uuid_required"},400);
  const read=()=>db.from("trading_sqx_bridge_commands")
-   .select("id,command_type,state,created_at,claimed_at,completed_at,result")
+   .select("id,command_type,payload,state,created_at,claimed_at,completed_at,result")
    .eq("id",id).eq("device_id",deviceId).maybeSingle();
  if(b.action==="sqx_result"){
    const {data:c,error}=await read();
@@ -64,12 +64,16 @@ async function sqxReadOnly(user:any,b:any,url:string,h:Record<string,string>){
  const command=String(b.command_type||"");
  if(!["list_projects","list_databanks"].includes(command))
    return respond({ok:false,error:"sqx_read_only_command_required"},400);
- if(b.payload!=null && (typeof b.payload!=="object"||Array.isArray(b.payload)||Object.keys(b.payload).length))
-   return respond({ok:false,error:"sqx_empty_payload_required"},400);
+ const payload=b.payload??{};
+ if(typeof payload!=="object"||Array.isArray(payload))return respond({ok:false,error:"sqx_invalid_payload"},400);
+ if(command==="list_projects"&&Object.keys(payload).length)return respond({ok:false,error:"sqx_empty_payload_required"},400);
+ if(command==="list_databanks"&&(Object.keys(payload).some(k=>k!=="project")||typeof payload.project!=="string"||!payload.project.trim()||payload.project.length>200||/[\r\n\x00]/.test(payload.project)))
+   return respond({ok:false,error:"sqx_project_required"},400);
+ const normalizedPayload=command==="list_projects"?{}:{project:payload.project.trim()};
  const {data:existing,error:ee}=await read();
  if(ee)return respond({ok:false,error:"sqx_command_lookup_failed"},503);
  if(existing){
-   if(existing.command_type!==command)return respond({ok:false,error:"sqx_idempotency_conflict"},409);
+   if(existing.command_type!==command||(existing.payload?.project??null)!==(normalizedPayload.project??null))return respond({ok:false,error:"sqx_idempotency_conflict"},409);
    return respond({ok:true,command_id:id,state:existing.state,reused:true},200);
  }
  if(!ready)return respond({ok:false,error:"sqx_device_not_ready"},409);
@@ -79,11 +83,11 @@ async function sqxReadOnly(user:any,b:any,url:string,h:Record<string,string>){
  if(pe)return respond({ok:false,error:"sqx_queue_lookup_failed"},503);
  if(pending?.length)return respond({ok:false,error:"sqx_device_busy"},409);
  const {error:ie}=await db.from("trading_sqx_bridge_commands")
-   .insert({id,device_id:deviceId,command_type:command,payload:{},state:"QUEUED"});
+   .insert({id,device_id:deviceId,command_type:command,payload:normalizedPayload,state:"QUEUED"});
  if(ie){
    if(ie.code==="23505"){
      const {data:c,error}=await read();
-     if(!error&&c?.command_type===command)return respond({ok:true,command_id:id,state:c.state,reused:true});
+     if(!error&&c?.command_type===command&&(c.payload?.project??null)===(normalizedPayload.project??null))return respond({ok:true,command_id:id,state:c.state,reused:true});
      return respond({ok:false,error:"sqx_idempotency_conflict"},409);
    }
    return respond({ok:false,error:"sqx_enqueue_failed"},503);
