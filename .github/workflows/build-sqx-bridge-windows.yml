@@ -36,6 +36,10 @@ jobs:
       - name: Test startup certification gate
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_startup_gate.py
+
+      - name: Test futures resource repair
+        shell: pwsh
+        run: python trading_super_strategy/sqx_bridge/test_resource_repair.py
       - name: Build single-file GUI executable
         shell: pwsh
         run: |
