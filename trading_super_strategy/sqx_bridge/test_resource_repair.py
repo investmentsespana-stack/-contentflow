@@ -1,6 +1,7 @@
 import importlib.util
 import pathlib
 import sys
+import tempfile
 import unittest
 
 APP = pathlib.Path(__file__).with_name("app.py")
@@ -89,6 +90,38 @@ class ResourceRepairTests(unittest.TestCase):
                     "instrument": "NQ - CME",
                 },
             )
+
+
+    def test_replace_existing_project_config_with_backup(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            sqcli = root / "sqcli.exe"
+            sqcli.write_bytes(b"")
+            project = root / "user" / "projects" / "NQ BREAKOUT FUTURES  H1 - Tradestation"
+            project.mkdir(parents=True)
+            target = project / "project.cfx"
+            target.write_bytes(b"old-config")
+            cfg = module.BridgeConfig(
+                device_id="test",
+                device_name="test",
+                sqcli_path=str(sqcli),
+                allow_project_control=True,
+            )
+            encoded = module.base64.b64encode(b"new-config").decode("ascii")
+            out = module.sqx_call(
+                cfg,
+                self.runtime,
+                "load_project_config",
+                {
+                    "project": "NQ BREAKOUT FUTURES  H1 - Tradestation",
+                    "config_b64": encoded,
+                    "replace_existing": True,
+                },
+            )
+            self.assertTrue(out["replace_existing"])
+            self.assertEqual(target.read_bytes(), b"new-config")
+            self.assertIn("backup_sha256", out)
+
 
 
 if __name__ == "__main__":
