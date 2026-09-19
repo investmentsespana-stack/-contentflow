@@ -36,7 +36,36 @@ function Resolve-Python311 {
     return Resolve-Python311
   }
 
-  throw "Python 3.11+ no esta instalado y winget no esta disponible. No se hizo ningun cambio adicional."
+  $officialUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
+  $installer = Join-Path $env:TEMP "python-3.11.9-amd64.exe"
+  Write-Step "winget no esta disponible; descargando Python 3.11.9 oficial desde python.org..."
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  Invoke-WebRequest -UseBasicParsing -Uri $officialUrl -OutFile $installer
+
+  $sig = Get-AuthenticodeSignature $installer
+  if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "Python Software Foundation") {
+    Remove-Item $installer -Force -ErrorAction SilentlyContinue
+    throw "La firma Authenticode del instalador de Python no es valida o no pertenece a Python Software Foundation."
+  }
+
+  Write-Step "Firma oficial de Python verificada. Instalando Python 3.11.9 para el usuario actual..."
+  $proc = Start-Process -FilePath $installer -ArgumentList @(
+    "/quiet",
+    "InstallAllUsers=0",
+    "PrependPath=1",
+    "Include_launcher=1",
+    "Include_test=0"
+  ) -Wait -PassThru
+  if ($proc.ExitCode -ne 0) { throw "Instalador oficial de Python fallo (rc=$($proc.ExitCode))" }
+
+  $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","User") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","Machine")
+  $directPython = Join-Path $env:LocalAppData "Programs\Python\Python311\python.exe"
+  if (Test-Path $directPython) {
+    $ver = & $directPython -c "import sys; print('.'.join(map(str,sys.version_info[:3])))"
+    return @{ Cmd = $directPython; Args = @(); Exe = $directPython; Version = ([version]$ver).ToString() }
+  }
+
+  return Resolve-Python311
 }
 
 Write-Step "Preparando instalacion aislada en $InstallRoot"
