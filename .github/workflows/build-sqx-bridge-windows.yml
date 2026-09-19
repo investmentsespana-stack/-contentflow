@@ -32,6 +32,10 @@ jobs:
       - name: Compile source
         shell: pwsh
         run: python -m py_compile trading_super_strategy/sqx_bridge/app.py
+
+      - name: Test startup certification gate
+        shell: pwsh
+        run: python trading_super_strategy/sqx_bridge/test_startup_gate.py
       - name: Build single-file GUI executable
         shell: pwsh
         run: |

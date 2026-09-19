@@ -120,6 +120,31 @@ def _decode(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+_STARTUP_FAILURE_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("cannot_start_project", r"cannot\s+start\s+project"),
+    ("cannot_start_project_es", r"no\s+se\s+puede\s+iniciar\s+el\s+proyecto"),
+    ("unresolved_resources", r"unresolved\s+resources"),
+    ("license_failed", r"(?:check\s+license.*fail|license.*failed)"),
+    ("missing_resource", r"(?:doesn['’]t\s+exist|not\s+found|missing\s+resource)"),
+)
+
+_STARTUP_POSITIVE_PATTERNS: tuple[str, ...] = (
+    r"starting\s+project\s+['\"]",
+    r"iniciando\s+proyecto\s+['\"]",
+)
+
+
+def _startup_failure_reason(text: str) -> str | None:
+    for reason, pattern in _STARTUP_FAILURE_PATTERNS:
+        if re.search(pattern, text or "", flags=re.IGNORECASE):
+            return reason
+    return None
+
+
+def _startup_marker_seen(text: str) -> bool:
+    return any(re.search(pattern, text or "", flags=re.IGNORECASE) for pattern in _STARTUP_POSITIVE_PATTERNS)
+
+
 def _safe_slug(value: str, fallback: str = "item") -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip()).strip("._")
     return (slug or fallback)[:120]
@@ -234,19 +259,61 @@ class SqCliRuntime:
             self.active_output = []
             self.last_run = None
             threading.Thread(target=self._reader, args=(proc, project), daemon=True).start()
-            time.sleep(0.35)
-            if proc.poll() not in (None, 0):
-                time.sleep(0.2)
-                tail = "\n".join(self.active_output[-80:])
-                raise RuntimeError(f"SQCLI start falló rc={proc.returncode}: {tail[:4000]}")
-            return {
-                "returncode": 0,
-                "stdout": f"SQX project started asynchronously: {project}",
-                "stderr": "",
-                "started": True,
-                "pid": proc.pid,
-                "project": project,
-            }
+
+        deadline = time.monotonic() + 90.0
+        positive_seen_at: float | None = None
+        while time.monotonic() < deadline:
+            with self.lock:
+                output = "\n".join(self.active_output[-260:])
+
+            failure = _startup_failure_reason(output)
+            if failure:
+                if proc.poll() is None:
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=5)
+                    except Exception:
+                        try:
+                            proc.kill()
+                        except Exception:
+                            pass
+                raise RuntimeError(f"SQX_STARTUP_REJECTED:{failure}: {output[-6000:]}")
+
+            if positive_seen_at is None and _startup_marker_seen(output):
+                positive_seen_at = time.monotonic()
+
+            rc = proc.poll()
+            if rc is not None:
+                if rc != 0:
+                    raise RuntimeError(f"SQCLI start falló rc={rc}: {output[-6000:]}")
+                raise RuntimeError(f"SQX_STARTUP_EXITED_BEFORE_CERTIFICATION: {output[-6000:]}")
+
+            if positive_seen_at is not None and time.monotonic() - positive_seen_at >= 8.0:
+                gate_seconds = round(time.time() - (self.active_started_at or time.time()), 1)
+                return {
+                    "returncode": 0,
+                    "stdout": f"SQX startup certified for {project}\n{output[-6000:]}",
+                    "stderr": "",
+                    "started": True,
+                    "startup_verified": True,
+                    "startup_gate_seconds": gate_seconds,
+                    "pid": proc.pid,
+                    "project": project,
+                }
+            time.sleep(0.25)
+
+        with self.lock:
+            output = "\n".join(self.active_output[-260:])
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=5)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        raise RuntimeError(f"SQX_STARTUP_TIMEOUT_UNCERTIFIED: {output[-6000:]}")
 
     def status(self, project: str | None = None) -> dict[str, Any] | None:
         with self.lock:
@@ -581,7 +648,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v2",
+            "bridge_version": "142-autonomy-v3-startup-gate",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
