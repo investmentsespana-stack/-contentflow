@@ -563,7 +563,31 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
         path.write_bytes(data)
         extra["config_sha256"] = hashlib.sha256(data).hexdigest()
         extra["config_size"] = len(data)
-        result = _run_sqcli(cfg.sqcli_path, ["-project", "action=loadconfig", f"name={project}", f"file={path}"], timeout=300)
+
+        if bool(payload.get("replace_existing")):
+            if "/" in project or "\\" in project or project in {".", ".."}:
+                raise RuntimeError("Nombre de proyecto no permitido para replace_existing")
+            sqx_root = Path(cfg.sqcli_path).resolve().parent
+            destination = sqx_root / "user" / "projects" / project / "project.cfx"
+            if not destination.is_file():
+                raise RuntimeError(f"project.cfx existente no encontrado: {destination}")
+            previous = destination.read_bytes()
+            backup = ARTIFACT_DIR / f"backup__{_safe_slug(project)}__{int(time.time())}.cfx"
+            backup.write_bytes(previous)
+            temp = destination.with_name("project.cfx.cygnus_tmp")
+            temp.write_bytes(data)
+            os.replace(temp, destination)
+            extra["replace_existing"] = True
+            extra["backup_artifact_name"] = backup.name
+            extra["backup_sha256"] = hashlib.sha256(previous).hexdigest()
+            extra["destination"] = str(destination)
+            result = {
+                "returncode": 0,
+                "stdout": f"Replaced existing project.cfx with verified backup: {project}",
+                "stderr": "",
+            }
+        else:
+            result = _run_sqcli(cfg.sqcli_path, ["-project", "action=loadconfig", f"name={project}", f"file={path}"], timeout=300)
 
     elif name == "run_project":
         project = _project_from_payload(name, payload)
