@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "updated_at_utc": "2026-09-19T01:51:57Z",
+  "mode": "RESEARCH_ONLY",
+  "live_money": false,
+  "primary_universe": [
+    {
+      "market": "NQ",
+      "project": "NQ BREAKOUT FUTURES  H1 - Tradestation",
+      "status": "RESOURCE_REPAIR_PENDING",
+      "notes": ["@NQ/@ES/@YM registration incomplete", "@YM_MT5 unresolved"]
+    },
+    {
+      "market": "EW",
+      "project": "EW FUTURES BREAKOUT H1 - Tradestation",
+      "status": "RUNNING_CERTIFIED",
+      "symbol": "@EW",
+      "timeframe": "H1"
+    },
+    {
+      "market": "GOLD",
+      "project": "GOLD BREAKOUT M30 - Dukascopy",
+      "status": "QUEUED_AFTER_EW",
+      "symbol": "XAUUSD_M1_dukas",
+      "timeframe": "M30",
+      "role": "primary_metals_research"
+    },
+    {
+      "market": "WTI",
+      "project": "WTI FUTURES BREAKOUT H1 - Tradestation",
+      "status": "DATA_SETUP_PENDING",
+      "instrument_candidates": ["WTI_roboforex", "WTI_Z4_icmarkets"],
+      "role": "primary_oil_research"
+    }
+  ],
+  "secondary_robustness_markets": [
+    {
+      "market": "BRENT",
+      "project": "BRENT FUTURES BREAKOUT H1 - Tradestation",
+      "status": "DATA_SETUP_PENDING",
+      "instrument_candidates": ["BRENT_roboforex", "BRENT_F5_icmarkets"],
+      "role": "cross_market_oil_robustness"
+    }
+  ],
+  "execution_order": ["EW", "GOLD", "WTI", "BRENT"],
+  "gates": [
+    "Director dispatch",
+    "RARA deterministic runtime evidence",
+    "startup_verified for run_project",
+    "no live-money execution"
+  ]
+}
