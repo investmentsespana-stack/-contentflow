@@ -49,6 +49,8 @@ RESEARCH_CONTROL = {
     "resume_project",
     "load_project_config",
     "update_data",
+    "add_instrument",
+    "add_symbol",
     "create_databank",
     "copy_databank",
     "move_databank",
@@ -154,6 +156,26 @@ def _require_text(payload: dict[str, Any], key: str, command: str) -> str:
     value = str(payload.get(key) or "").strip()
     if not value:
         raise RuntimeError(f"{command} requiere payload.{key}")
+    return value
+
+
+def _safe_resource_name(value: str, field: str, command: str) -> str:
+    value = str(value or "").strip()
+    if not value:
+        raise RuntimeError(f"{command} requiere payload.{field}")
+    if not re.fullmatch(r"[A-Za-z0-9_@.\- ]+", value):
+        raise RuntimeError(f"{command}: {field} contiene caracteres no permitidos")
+    return value
+
+
+def _require_number(payload: dict[str, Any], key: str, command: str, minimum: float = 0.0) -> float:
+    raw = payload.get(key)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"{command} requiere payload.{key} numérico") from exc
+    if value <= minimum:
+        raise RuntimeError(f"{command}: payload.{key} debe ser > {minimum}")
     return value
 
 
@@ -556,6 +578,62 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
         action = "pause" if name == "pause_project" else "resume"
         result = _run_sqcli(cfg.sqcli_path, ["-project", f"action={action}", f"name={project}"], timeout=180)
 
+    elif name == "add_instrument":
+        _require_idle(runtime, name)
+        instrument = _safe_resource_name(payload.get("instrument"), "instrument", name)
+        description = str(payload.get("description") or "History data instrument").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_@.\- ]+", description):
+            raise RuntimeError("add_instrument: description contiene caracteres no permitidos")
+        pointvalue = _require_number(payload, "pointvalue", name)
+        ticksize = _require_number(payload, "ticksize", name)
+        tickstep = _require_number(payload, "tickstep", name)
+        defaultspread = float(payload.get("defaultspread", 2.0))
+        datatype = str(payload.get("datatype") or "futures").strip().lower()
+        if datatype not in {"stock", "futures", "forex", "cfds", "etf", "index", "crypto"}:
+            raise RuntimeError(f"add_instrument: datatype no permitido: {datatype}")
+        result = _run_sqcli(
+            cfg.sqcli_path,
+            [
+                "-instrument",
+                "action=add",
+                f"instrument={instrument}",
+                f"description={description}",
+                f"pointvalue={pointvalue:g}",
+                f"ticksize={ticksize:g}",
+                f"tickstep={tickstep:g}",
+                f"defaultspread={defaultspread:g}",
+                f"datatype={datatype}",
+            ],
+            timeout=300,
+        )
+
+    elif name == "add_symbol":
+        _require_idle(runtime, name)
+        symbol = _safe_resource_name(payload.get("symbol"), "symbol", name)
+        instrument = _safe_resource_name(payload.get("instrument"), "instrument", name)
+        datasource = str(payload.get("datasource") or "file").strip().lower()
+        datatype = str(payload.get("datatype") or "M1").strip().upper()
+        bartype = str(payload.get("bartype") or "endofbar").strip().lower()
+        if datasource not in {"file", "dukascopy", "darwinex", "crypto", "yahoo"}:
+            raise RuntimeError(f"add_symbol: datasource no permitido: {datasource}")
+        if datatype not in {"M1", "TICK"}:
+            raise RuntimeError(f"add_symbol: datatype no permitido: {datatype}")
+        if bartype not in {"startofbar", "endofbar"}:
+            raise RuntimeError(f"add_symbol: bartype no permitido: {bartype}")
+        result = _run_sqcli(
+            cfg.sqcli_path,
+            [
+                "-symbol",
+                "action=add",
+                f"symbols={symbol}",
+                f"instrument={instrument}",
+                f"datasource={datasource}",
+                f"datatype={datatype}",
+                f"bartype={bartype}",
+            ],
+            timeout=300,
+        )
+
     elif name == "update_data":
         _require_idle(runtime, name)
         symbols = payload.get("symbols")
@@ -648,7 +726,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v3-startup-gate",
+            "bridge_version": "142-autonomy-v4-resource-repair",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
