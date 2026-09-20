@@ -51,3 +51,36 @@ jobs:
           name: Cygnus-Vibe-Trading-VPS-Research
           path: dist/Cygnus-Vibe-Trading-Research/
           retention-days: 30
+
+
+  nq6-frozen-vibe-smoke:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      VIBE_TRADING_ENABLE_SHELL_TOOLS: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned Vibe-Trading
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "vibe-trading-ai==0.1.15"
+      - name: Stage frozen NQ6 manifest in allowed read root
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force data | Out-Null
+          Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json data\nq6_frozen_manifest.json -Force
+      - name: Execute Vibe MCP against frozen NQ6 identities
+        shell: pwsh
+        run: |
+          python trading_super_strategy\vibe_trading\test_nq6_frozen_mcp.py
+      - name: Emit research-only admission evidence
+        shell: pwsh
+        run: |
+          Write-Host "VIBE_NQ6_FROZEN_RESEARCH_ONLY=PASS"
+          Write-Host "LIVE=false"
+          Write-Host "SHELL_TOOLS=false"
+          Write-Host "BROKER_EXECUTION=false"
