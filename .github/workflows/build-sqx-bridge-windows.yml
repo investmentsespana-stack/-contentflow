@@ -33,6 +33,24 @@ jobs:
         shell: pwsh
         run: python -m py_compile trading_super_strategy/sqx_bridge/app.py
 
+      - name: Parse PowerShell deployment scripts
+        shell: pwsh
+        run: |
+          $files = @(
+            'trading_super_strategy/sqx_bridge/Install-ResearchV5.ps1',
+            'trading_super_strategy/vibe_trading/install_vibe_trading_research.ps1',
+            'trading_super_strategy/vibe_trading/Test-NQ6FrozenWithVibe.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              throw "PowerShell parse failed: $file"
+            }
+          }
+
       - name: Test startup certification gate
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_startup_gate.py
