@@ -5,6 +5,9 @@ on:
     paths:
       - 'trading_super_strategy/vibe_trading/**'
       - '.github/workflows/vibe-trading-vps-research-cert.yml'
+      - 'trading_super_strategy/vibe_trading/nq6_frozen_vibe_smoke.py'
+      - 'trading_super_strategy/vibe_trading/Test-NQ6FrozenWithVibe.ps1'
+      - 'trading_super_strategy/vibe_trading/nq6_frozen_inventory.json'
   workflow_dispatch:
 
 permissions:
@@ -39,6 +42,26 @@ jobs:
           if ($s -notmatch 'RESEARCH_ONLY') { throw 'research-only policy missing' }
           if ($s -match 'mt5-live-trade|alpaca-live-trade|ibkr-live-trade') { throw 'live broker profile must not be installed' }
           Write-Host "SAFETY_ASSERTIONS_PASS"
+      - name: NQ6 frozen MCP probe
+        shell: pwsh
+        env:
+          VIBE_TRADING_ENABLE_SHELL_TOOLS: '0'
+        run: |
+          $exe = (Get-Command vibe-trading-mcp).Source
+          $p = Start-Process -FilePath $exe -ArgumentList @('--transport','http','--host','127.0.0.1','--port','8900') -PassThru -WindowStyle Hidden
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 30; $i++) {
+              $t = Test-NetConnection 127.0.0.1 -Port 8900 -WarningAction SilentlyContinue
+              if ($t.TcpTestSucceeded) { $ok = $true; break }
+              Start-Sleep -Seconds 1
+            }
+            if (-not $ok) { throw 'VIBE_MCP_PORT_8900_NOT_READY' }
+            python trading_super_strategy/vibe_trading/nq6_frozen_vibe_smoke.py --probe-only --mcp-url http://127.0.0.1:8900/mcp
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          }
       - name: Package VPS installer
         shell: pwsh
         run: |
