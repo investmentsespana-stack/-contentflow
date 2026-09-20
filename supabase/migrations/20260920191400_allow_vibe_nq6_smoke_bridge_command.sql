@@ -1,3 +1,5 @@
+-- CONTENTFLOW_CHANGE_PROVENANCE_V1
+-- change-class: control_plane_guardrail
 -- Permit one fixed research-only Vibe NQ6 smoke command in the SQX bridge queue.
 -- The runtime still must advertise the capability before the control plane will claim it.
 alter table public.trading_sqx_bridge_commands
