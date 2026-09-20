@@ -46,20 +46,26 @@ test('Jarvis Desktop boots fail-closed and enforces explicit execution',async t=
  assert.equal(body.directorConfigured,false);
  assert.equal(body.directorMode,'pairing-required');
  assert.equal(body.active.projectKey,'contentflow');
- assert.equal(body.build,'2026-09-02-avatar-live-reconciler-v5.4');
+ assert.equal(body.build,'2026-09-20-fresh-context-gate-v6.0');
  assert.equal(body.openaiModel,'gpt-5.6-sol');
- assert.equal(body.availableProjects.length,3);
+ assert.equal(body.availableProjects.length,4);
+ assert.equal(body.freshContextGate,true);
+ assert.equal(body.realtimeTelemetryStream,true);
+ assert.equal(body.availableProjects.find(p=>p.id==='trading')?.supportsCycle,false);
 
  const cases=[
   ['¿Qué está haciendo el Director?','project_information',false],
   ['Dame reporte del Director','project_information',false],
   ['¿Cómo va Avatar?','project_information',false],
   ['Reporte de Skool','project_information',false],
+  ['Último reporte de trading','project_information',false],
+  ['Estado actual de SQX','project_information',false],
   ['Hablar con Sol','switch_sol',false],
   ['Comunícame con ChatGPT','switch_sol',false],
   ['Pásame con el Director','switch_project',false],
   ['Entra a Avatar','switch_project',false],
   ['Hablar con Skool','switch_project',false],
+  ['Hablar con trading','switch_project',false],
   ['Vuelve a Jarvis','switch_jarvis',false],
   ['Ejecuta un ciclo del Director','project_cycle',true],
   ['Corre un run de Avatar','project_cycle',true],
