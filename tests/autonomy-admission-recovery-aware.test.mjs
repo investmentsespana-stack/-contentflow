@@ -99,7 +99,7 @@ test('blocks productive work on unsafe operating signals', () => {
   const cases = [
     [{ ownershipConflicts: 1 }, 'ownership_conflict'],
     [{ openIncidents: 1 }, 'blocking_repair_incident'],
-    [{ openCircuits: 3 }, 'retry_budget_unhealthy'],
+    [{ openCircuits: 5 }, 'retry_budget_unhealthy'],
     [{ waitingForEvidence: 1 }, 'evidence_producer_gap'],
     [{ telemetryHealthy: false }, 'admission_telemetry_unavailable']
   ];
