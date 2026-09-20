@@ -76,7 +76,7 @@ jobs:
 
           RESEARCH V5 ONE-CLICK UPDATE
 
-          Preferred: right-click Install-ResearchV5.ps1 and run with PowerShell.
+          Preferred: double-click INSTALL_RESEARCH_V5.cmd.
           It preserves the existing Bridge pairing, installs Vibe in RESEARCH_ONLY,
           starts local-only Vibe MCP, replaces Bridge v4 with v5, and lets the
           already-queued fixed NQ6 smoke command execute automatically.
@@ -89,6 +89,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist\vibe\data | Out-Null
           Copy-Item trading_super_strategy\sqx_bridge\Install-ResearchV5.ps1 dist\Install-ResearchV5.ps1
+          Copy-Item trading_super_strategy\sqx_bridge\INSTALL_RESEARCH_V5.cmd dist\INSTALL_RESEARCH_V5.cmd
           Copy-Item trading_super_strategy\vibe_trading\install_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\verify_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\README.md dist\vibe\
