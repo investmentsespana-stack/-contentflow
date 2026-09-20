@@ -254,7 +254,7 @@ async def run(args: argparse.Namespace) -> int:
         print("SQX_INVOKED=false")
         return 0
 
-    upload_root = Path.home() / ".vibe-trading" / "uploads" / "cygnus-nq6-frozen-smoke" / ts
+    upload_root = Path(r"C:\\Cygnus\\VibeTrading\\data") / "cygnus-nq6-frozen-smoke" / ts
     upload_root.mkdir(parents=True, exist_ok=True)
 
     strategy_evidence: list[StrategyEvidence] = []
