@@ -40,6 +40,9 @@ jobs:
       - name: Test futures resource repair
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_resource_repair.py
+      - name: Test fixed Vibe NQ6 research gate
+        shell: pwsh
+        run: python trading_super_strategy/sqx_bridge/test_vibe_nq6_bridge_gate.py
       - name: Build single-file GUI executable
         shell: pwsh
         run: |
