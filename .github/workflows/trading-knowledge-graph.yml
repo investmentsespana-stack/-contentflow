@@ -1,0 +1,55 @@
+name: Trading Knowledge Graph Code-Only
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/trading-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  graph:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned Graphify
+        run: python -m pip install "graphifyy==0.9.64"
+      - name: Build local code-only graph
+        env:
+          GRAPHIFY_QUERY_LOG_DISABLE: "1"
+        run: |
+          graphify extract trading_super_strategy --code-only --force
+      - name: Verify graph
+        run: |
+          test -f trading_super_strategy/graphify-out/graph.json || test -f graphify-out/graph.json
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          candidates = [
+              Path("trading_super_strategy/graphify-out/graph.json"),
+              Path("graphify-out/graph.json"),
+          ]
+          p = next((x for x in candidates if x.exists()), None)
+          if p is None:
+              raise SystemExit("graph.json missing")
+          data = json.loads(p.read_text(encoding="utf-8"))
+          print("GRAPHIFY_CODE_ONLY_PASS", p, len(data.get("nodes", [])), len(data.get("edges", [])))
+          PY
+      - name: Upload graph evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-knowledge-graph
+          path: |
+            trading_super_strategy/graphify-out/
+            graphify-out/
+          if-no-files-found: error
+          retention-days: 14
