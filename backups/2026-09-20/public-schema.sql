@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict hQ8VvXPUuKxFzmJSTxh0v1f4xEADgN45BZfbobkhgpkkiMRMkGFDRoQrXJdWSDa
+\restrict NwjI3Jnh2UwX7f2Xo8sQ4YcdKDiMvTZebs1D9WLDOrnSXZMkzchcg46co6AK4rk
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
@@ -10374,6 +10374,23 @@ CREATE TABLE public.generations (
 
 
 --
+-- Name: jarvis_chatgpt_channel_context; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.jarvis_chatgpt_channel_context (
+    channel_id text NOT NULL,
+    channel_name text NOT NULL,
+    project_name text,
+    context_summary text DEFAULT ''::text NOT NULL,
+    recent_messages jsonb DEFAULT '[]'::jsonb NOT NULL,
+    source text DEFAULT 'chatgpt_authorized_sync'::text NOT NULL,
+    source_updated_at timestamp with time zone,
+    synced_at timestamp with time zone DEFAULT now() NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL
+);
+
+
+--
 -- Name: jarvis_device_tokens; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -10646,7 +10663,7 @@ CREATE TABLE public.trading_sqx_bridge_commands (
     result jsonb,
     error text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT trading_sqx_bridge_commands_command_type_check CHECK ((command_type = ANY (ARRAY['cli_help'::text, 'list_projects'::text, 'list_databanks'::text, 'status_project'::text, 'list_symbols'::text, 'list_instruments'::text, 'list_timezones'::text, 'count_databank'::text, 'export_databank'::text, 'list_strategies'::text, 'get_strategy_stats'::text, 'save_project_config'::text, 'run_project'::text, 'stop_project'::text, 'pause_project'::text, 'resume_project'::text, 'load_project_config'::text, 'update_data'::text, 'add_instrument'::text, 'add_symbol'::text, 'create_databank'::text, 'copy_databank'::text, 'move_databank'::text]))),
+    CONSTRAINT trading_sqx_bridge_commands_command_type_check CHECK ((command_type = ANY (ARRAY['cli_help'::text, 'list_projects'::text, 'list_databanks'::text, 'status_project'::text, 'list_symbols'::text, 'list_instruments'::text, 'list_timezones'::text, 'count_databank'::text, 'export_databank'::text, 'list_strategies'::text, 'get_strategy_stats'::text, 'save_project_config'::text, 'run_vibe_nq6_smoke'::text, 'run_project'::text, 'stop_project'::text, 'pause_project'::text, 'resume_project'::text, 'load_project_config'::text, 'update_data'::text, 'add_instrument'::text, 'add_symbol'::text, 'create_databank'::text, 'copy_databank'::text, 'move_databank'::text]))),
     CONSTRAINT trading_sqx_bridge_commands_state_check CHECK ((state = ANY (ARRAY['QUEUED'::text, 'CLAIMED'::text, 'SUCCEEDED'::text, 'FAILED'::text, 'CANCELLED'::text])))
 );
 
@@ -11637,6 +11654,14 @@ ALTER TABLE ONLY public.generations
 
 
 --
+-- Name: jarvis_chatgpt_channel_context jarvis_chatgpt_channel_context_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.jarvis_chatgpt_channel_context
+    ADD CONSTRAINT jarvis_chatgpt_channel_context_pkey PRIMARY KEY (channel_id);
+
+
+--
 -- Name: jarvis_device_tokens jarvis_device_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12488,6 +12513,13 @@ CREATE INDEX idx_social_metrics_user ON public.social_metrics USING btree (user_
 --
 
 CREATE INDEX idx_wallets_user ON public.credit_wallets USING btree (user_id);
+
+
+--
+-- Name: jarvis_chatgpt_channel_context_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX jarvis_chatgpt_channel_context_name_idx ON public.jarvis_chatgpt_channel_context USING btree (lower(channel_name));
 
 
 --
@@ -14025,6 +14057,12 @@ CREATE POLICY generations_update_own ON public.generations FOR UPDATE TO authent
    FROM public.projects p
   WHERE ((p.id = generations.project_id) AND (p.user_id = ( SELECT auth.uid() AS uid))))))));
 
+
+--
+-- Name: jarvis_chatgpt_channel_context; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.jarvis_chatgpt_channel_context ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: jarvis_device_tokens; Type: ROW SECURITY; Schema: public; Owner: -
@@ -17110,6 +17148,13 @@ GRANT ALL ON TABLE public.generations TO service_role;
 
 
 --
+-- Name: TABLE jarvis_chatgpt_channel_context; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.jarvis_chatgpt_channel_context TO service_role;
+
+
+--
 -- Name: TABLE jarvis_device_tokens; Type: ACL; Schema: public; Owner: -
 --
 
@@ -17372,5 +17417,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON T
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hQ8VvXPUuKxFzmJSTxh0v1f4xEADgN45BZfbobkhgpkkiMRMkGFDRoQrXJdWSDa
+\unrestrict NwjI3Jnh2UwX7f2Xo8sQ4YcdKDiMvTZebs1D9WLDOrnSXZMkzchcg46co6AK4rk
 
