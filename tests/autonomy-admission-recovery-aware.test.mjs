@@ -77,7 +77,7 @@ test('blocks productive work when canonical recovery receipt is invalid', () => 
   assert.equal(d.admitted, false);
   assert.equal(d.mode, 'support_only');
   assert.equal(d.effectiveParallelism, 0);
-  assert.ok(d.blockers.includes('recovery_receipt_invalid'));
+  assert.ok(d.blockers.includes('recovery_evidence_invalid'));
 });
 
 test('blocks productive work when provider budget is unavailable or exhausted', () => {
@@ -98,8 +98,8 @@ test('holds support-only during stability dwell after fresh recovery', () => {
 test('blocks productive work on unsafe operating signals', () => {
   const cases = [
     [{ ownershipConflicts: 1 }, 'ownership_conflict'],
-    [{ openIncidents: 1 }, 'open_repair_incident'],
-    [{ openCircuits: 3 }, 'retry_budget_unhealthy'],
+    [{ openIncidents: 1 }, 'blocking_repair_incident'],
+    [{ openCircuits: 5 }, 'retry_budget_unhealthy'],
     [{ waitingForEvidence: 1 }, 'evidence_producer_gap'],
     [{ telemetryHealthy: false }, 'admission_telemetry_unavailable']
   ];
@@ -114,12 +114,12 @@ test('auto-loop consumes recovery and budget receipts before planner/core admiss
   const s = fs.readFileSync('supabase/functions/contentflow-auto-loop/index.ts', 'utf8');
   assert.ok(s.includes(".select('status,verified,updated_at,evidence')"));
   assert.ok(s.includes('recoveryReceipt:recovery.data?.evidence||{}'));
-  assert.ok(s.includes("contentflow_budget_admission_snapshot"));
-  assert.ok(s.includes('budget:budget.data||{}'));
+  assert.ok(s.includes('budgetSnapshot(sb,\'contentflow\')'));
+  assert.ok(s.includes('budget,'));
   assert.ok(s.includes("evaluateAutonomyAdmission(signals)"));
   assert.ok(s.includes("if(admission.admitted)"));
   assert.ok(s.includes("reason:'autonomy_admission_denied'"));
-  assert.ok(s.includes("reason:'recovery_budget_aware_support_only'"));
+  assert.ok(s.includes("reason:'safety_gate'"));
   assert.ok(s.includes(".eq('evidence_type','recovery_certification')"));
   assert.ok(s.includes("contentflow_director_core_cycle_auto"));
 });

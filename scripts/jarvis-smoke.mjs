@@ -4,7 +4,7 @@ import process from 'node:process';
 
 const PORT = 44317;
 const BASE = `http://127.0.0.1:${PORT}`;
-const EXPECTED_BUILD = '2026-09-02-avatar-live-reconciler-v5.4';
+const EXPECTED_BUILD = '2026-09-20-fresh-context-gate-v6.0';
 const server = spawn(process.execPath, ['src/jarvis/server.mjs'], {
   env: { ...process.env, JARVIS_PORT: String(PORT), JARVIS_HOST: '127.0.0.1' },
   stdio: ['ignore', 'pipe', 'pipe']
@@ -34,7 +34,7 @@ try {
   assert(health.ok === true, 'health.ok no es true');
   assert(health.build === EXPECTED_BUILD, `build inesperado: ${health.build}`);
   assert(health.openaiModel === 'gpt-5.6-sol', `modelo inesperado: ${health.openaiModel}`);
-  assert(Array.isArray(health.availableProjects) && health.availableProjects.length === 3, 'deben existir 3 proyectos operativos');
+  assert(Array.isArray(health.availableProjects) && health.availableProjects.length === 4, 'deben existir 4 proyectos operativos');
 
   const self = await (await fetch(`${BASE}/api/selftest`, { cache: 'no-store' })).json();
   assert(self.ok === true, 'router self-test falló');
@@ -45,7 +45,11 @@ try {
     assert(r.ok, `classify HTTP ${r.status} para ${text}`);
     return r.json();
   };
-  const negatives = ['¿Qué está haciendo el Director?','revisa el Director','trabaja con Director','¿cómo va Avatar?','qué tareas tiene Skool'];
+  assert(health.freshContextGate === true, 'Fresh Context Gate no está activo');
+  assert(health.realtimeTelemetryStream === true, 'Realtime telemetry stream no está activo');
+  assert(health.availableProjects.find(p=>p.id==='trading')?.supportsCycle === false, 'Trading debe ser report-only desde Jarvis');
+
+  const negatives = ['¿Qué está haciendo el Director?','revisa el Director','trabaja con Director','¿cómo va Avatar?','qué tareas tiene Skool','último reporte de trading','estado actual de SQX'];
   for (const text of negatives) {
     const r = await classify(text);
     assert(r.execute === false, `falso positivo de ejecución: ${text}`);

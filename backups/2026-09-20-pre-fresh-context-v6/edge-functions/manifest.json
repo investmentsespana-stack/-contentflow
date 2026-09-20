@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-09-20T12:00:00Z",
+  "purpose": "Pre-deploy rollback snapshot for Jarvis Fresh Context v6",
+  "project_id": "koqpyfvnprmirqviafzq",
+  "functions": [
+    {
+      "slug": "jarvis-director-bridge",
+      "version": 9,
+      "ezbr_sha256": "cd12bd6c338a5fee2565d99cf6f626f06e44757791a3b5f585131e5eef82d118",
+      "verify_jwt": false
+    },
+    {
+      "slug": "jarvis-project-state-gateway",
+      "version": 7,
+      "ezbr_sha256": "aa8e243d2e9334196dbc070798255fb7daa62c4166e4a2f18b14b61cfb70d477",
+      "verify_jwt": false
+    }
+  ],
+  "rollback": "Redeploy the corresponding backed-up index.ts to its original function slug."
+}
