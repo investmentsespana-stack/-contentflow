@@ -27,6 +27,10 @@ KEYRING_SERVICE = "CygnusSQXBridge"
 CONTROL_URL = "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-bridge"
 DEFAULT_SQCLI_PATH = r"C:\OI\sqcli.exe"
 MAX_ARTIFACT_BYTES = 4 * 1024 * 1024
+VIBE_ROOT = Path(r"C:\\Cygnus\\VibeTrading")
+VIBE_PYTHON = VIBE_ROOT / ".venv" / "Scripts" / "python.exe"
+VIBE_NQ6_SCRIPT = VIBE_ROOT / "nq6_frozen_vibe_smoke.py"
+VIBE_MCP_URL = "http://127.0.0.1:8900/mcp"
 
 READ_ONLY = {
     "cli_help",
@@ -41,6 +45,7 @@ READ_ONLY = {
     "list_strategies",
     "get_strategy_stats",
     "save_project_config",
+    "run_vibe_nq6_smoke",
 }
 RESEARCH_CONTROL = {
     "run_project",
@@ -460,6 +465,107 @@ def _strategy_name_key(headers: list[str]) -> str | None:
     return headers[0] if headers else None
 
 
+
+def _run_vibe_nq6_smoke(runtime: SqCliRuntime) -> dict[str, Any]:
+    """Run one fixed, research-only Vibe smoke test. No arbitrary command input."""
+    _require_idle(runtime, "run_vibe_nq6_smoke")
+
+    python_exe = VIBE_PYTHON.resolve()
+    script = VIBE_NQ6_SCRIPT.resolve()
+    root = VIBE_ROOT.resolve()
+    if not python_exe.is_file():
+        raise RuntimeError(f"VIBE_PYTHON_MISSING:{python_exe}")
+    if not script.is_file():
+        raise RuntimeError(f"VIBE_NQ6_SCRIPT_MISSING:{script}")
+    if root not in python_exe.parents or root not in script.parents:
+        raise RuntimeError("VIBE_FIXED_PATH_POLICY_FAIL")
+
+    env = os.environ.copy()
+    env["VIBE_TRADING_ENABLE_SHELL_TOOLS"] = "0"
+    env["CYGNUS_RESEARCH_ONLY"] = "1"
+
+    cp = subprocess.run(
+        [str(python_exe), str(script), "--mcp-url", VIBE_MCP_URL],
+        cwd=str(root),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=600,
+        shell=False,
+        env=env,
+    )
+    stdout = _decode(cp.stdout).strip()
+    stderr = _decode(cp.stderr).strip()
+    if cp.returncode != 0:
+        raise RuntimeError(
+            f"VIBE_NQ6_SMOKE_PROCESS_FAIL rc={cp.returncode}: {(stderr or stdout)[-6000:]}"
+        )
+
+    required_markers = (
+        "VIBE_NQ6_SMOKE_PASS",
+        "STRATEGIES=6",
+        "IDENTITY_MATCH=6/6",
+        "VIBE_READ_FILE=6/6",
+        "MODE=RESEARCH_ONLY",
+        "LIVE=false",
+        "SHELL_TOOLS=false",
+        "SQX_INVOKED=false",
+    )
+    missing = [marker for marker in required_markers if marker not in stdout]
+    if missing:
+        raise RuntimeError("VIBE_NQ6_SMOKE_MARKERS_MISSING:" + ",".join(missing))
+
+    evidence_value = ""
+    for line in stdout.splitlines():
+        if line.startswith("EVIDENCE="):
+            evidence_value = line.split("=", 1)[1].strip()
+            break
+    if not evidence_value:
+        raise RuntimeError("VIBE_NQ6_EVIDENCE_PATH_MISSING")
+
+    evidence_path = Path(evidence_value).resolve()
+    evidence_root = (root / "evidence").resolve()
+    if evidence_path != evidence_root and evidence_root not in evidence_path.parents:
+        raise RuntimeError(f"VIBE_NQ6_EVIDENCE_PATH_BLOCKED:{evidence_path}")
+    if not evidence_path.is_file():
+        raise RuntimeError(f"VIBE_NQ6_EVIDENCE_FILE_MISSING:{evidence_path}")
+
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"VIBE_NQ6_EVIDENCE_INVALID_JSON:{exc}") from exc
+
+    if evidence.get("mode") != "RESEARCH_ONLY":
+        raise RuntimeError("VIBE_NQ6_POLICY_FAIL:mode")
+    if evidence.get("live") is not False:
+        raise RuntimeError("VIBE_NQ6_POLICY_FAIL:live")
+    if evidence.get("shell_tools") is not False:
+        raise RuntimeError("VIBE_NQ6_POLICY_FAIL:shell_tools")
+    if evidence.get("sqx_invoked") is not False:
+        raise RuntimeError("VIBE_NQ6_POLICY_FAIL:sqx_invoked")
+
+    strategies = evidence.get("strategies")
+    if not isinstance(strategies, list) or len(strategies) != 6:
+        raise RuntimeError("VIBE_NQ6_POLICY_FAIL:strategy_count")
+    if not all(isinstance(item, dict) and bool(item.get("vibe_read_ok")) for item in strategies):
+        raise RuntimeError("VIBE_NQ6_POLICY_FAIL:vibe_read")
+
+    return {
+        "returncode": 0,
+        "stdout": stdout,
+        "stderr": stderr,
+        "research_only": True,
+        "live": False,
+        "shell_tools": False,
+        "sqx_invoked": False,
+        "strategies": 6,
+        "identity_match": "6/6",
+        "vibe_read_file": "6/6",
+        "evidence_path": str(evidence_path),
+        "evidence": evidence,
+    }
+
+
 def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[str, Any]) -> dict[str, Any]:
     if name not in ALLOWLIST:
         raise RuntimeError(f"Comando bloqueado por allowlist: {name}")
@@ -589,6 +695,11 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
         else:
             result = _run_sqcli(cfg.sqcli_path, ["-project", "action=loadconfig", f"name={project}", f"file={path}"], timeout=300)
 
+    elif name == "run_vibe_nq6_smoke":
+        if payload:
+            raise RuntimeError("run_vibe_nq6_smoke no acepta payload; comando fijo y fail-closed")
+        result = _run_vibe_nq6_smoke(runtime)
+
     elif name == "run_project":
         project = _project_from_payload(name, payload)
         result = runtime.start_project(project)
@@ -704,7 +815,7 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
         raise RuntimeError(f"Comando no implementado: {name}")
 
     return {
-        "transport": "sqcli_process",
+        "transport": "fixed_vibe_research_process" if name == "run_vibe_nq6_smoke" else "sqcli_process",
         "sqcli_path": cfg.sqcli_path,
         "command": name,
         **result,
@@ -750,7 +861,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v4-resource-repair",
+            "bridge_version": "142-autonomy-v5-vibe-nq6-smoke",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),

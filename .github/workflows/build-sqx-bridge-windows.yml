@@ -33,6 +33,24 @@ jobs:
         shell: pwsh
         run: python -m py_compile trading_super_strategy/sqx_bridge/app.py
 
+      - name: Parse PowerShell deployment scripts
+        shell: pwsh
+        run: |
+          $files = @(
+            'trading_super_strategy/sqx_bridge/Install-ResearchV5.ps1',
+            'trading_super_strategy/vibe_trading/install_vibe_trading_research.ps1',
+            'trading_super_strategy/vibe_trading/Test-NQ6FrozenWithVibe.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              throw "PowerShell parse failed: $file"
+            }
+          }
+
       - name: Test startup certification gate
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_startup_gate.py
@@ -40,6 +58,9 @@ jobs:
       - name: Test futures resource repair
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_resource_repair.py
+      - name: Test fixed Vibe NQ6 research gate
+        shell: pwsh
+        run: python trading_super_strategy/sqx_bridge/test_vibe_nq6_bridge_gate.py
       - name: Build single-file GUI executable
         shell: pwsh
         run: |
@@ -53,21 +74,34 @@ jobs:
           @"
           CYGNUS SQX BRIDGE - STRATEGYQUANT BUILD 142
 
-          1. Close the normal StrategyQuant X graphical application.
-          2. Double-click CygnusSQXBridge.exe.
-          3. Confirm the sqcli.exe path, expected C:\OI\sqcli.exe.
-          4. Enter the one-time pairing code supplied by the Director.
-          5. Keep project start/stop OFF for the first certification.
-          6. Use Probar SQX; PASS must return real StrategyQuant projects.
+          RESEARCH V5 ONE-CLICK UPDATE
 
-          Transport: direct sqcli.exe process calls. No MCP. No live-money execution.
+          Preferred: double-click INSTALL_RESEARCH_V5.cmd.
+          It preserves the existing Bridge pairing, installs Vibe in RESEARCH_ONLY,
+          starts local-only Vibe MCP, replaces Bridge v4 with v5, and lets the
+          already-queued fixed NQ6 smoke command execute automatically.
+
+          Safety: LIVE=false, shell tools disabled, no broker execution,
+          smoke test does not invoke StrategyQuant.
           "@ | Out-File -Encoding utf8 dist/LEEME.txt
+      - name: Assemble one-click research v5 kit
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\vibe\data | Out-Null
+          Copy-Item trading_super_strategy\sqx_bridge\Install-ResearchV5.ps1 dist\Install-ResearchV5.ps1
+          Copy-Item trading_super_strategy\sqx_bridge\INSTALL_RESEARCH_V5.cmd dist\INSTALL_RESEARCH_V5.cmd
+          Copy-Item trading_super_strategy\vibe_trading\install_vibe_trading_research.ps1 dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\verify_vibe_trading_research.ps1 dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\README.md dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_vibe_smoke.py dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\Test-NQ6FrozenWithVibe.ps1 dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_inventory.json dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json dist\vibe\data\
+
       - name: Upload Windows bridge
         uses: actions/upload-artifact@v4
         with:
           name: Cygnus-SQX-Bridge-Windows-Build142
-          path: |
-            dist/CygnusSQXBridge.exe
-            dist/LEEME.txt
+          path: dist/
           if-no-files-found: error
           retention-days: 30
