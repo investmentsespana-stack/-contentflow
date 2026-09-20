@@ -1,0 +1,45 @@
+{
+  "schema": "cygnus.nq6.frozen.inventory.v1",
+  "project": "NQ CFD H1 - Dukascopy",
+  "frozen_archive_sha256": "efb90471a5672266ce80d2e947dab704376f60cad27e9ac05540bbc054722991",
+  "strategies": [
+    {
+      "name": "Strategy 2.36.115.sqx",
+      "size": 232846,
+      "crc32": "b4382ebb"
+    },
+    {
+      "name": "Strategy 2.37.117.sqx",
+      "size": 232477,
+      "crc32": "caf10493"
+    },
+    {
+      "name": "Strategy 2.37.137.sqx",
+      "size": 232833,
+      "crc32": "e282f201"
+    },
+    {
+      "name": "Strategy 2.38.122.sqx",
+      "size": 232663,
+      "crc32": "c8019dcc"
+    },
+    {
+      "name": "Strategy 2.38.155.sqx",
+      "size": 232487,
+      "crc32": "88d67cdb"
+    },
+    {
+      "name": "Strategy 2.38.177.sqx",
+      "size": 231631,
+      "crc32": "95faa90a"
+    }
+  ],
+  "policy": {
+    "research_only": true,
+    "live": false,
+    "invoke_sqx": false,
+    "mutate_strategy": false,
+    "broker_actions": false,
+    "shell_tools": false
+  }
+}
