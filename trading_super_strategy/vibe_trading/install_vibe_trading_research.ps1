@@ -72,6 +72,21 @@ Write-Step "Preparando instalacion aislada en $InstallRoot"
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 New-Item -ItemType Directory -Force -Path "$InstallRoot\state","$InstallRoot\data","$InstallRoot\logs" | Out-Null
 
+Write-Step "Instalando prueba NQ6 congelada de solo investigacion..."
+$requiredSidecars = @(
+  "nq6_frozen_vibe_smoke.py",
+  "Test-NQ6FrozenWithVibe.ps1",
+  "nq6_frozen_inventory.json"
+)
+foreach ($name in $requiredSidecars) {
+  $src = Join-Path $PSScriptRoot $name
+  if (-not (Test-Path $src -PathType Leaf)) { throw "Paquete incompleto: falta $name" }
+  Copy-Item $src (Join-Path $InstallRoot $name) -Force
+}
+$manifestSource = Join-Path $PSScriptRoot "data\nq6_frozen_manifest.json"
+if (-not (Test-Path $manifestSource -PathType Leaf)) { throw "Paquete incompleto: falta data\nq6_frozen_manifest.json" }
+Copy-Item $manifestSource (Join-Path $InstallRoot "data\nq6_frozen_manifest.json") -Force
+
 $py = Resolve-Python311
 Write-Step "Python detectado: $($py.Exe) ($($py.Version))"
 
@@ -171,6 +186,16 @@ $mcp = "$Root\.venv\Scripts\vibe-trading-mcp.exe"
 if (-not (Test-Path $py)) { throw "VENV_MISSING" }
 if (-not (Test-Path $vibe)) { throw "VIBE_CLI_MISSING" }
 if (-not (Test-Path $mcp)) { throw "VIBE_MCP_MISSING" }
+foreach ($required in @(
+  "nq6_frozen_vibe_smoke.py",
+  "Test-NQ6FrozenWithVibe.ps1",
+  "nq6_frozen_inventory.json",
+  "data\nq6_frozen_manifest.json"
+)) {
+  if (-not (Test-Path (Join-Path $Root $required) -PathType Leaf)) {
+    throw "NQ6_SMOKE_ASSET_MISSING:$required"
+  }
+}
 
 & $vibe --version
 & $vibe serve --help | Out-Null
