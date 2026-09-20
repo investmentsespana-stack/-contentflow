@@ -42,7 +42,15 @@ jobs:
           if p is None:
               raise SystemExit("graph.json missing")
           data = json.loads(p.read_text(encoding="utf-8"))
-          print("GRAPHIFY_CODE_ONLY_PASS", p, len(data.get("nodes", [])), len(data.get("edges", [])))
+          nodes = data.get("nodes", [])
+          links = data.get("links")
+          if links is None:
+              links = data.get("edges", [])
+          if not nodes:
+              raise SystemExit("graph has no nodes")
+          if not links:
+              raise SystemExit("graph has no links/edges")
+          print("GRAPHIFY_CODE_ONLY_PASS", p, len(nodes), len(links))
           PY
       - name: Upload graph evidence
         uses: actions/upload-artifact@v4
