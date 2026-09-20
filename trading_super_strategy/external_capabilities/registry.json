@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "live_money_default": false,
+    "fail_closed": true,
+    "arbitrary_shell_default": false,
+    "external_network_default": false,
+    "require_pinned_source_for_runtime": true,
+    "require_research_only_for_trading_tools": true
+  },
+  "capabilities": [
+    {
+      "id": "graphify",
+      "purpose": "knowledge_graph",
+      "source_repo": "Graphify-Labs/graphify",
+      "pinned_commit": "91f4d120b630ee35c79bf3c75ccd186870a808f9",
+      "package": "graphifyy",
+      "pinned_version": "0.9.64",
+      "package_sha256": "4faa624c7dd8a7f4f7c070df06c846e003f4deaecd48e57349c1236523036fb8",
+      "status": "approved_runtime_research",
+      "runtime_allowed": true,
+      "live_money_allowed": false,
+      "arbitrary_shell_allowed": false,
+      "external_network_allowed": false,
+      "allowed_scope": [
+        "trading_super_strategy",
+        "supabase/migrations",
+        "docs",
+        ".github/workflows"
+      ],
+      "mode": "code_only_offline",
+      "notes": "Use graphify extract --code-only for the canonical code graph. No cloud LLM required for code-only extraction."
+    },
+    {
+      "id": "skillspector",
+      "purpose": "third_party_security_scan",
+      "source_repo": "NVIDIA/SkillSpector",
+      "pinned_commit": "d162d9b343e559be13df8ebba093df3bc9d58c90",
+      "status": "approved_ci_only",
+      "runtime_allowed": false,
+      "live_money_allowed": false,
+      "arbitrary_shell_allowed": false,
+      "external_network_allowed": true,
+      "allowed_scope": [
+        "github_actions_ephemeral_runner"
+      ],
+      "notes": "Run only in isolated CI for pre-admission scans. Do not install into production VPS."
+    },
+    {
+      "id": "mcp_gateway",
+      "purpose": "mcp_security_patterns",
+      "source_repo": "lasso-security/mcp-gateway",
+      "pinned_commit": "7e7f1f6e5314819b3d0928128bb88eaea874b600",
+      "status": "approved_patterns_only",
+      "runtime_allowed": false,
+      "live_money_allowed": false,
+      "arbitrary_shell_allowed": false,
+      "external_network_allowed": false,
+      "allowed_scope": [
+        "director_policy"
+      ],
+      "notes": "Adopt secret masking, tool allowlisting and server admission concepts. Do not add another runtime router while the Director control plane already owns dispatch."
+    },
+    {
+      "id": "tradingview_mcp",
+      "purpose": "independent_market_crosscheck",
+      "source_repo": "atilaahmettaner/tradingview-mcp",
+      "pinned_commit": "a1e54b07e5c21b375363607920f297c5adfbeed4",
+      "package": "tradingview-mcp-server",
+      "pinned_version": "0.8.1",
+      "package_sha256": "1c01ff74105f6f94eedc150584cca75e6415affeeda206715b95963c688b561e",
+      "status": "approved_runtime_research",
+      "runtime_allowed": true,
+      "live_money_allowed": false,
+      "arbitrary_shell_allowed": false,
+      "external_network_allowed": true,
+      "allowed_scope": [
+        "market_data_crosscheck",
+        "technical_analysis_crosscheck",
+        "walk_forward_crosscheck"
+      ],
+      "forbidden_scope": [
+        "order_execution",
+        "broker_credentials",
+        "live_money"
+      ],
+      "notes": "Independent project, not TradingView Inc. Treat its public market data as secondary evidence, never the canonical NQ/ES/YM history."
+    },
+    {
+      "id": "stagehand",
+      "purpose": "social_ops_browser_automation",
+      "source_repo": "browserbase/stagehand",
+      "pinned_commit": "ea2789ca56e8a7ee154850de37657823c98604f8",
+      "status": "approved_pilot_only",
+      "runtime_allowed": false,
+      "live_money_allowed": false,
+      "arbitrary_shell_allowed": false,
+      "external_network_allowed": true,
+      "allowed_scope": [
+        "social_ops_non_destructive_browser_tasks"
+      ],
+      "notes": "Pilot only. Require explicit domain allowlist and human approval before publishing, deleting, changing credentials or accepting legal/financial actions."
+    }
+  ]
+}

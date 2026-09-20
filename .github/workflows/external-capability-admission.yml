@@ -1,0 +1,62 @@
+name: External Capability Admission
+
+on:
+  pull_request:
+    paths:
+      - 'trading_super_strategy/external_capabilities/**'
+      - '.github/workflows/external-capability-admission.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'trading_super_strategy/external_capabilities/**'
+      - '.github/workflows/external-capability-admission.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate registry
+        run: python trading_super_strategy/external_capabilities/admission.py validate
+      - name: Run fail-closed tests
+        run: python -m unittest trading_super_strategy/external_capabilities/test_admission.py
+
+  package-provenance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify approved package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cygnus-wheels
+          python -m pip download --no-deps --only-binary=:all: --dest /tmp/cygnus-wheels graphifyy==0.9.64
+          python -m pip download --no-deps --only-binary=:all: --dest /tmp/cygnus-wheels tradingview-mcp-server==0.8.1
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = {
+              "graphifyy": "4faa624c7dd8a7f4f7c070df06c846e003f4deaecd48e57349c1236523036fb8",
+              "tradingview_mcp_server": "1c01ff74105f6f94eedc150584cca75e6415affeeda206715b95963c688b561e",
+          }
+          found = {}
+          for p in Path("/tmp/cygnus-wheels").glob("*.whl"):
+              digest = hashlib.sha256(p.read_bytes()).hexdigest()
+              key = "graphifyy" if p.name.startswith("graphifyy-") else "tradingview_mcp_server"
+              found[key] = digest
+          if found != expected:
+              raise SystemExit(f"package provenance mismatch: {found}")
+          print("PACKAGE_PROVENANCE_PASS")
+          PY

@@ -1,0 +1,48 @@
+name: Third Party Skill Security Scan
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned SkillSpector in ephemeral runner
+        run: python -m pip install "git+https://github.com/NVIDIA/SkillSpector.git@d162d9b343e559be13df8ebba093df3bc9d58c90"
+      - name: Checkout pinned runtime candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/external
+          git clone --filter=blob:none https://github.com/Graphify-Labs/graphify.git /tmp/external/graphify
+          git -C /tmp/external/graphify checkout 91f4d120b630ee35c79bf3c75ccd186870a808f9
+          git clone --filter=blob:none https://github.com/atilaahmettaner/tradingview-mcp.git /tmp/external/tradingview-mcp
+          git -C /tmp/external/tradingview-mcp checkout a1e54b07e5c21b375363607920f297c5adfbeed4
+          git clone --filter=blob:none https://github.com/lasso-security/mcp-gateway.git /tmp/external/mcp-gateway
+          git -C /tmp/external/mcp-gateway checkout 7e7f1f6e5314819b3d0928128bb88eaea874b600
+      - name: Static scans
+        shell: bash
+        run: |
+          set +e
+          mkdir -p reports
+          skillspector scan /tmp/external/graphify --no-llm --format json --output reports/graphify.json
+          echo $? > reports/graphify.exit
+          skillspector scan /tmp/external/tradingview-mcp --no-llm --format json --output reports/tradingview-mcp.json
+          echo $? > reports/tradingview-mcp.exit
+          skillspector scan /tmp/external/mcp-gateway --no-llm --format json --output reports/mcp-gateway.json
+          echo $? > reports/mcp-gateway.exit
+          set -e
+      - name: Upload scan evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: third-party-skill-security-scan
+          path: reports/
+          retention-days: 30
