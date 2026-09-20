@@ -5,18 +5,20 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import { buildAvatarProjectState } from './avatar-project-state.mjs';
+import { assessFreshState, freshContextInstruction, wantsFreshContext } from './fresh-context.mjs';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const PORT=Number(process.env.JARVIS_PORT||4317), HOST=process.env.JARVIS_HOST||'127.0.0.1';
 const OPENAI_MODEL=process.env.OPENAI_MODEL||'gpt-5.6-sol';
 const SUPABASE_URL=(process.env.SUPABASE_URL||'https://koqpyfvnprmirqviafzq.supabase.co').replace(/\/$/,'');
 const SUPABASE_PUBLISHABLE_KEY=process.env.SUPABASE_PUBLISHABLE_KEY||'sb_publishable_KTxRW4wca-AcvP2tDve6Lw_PDI7WG_8';
-const BUILD='2026-09-02-avatar-live-reconciler-v5.4';
+const BUILD='2026-09-20-fresh-context-gate-v6.0';
 const stateDir=path.join(os.homedir(),'.jarvis'), deviceTokenFile=path.join(stateDir,'director-device-token'), contextFile=path.join(stateDir,'active-context.json');
 const PROJECTS={
- contentflow:{key:'contentflow',name:'Director / ContentFlow',aliases:['director','contentflow','orquestador']},
- avatar:{key:'avatar-platform-v1',name:'Responsable de Avatar',aliases:['avatar','proyecto avatar']},
- academy:{key:'agent-academy-platform-v1',name:'Responsable de Cygnus Academy / Skool',aliases:['academia','academy','skool','cygnus','cygnus academy']}
+ contentflow:{key:'contentflow',name:'Director / ContentFlow',aliases:['director','contentflow','orquestador'],supportsCycle:true},
+ avatar:{key:'avatar-platform-v1',name:'Responsable de Avatar',aliases:['avatar','proyecto avatar'],supportsCycle:true},
+ academy:{key:'agent-academy-platform-v1',name:'Responsable de Cygnus Academy / Skool',aliases:['academia','academy','skool','cygnus','cygnus academy'],supportsCycle:true},
+ trading:{key:'super_estrategia_adaptativa',name:'Responsable de Trading / Super Estrategia Adaptativa',aliases:['trading','super estrategia','estrategia adaptativa','strategyquant','sqx','oro','gold','nq','nasdaq'],supportsCycle:false}
 };
 let runtimeOpenAIKey=process.env.OPENAI_API_KEY||'', directorDeviceToken=process.env.JARVIS_DIRECTOR_DEVICE_TOKEN||'', active={mode:'jarvis',project:'contentflow'};
 try{if(!directorDeviceToken)directorDeviceToken=(await readFile(deviceTokenFile,'utf8')).trim()}catch{}
@@ -31,6 +33,8 @@ async function openaiChat(messages,{context='',web=false}={}){if(!runtimeOpenAIK
 function pinfo(id=active.project){return PROJECTS[id]||PROJECTS.contentflow}
 function activeView(){const p=pinfo(active.project);return {...active,projectKey:p.key,projectName:p.name}}
 async function bridge(action,extra={}){if(!directorDeviceToken)throw new Error('DIRECTOR_pairing_required');return fetchJson(`${SUPABASE_URL}/functions/v1/jarvis-director-bridge`,{method:'POST',headers:{authorization:`Bearer ${directorDeviceToken}`,apikey:SUPABASE_PUBLISHABLE_KEY,'content-type':'application/json'},body:JSON.stringify({action,project_key:pinfo().key,...extra})})}
+async function stateGateway(project){if(!directorDeviceToken)throw new Error('DIRECTOR_pairing_required');const p=pinfo(project);return fetchJson(`${SUPABASE_URL}/functions/v1/jarvis-project-state-gateway`,{method:'POST',headers:{authorization:`Bearer ${directorDeviceToken}`,apikey:SUPABASE_PUBLISHABLE_KEY,'content-type':'application/json'},body:JSON.stringify({action:'fresh_report',project_key:p.key})})}
+async function liveState(project){const state=await stateGateway(project);return{state,freshness:assessFreshState(state)}}
 async function pairDirector(code){const r=await fetchJson(`${SUPABASE_URL}/functions/v1/jarvis-director-bridge`,{method:'POST',headers:{apikey:SUPABASE_PUBLISHABLE_KEY,'content-type':'application/json'},body:JSON.stringify({action:'pair',pairing_code:String(code||'').trim()})});directorDeviceToken=String(r.device_token||'');if(!directorDeviceToken)throw new Error('device_token_missing');await mkdir(stateDir,{recursive:true});await writeFile(deviceTokenFile,directorDeviceToken,{encoding:'utf8',mode:0o600});return{ok:true}}
 function clean(t=''){return String(t).trim().replace(/^jarvis\s*[,;:]?\s*/i,'').trim()}
 function detectProject(t=''){const c=clean(t).toLowerCase();for(const[id,p]of Object.entries(PROJECTS))if(p.aliases.some(a=>c.includes(a)))return id;return null}
