@@ -6,7 +6,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from trading_super_strategy.sqx_bridge import app as bridge
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import app as bridge
 
 
 class IdleRuntime:
