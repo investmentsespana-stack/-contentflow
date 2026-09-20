@@ -19,10 +19,11 @@ export function assessFreshState(state,{maxObservationAgeMs=60_000,now=Date.now(
   const canonical=state?.stateClass==='CANONICAL'||state?.canonical===true;
   const complete=Object.values(coverage).length?Object.values(coverage).every(Boolean):canonical;
   const ok=Boolean(sourceFresh&&observationFresh);
+  const canonicalNow=Boolean(ok&&canonical&&complete&&conflicts.length===0);
   return {
     ok,
-    canonical:Boolean(canonical&&complete&&conflicts.length===0),
-    partial:Boolean(ok&&(!canonical||!complete||conflicts.length>0)),
+    canonical:canonicalNow,
+    partial:Boolean(ok&&!canonicalNow),
     observedAt,
     ageMs:Number.isFinite(ageMs)?ageMs:null,
     conflicts,
