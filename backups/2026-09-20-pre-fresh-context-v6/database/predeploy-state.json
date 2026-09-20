@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-09-20T12:30:00Z",
+  "purpose": "Pre-deploy database rollback reference for Jarvis Fresh Context v6",
+  "project_id": "koqpyfvnprmirqviafzq",
+  "objects": {
+    "director_context_facts": {
+      "rows": 2,
+      "function_md5": "6c434c52dc94ba6d0812a9ae5d2b8321"
+    },
+    "director_browser_action_audit": {
+      "rows": 2,
+      "function_md5": "382746e2a86b8b306938df3fe2c55a11"
+    }
+  },
+  "rollback_notes": [
+    "Edge Functions must be restored from the sibling edge-functions backup before or together with DB rollback.",
+    "rollback.sql is destructive for the two feature tables and must never run automatically.",
+    "The two rows in each table are test/provenance records from certification."
+  ]
+}
