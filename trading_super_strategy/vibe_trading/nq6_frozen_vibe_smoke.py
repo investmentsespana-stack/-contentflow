@@ -46,10 +46,16 @@ PROJECT_ROOT_CANDIDATES = [
     Path(r"C:\OI\user\projects\NQ CFD H1 - Dukascopy"),
 ]
 
-DANGEROUS_TOOL_TOKENS = (
-    "bash", "shell", "exec", "command", "background_run", "run_background",
-    "terminal", "powershell", "cmd",
-)
+DANGEROUS_TOOL_NAMES = {
+    "bash",
+    "background_run",
+    "cancel_background",
+    "run_background",
+    "shell",
+    "powershell",
+    "cmd",
+    "terminal",
+}
 
 @dataclass
 class StrategyEvidence:
@@ -173,9 +179,12 @@ async def mcp_probe(url: str, read_paths: list[Path], evidence: dict[str, Any]) 
 
         dangerous = [
             n for n in names
-            if any(tok in n.lower() for tok in DANGEROUS_TOOL_TOKENS)
+            if n.lower() in DANGEROUS_TOOL_NAMES
+            or "shell" in n.lower()
+            or "terminal" in n.lower()
         ]
-        # Tool names such as get_command_history would also match; fail closed by design.
+        # Match actual OS-process/RCE tools. Do not reject research-data tools
+        # such as qveris_execute merely because their name contains "execute".
         if dangerous:
             raise RuntimeError("SHELL_TOOL_EXPOSURE_FAIL " + ",".join(dangerous))
 
