@@ -65,10 +65,14 @@ jobs:
       - name: Package VPS installer
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist\Cygnus-Vibe-Trading-Research | Out-Null
+          New-Item -ItemType Directory -Force dist\Cygnus-Vibe-Trading-Research\data | Out-Null
           Copy-Item trading_super_strategy\vibe_trading\install_vibe_trading_research.ps1 dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\verify_vibe_trading_research.ps1 dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\README.md dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_vibe_smoke.py dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Test-NQ6FrozenWithVibe.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_inventory.json dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json dist\Cygnus-Vibe-Trading-Research\data\
       - uses: actions/upload-artifact@v4
         with:
           name: Cygnus-Vibe-Trading-VPS-Research
