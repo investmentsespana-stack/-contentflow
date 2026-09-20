@@ -1,0 +1,52 @@
+{
+  "schema": "cygnus.vibe.nq6.frozen.v1",
+  "project": "NQ CFD H1 - Dukascopy",
+  "purpose": "Vibe-Trading research-only frozen-strategy ingestion smoke. This is not final NQ Futures certification.",
+  "mode": "RESEARCH_ONLY",
+  "live": false,
+  "shell_tools": false,
+  "source_archive": {
+    "name": "09bc289f-b315-4276-809b-9acede86dce0.rar",
+    "sha256": "efb90471a5672266ce80d2e947dab704376f60cad27e9ac05540bbc054722991",
+    "strategy_count": 6
+  },
+  "strategies": [
+    {
+      "name": "Strategy 2.36.115.sqx",
+      "size": 232846,
+      "crc32": "b4382ebb"
+    },
+    {
+      "name": "Strategy 2.37.117.sqx",
+      "size": 232477,
+      "crc32": "caf10493"
+    },
+    {
+      "name": "Strategy 2.37.137.sqx",
+      "size": 232833,
+      "crc32": "e282f201"
+    },
+    {
+      "name": "Strategy 2.38.122.sqx",
+      "size": 232663,
+      "crc32": "c8019dcc"
+    },
+    {
+      "name": "Strategy 2.38.155.sqx",
+      "size": 232487,
+      "crc32": "88d67cdb"
+    },
+    {
+      "name": "Strategy 2.38.177.sqx",
+      "size": 231631,
+      "crc32": "95faa90a"
+    }
+  ],
+  "invariants": {
+    "preserve_strategy_identity": true,
+    "preserve_rules_and_parameters": true,
+    "no_broker_credentials": true,
+    "no_order_execution": true,
+    "no_live_money": true
+  }
+}
