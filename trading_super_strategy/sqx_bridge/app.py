@@ -547,7 +547,7 @@ def _run_vibe_nq6_smoke(runtime: SqCliRuntime) -> dict[str, Any]:
     strategies = evidence.get("strategies")
     if not isinstance(strategies, list) or len(strategies) != 6:
         raise RuntimeError("VIBE_NQ6_POLICY_FAIL:strategy_count")
-    if not all(bool(item.get("vibe_read_ok")) for item in strategies if isinstance(item, dict)):
+    if not all(isinstance(item, dict) and bool(item.get("vibe_read_ok")) for item in strategies):
         raise RuntimeError("VIBE_NQ6_POLICY_FAIL:vibe_read")
 
     return {
