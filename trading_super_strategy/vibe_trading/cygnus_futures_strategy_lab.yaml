@@ -61,11 +61,34 @@ agents:
       for Yahoo continuous futures symbols ending =F so the GlobalFutures engine is selected.
       Preserve an explicit evaluation window and warmup separation. Include realistic
       commission/slippage assumptions and chronological OOS validation.
-      Test multiple distinct candidates. Never fabricate a metric if a backtest fails.
+
+      HARD BACKTEST CONTRACT:
+      - Test at least 3 structurally different candidates.
+      - For EACH candidate create one dedicated run directory.
+      - Write config.json at the ROOT of that candidate run directory.
+      - Write code/signal_engine.py under that SAME candidate run directory.
+      - Call backtest with run_dir equal to that candidate directory, never the config file
+        path and never the code directory.
+      - If backtest returns "config.json not found" or "code/signal_engine.py not found",
+        inspect the exact candidate paths with read_file, repair the layout, and RETRY.
+      - A candidate counts as BACKTESTED only when the backtest tool returns status=ok and
+        actual result artifacts/metrics exist. Narrative descriptions do not count.
+      - If zero candidates achieve a real backtest, mark the task FAILED/BLOCKED in the
+        written deliverable and explicitly state ZERO_BACKTESTED_CANDIDATES. Do not present
+        the research run as successfully completed.
+
+      SQX TRANSFER CONTRACT:
+      For every surviving candidate write a machine-readable strategy_manifest.json with:
+      candidate_id, target, direction (LONG/SHORT/LONG+SHORT), timeframe, entry_rules,
+      exit_rules, stop_logic, target_logic, parameters, session, data_source,
+      commission, slippage, evaluated_window, trade_count, return, Sharpe,
+      max_drawdown, OOS metrics, artifact paths and status.
+      status may be SQX_READY only when all required metrics came from a successful backtest.
 
       Required deliverable for each tested candidate:
       exact rules, config/code artifact paths, evaluated date window, trade count,
-      return, Sharpe, max drawdown, OOS behavior, and cost assumptions.
+      return, Sharpe, max drawdown, OOS behavior, direction, cost assumptions,
+      and strategy_manifest.json path.
     tools: [read_file, write_file, edit_file, load_skill, get_market_data, backtest]
     skills: [strategy-generate, technical-basic, backtest-diagnose]
     max_iterations: 50
@@ -79,6 +102,10 @@ agents:
       Use their actual artifacts as evidence.
       Verify that no evidence for NQ/ES/GC/CL came from KUCOIN/crypto or from a GC->TVC:GOLD substitution.
       Canonical TradingView future: {tv_symbol}; category: {tv_category}. Routing policy: {tv_policy}
+
+      HARD ADMISSION GATE: before auditing, verify the upstream backtester produced at
+      least one successful real backtest with metrics and a strategy_manifest.json whose
+      status is SQX_READY. If not, output BACKTEST_GATE_FAILED and do not certify survivors.
 
       Evaluate OOS degradation, drawdowns, tail risk, bootstrap/Monte Carlo where
       the available return series supports it, parameter-neighborhood stability,
@@ -101,6 +128,14 @@ agents:
       - candidates needing repair
       - rejected candidates
       - blocked or missing tests
+
+      COMPLETION GATE:
+      - A run is NOT a successful strategy-discovery run merely because all agents returned.
+      - Require at least one candidate with successful real backtest metrics and
+        strategy_manifest.json status=SQX_READY.
+      - If none exists, final verdict must begin with STRATEGY_DISCOVERY_FAILED and report
+        zero SQX-ready candidates.
+      - Never convert missing/failed backtests into a completed strategy result.
 
       Do not call any strategy production-ready. Favor diversity and robustness over
       headline return. Include artifact paths and evidence limitations.
