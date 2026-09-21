@@ -1,0 +1,38 @@
+name: SQX VPS Deploy Capability Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sqx-vps-deploy-capability-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Report credential capability presence only
+        shell: bash
+        env:
+          HYPERSTACK_SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          WINDOWS_VPS_SSH_PRIVATE_KEY: ${{ secrets.WINDOWS_VPS_SSH_PRIVATE_KEY }}
+          SQX_VPS_SSH_PRIVATE_KEY: ${{ secrets.SQX_VPS_SSH_PRIVATE_KEY }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          WINDOWS_VPS_PASSWORD: ${{ secrets.WINDOWS_VPS_PASSWORD }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in             HYPERSTACK_SSH_PRIVATE_KEY             VPS_SSH_PRIVATE_KEY             WINDOWS_VPS_SSH_PRIVATE_KEY             SQX_VPS_SSH_PRIVATE_KEY             VPS_PASSWORD             WINDOWS_VPS_PASSWORD             SUPABASE_SERVICE_ROLE_KEY             SUPABASE_ACCESS_TOKEN
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "HAS_${name}=true"
+            else
+              echo "HAS_${name}=false"
+            fi
+          done
