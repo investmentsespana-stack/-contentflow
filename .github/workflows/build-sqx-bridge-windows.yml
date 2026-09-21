@@ -38,6 +38,7 @@ jobs:
         run: |
           $files = @(
             'trading_super_strategy/sqx_bridge/Install-ResearchV5.ps1',
+            'trading_super_strategy/sqx_bridge/Install-ResearchV6.ps1',
             'trading_super_strategy/vibe_trading/install_vibe_trading_research.ps1',
             'trading_super_strategy/vibe_trading/Test-NQ6FrozenWithVibe.ps1'
           )
@@ -61,6 +62,12 @@ jobs:
       - name: Test fixed Vibe NQ6 research gate
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_vibe_nq6_bridge_gate.py
+      - name: Compile multi-asset Vibe runner
+        shell: pwsh
+        run: python -m py_compile trading_super_strategy/vibe_trading/asset_research.py
+      - name: Test fixed Vibe multi-asset research gate
+        shell: pwsh
+        run: python trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py
       - name: Build single-file GUI executable
         shell: pwsh
         run: |
@@ -74,9 +81,13 @@ jobs:
           @"
           CYGNUS SQX BRIDGE - STRATEGYQUANT BUILD 142
 
-          RESEARCH V5 ONE-CLICK UPDATE
+          RESEARCH V6 MULTI-ASSET UPDATE
 
-          Preferred: double-click INSTALL_RESEARCH_V5.cmd.
+          Preferred: double-click INSTALL_RESEARCH_V6.cmd.
+          V6 preserves pairing and enables fixed Vibe research for NQ, ES, CL, GC and DXY.
+          V5 remains packaged only for backward recovery.
+
+          Legacy V5: double-click INSTALL_RESEARCH_V5.cmd.
           It preserves the existing Bridge pairing, installs Vibe in RESEARCH_ONLY,
           starts local-only Vibe MCP, replaces Bridge v4 with v5, and lets the
           already-queued fixed NQ6 smoke command execute automatically.
@@ -90,12 +101,16 @@ jobs:
           New-Item -ItemType Directory -Force dist\vibe\data | Out-Null
           Copy-Item trading_super_strategy\sqx_bridge\Install-ResearchV5.ps1 dist\Install-ResearchV5.ps1
           Copy-Item trading_super_strategy\sqx_bridge\INSTALL_RESEARCH_V5.cmd dist\INSTALL_RESEARCH_V5.cmd
+          Copy-Item trading_super_strategy\sqx_bridge\Install-ResearchV6.ps1 dist\Install-ResearchV6.ps1
+          Copy-Item trading_super_strategy\sqx_bridge\INSTALL_RESEARCH_V6.cmd dist\INSTALL_RESEARCH_V6.cmd
           Copy-Item trading_super_strategy\vibe_trading\install_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\verify_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\README.md dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_vibe_smoke.py dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\Test-NQ6FrozenWithVibe.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_inventory.json dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\asset_research.py dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_single_asset_strategy_desk.yaml dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json dist\vibe\data\
 
       - name: Upload Windows bridge

@@ -1,0 +1,154 @@
+name: cygnus_single_asset_strategy_desk
+title: "Cygnus Single-Asset Strategy Desk"
+description: "Research-only single-asset futures/index strategy discovery: regime analysis -> diverse hypotheses -> real-data backtests -> robustness audit -> survivor report."
+
+agents:
+  - id: regime_analyst
+    role: Market Regime Analyst
+    system_prompt: |
+      You are a quantitative market-regime analyst. Analyze {target} in {market} on {timeframe}.
+      Objective: {objective}
+
+      Required outputs:
+      1. Data provenance and date coverage.
+      2. Trend, volatility, momentum, seasonality/session effects when measurable.
+      3. At least three materially different regimes with objective definitions.
+      4. Macro/cross-asset drivers that can be measured without lookahead.
+      5. Explicit caveats when a requested dataset is unavailable.
+
+      Use real retrieved data. Never invent prices or metrics. Research only; no broker actions.
+    tools: [load_skill, get_market_data, technical_indicators, get_macro_series, web_search, read_file, write_file]
+    skills: [technical-basic, global-macro, seasonal]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: strategy_designer
+    role: Strategy Designer
+    system_prompt: |
+      You design systematic single-asset strategies for {target}. Objective: {objective}
+
+      Produce at least five structurally different hypotheses, not parameter clones:
+      - trend/momentum
+      - breakout/volatility expansion
+      - mean reversion
+      - regime-conditioned strategy
+      - time/session/seasonal strategy when data supports it
+
+      For every hypothesis specify entry, exit, stop/risk logic, timeframe, parameters and
+      economic rationale. Ban lookahead and data leakage. Prefer simple rules that can survive
+      perturbation. Research only.
+    tools: [load_skill, read_file, write_file]
+    skills: [strategy-generate, technical-basic, risk-analysis]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: backtester
+    role: Strategy Backtester
+    system_prompt: |
+      Backtest the best distinct hypotheses for {target} using real data and the Vibe backtest tool.
+      Read upstream regime and design outputs first.
+
+      Requirements:
+      1. Test at least three distinct candidates if data permits.
+      2. Include realistic transaction-cost assumptions.
+      3. Use chronological in-sample/out-of-sample separation.
+      4. Report return, Sharpe, max drawdown, trade count, win rate and OOS behavior.
+      5. Persist code/config/results so the next auditor can inspect evidence.
+      6. Never fabricate a metric when a backtest fails.
+    tools: [load_skill, read_file, write_file, backtest]
+    skills: [strategy-generate, backtest-diagnose]
+    max_iterations: 45
+    timeout_seconds: 2400
+    max_retries: 1
+
+  - id: robustness_judge
+    role: Robustness Judge
+    system_prompt: |
+      Audit the backtested {target} candidates for robustness. Objective: {objective}
+
+      Evaluate:
+      - OOS degradation
+      - drawdown and tail risk
+      - parameter sensitivity / neighborhood stability
+      - regime dependence
+      - strategy similarity / duplicate behavior
+      - bootstrap or Monte Carlo evidence when available
+
+      Reject near-clones even when profitable. Do not approve a strategy because of in-sample
+      performance alone. Research only; no trading execution.
+    tools: [load_skill, read_file, write_file, quantlib_call]
+    skills: [risk-analysis, volatility, backtest-diagnose]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: survivor_reporter
+    role: Survivor Report Editor
+    system_prompt: |
+      Consolidate all evidence for {target}. Produce a final research report that separates:
+      - survivors worth deeper testing
+      - candidates needing repair
+      - rejected candidates
+      - missing evidence / blocked tests
+
+      Do not call anything production-ready unless OOS and robustness evidence support it.
+      Include exact artifact paths and caveats. Research only.
+    tools: [read_file, write_file, load_skill]
+    skills: [report-generate]
+    max_iterations: 30
+    timeout_seconds: 1200
+    max_retries: 1
+
+tasks:
+  - id: task-regime
+    agent_id: regime_analyst
+    prompt_template: "Analyze regime structure for {target} in {market} on {timeframe}. Objective: {objective}"
+    depends_on: []
+
+  - id: task-design
+    agent_id: strategy_designer
+    prompt_template: "Design diverse systematic hypotheses for {target}. Objective: {objective}"
+    depends_on: [task-regime]
+    input_from:
+      regime: task-regime
+
+  - id: task-backtest
+    agent_id: backtester
+    prompt_template: "Backtest distinct candidates for {target} with real data, costs and chronological OOS."
+    depends_on: [task-regime, task-design]
+    input_from:
+      regime: task-regime
+      designs: task-design
+
+  - id: task-robustness
+    agent_id: robustness_judge
+    prompt_template: "Audit robustness and duplicate behavior of the {target} backtests."
+    depends_on: [task-backtest]
+    input_from:
+      backtests: task-backtest
+
+  - id: task-report
+    agent_id: survivor_reporter
+    prompt_template: "Produce the final evidence-based survivor report for {target}."
+    depends_on: [task-regime, task-design, task-backtest, task-robustness]
+    input_from:
+      regime: task-regime
+      designs: task-design
+      backtests: task-backtest
+      robustness: task-robustness
+
+variables:
+  - name: target
+    description: "Canonical research symbol"
+    required: true
+  - name: market
+    description: "Market/instrument description"
+    required: true
+  - name: timeframe
+    description: "Primary research interval"
+    required: true
+  - name: objective
+    description: "Research-only strategy discovery objective"
+    required: true

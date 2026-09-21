@@ -30,7 +30,11 @@ MAX_ARTIFACT_BYTES = 4 * 1024 * 1024
 VIBE_ROOT = Path(r"C:\\Cygnus\\VibeTrading")
 VIBE_PYTHON = VIBE_ROOT / ".venv" / "Scripts" / "python.exe"
 VIBE_NQ6_SCRIPT = VIBE_ROOT / "nq6_frozen_vibe_smoke.py"
+VIBE_ASSET_SCRIPT = VIBE_ROOT / "asset_research.py"
 VIBE_MCP_URL = "http://127.0.0.1:8900/mcp"
+VIBE_ALLOWED_ASSETS = {"NQ", "ES", "CL", "GC", "DXY"}
+VIBE_ASSET_ALIASES = {"DX": "DXY"}
+VIBE_ASSET_ACTIONS = {"start", "status", "result"}
 
 READ_ONLY = {
     "cli_help",
@@ -46,6 +50,7 @@ READ_ONLY = {
     "get_strategy_stats",
     "save_project_config",
     "run_vibe_nq6_smoke",
+    "run_vibe_asset_research",
 }
 RESEARCH_CONTROL = {
     "run_project",
@@ -566,6 +571,125 @@ def _run_vibe_nq6_smoke(runtime: SqCliRuntime) -> dict[str, Any]:
     }
 
 
+def _run_vibe_asset_research(payload: dict[str, Any]) -> dict[str, Any]:
+    """Run fixed, allowlisted multi-asset Vibe research. No arbitrary prompt or shell input."""
+    action = str(payload.get("action") or "start").strip().lower()
+    if action not in VIBE_ASSET_ACTIONS:
+        raise RuntimeError(f"VIBE_ACTION_NOT_ALLOWED:{action}")
+
+    asset = ""
+    run_id = ""
+    if action == "start":
+        asset = str(payload.get("asset") or "").strip().upper()
+        asset = VIBE_ASSET_ALIASES.get(asset, asset)
+        if asset not in VIBE_ALLOWED_ASSETS:
+            raise RuntimeError(f"ASSET_NOT_ALLOWED:{asset}")
+    else:
+        run_id = str(payload.get("run_id") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9._:-]{1,160}", run_id):
+            raise RuntimeError("INVALID_RUN_ID")
+
+    python_exe = VIBE_PYTHON.resolve()
+    script = VIBE_ASSET_SCRIPT.resolve()
+    root = VIBE_ROOT.resolve()
+    if not python_exe.is_file():
+        raise RuntimeError(f"VIBE_PYTHON_MISSING:{python_exe}")
+    if not script.is_file():
+        raise RuntimeError(f"VIBE_ASSET_SCRIPT_MISSING:{script}")
+    if root not in python_exe.parents or root not in script.parents:
+        raise RuntimeError("VIBE_FIXED_PATH_POLICY_FAIL")
+
+    args = [str(python_exe), str(script), "--action", action, "--mcp-url", VIBE_MCP_URL]
+    if action == "start":
+        args.extend(["--asset", asset])
+    else:
+        args.extend(["--run-id", run_id])
+
+    env = os.environ.copy()
+    env["VIBE_TRADING_ENABLE_SHELL_TOOLS"] = "0"
+    env["CYGNUS_RESEARCH_ONLY"] = "1"
+
+    cp = subprocess.run(
+        args,
+        cwd=str(root),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=240,
+        shell=False,
+        env=env,
+    )
+    stdout = _decode(cp.stdout).strip()
+    stderr = _decode(cp.stderr).strip()
+    if cp.returncode != 0:
+        raise RuntimeError(
+            f"VIBE_ASSET_RESEARCH_PROCESS_FAIL rc={cp.returncode}: {(stderr or stdout)[-8000:]}"
+        )
+
+    required = [
+        "MODE=RESEARCH_ONLY",
+        "LIVE=false",
+        "SHELL_TOOLS=false",
+        "BROKER_EXECUTION=false",
+        "EVIDENCE=",
+    ]
+    if action == "start":
+        required.extend(["VIBE_ASSET_RESEARCH_START", f"ASSET={asset}", "STATUS=STARTED", "RUN_ID="])
+    else:
+        required.extend(["VIBE_ASSET_RESEARCH_CHECK", f"ACTION={action}", f"RUN_ID={run_id}"])
+    missing = [m for m in required if m not in stdout]
+    if missing:
+        raise RuntimeError("VIBE_ASSET_MARKERS_MISSING:" + ",".join(missing))
+
+    evidence_value = ""
+    stdout_run_id = run_id
+    for line in stdout.splitlines():
+        if line.startswith("EVIDENCE="):
+            evidence_value = line.split("=", 1)[1].strip()
+        elif action == "start" and line.startswith("RUN_ID="):
+            stdout_run_id = line.split("=", 1)[1].strip()
+
+    if action == "start" and not re.fullmatch(r"[A-Za-z0-9._:-]{1,160}", stdout_run_id or ""):
+        raise RuntimeError("VIBE_ASSET_RUN_ID_MISSING")
+    if not evidence_value:
+        raise RuntimeError("VIBE_ASSET_EVIDENCE_PATH_MISSING")
+
+    evidence_path = Path(evidence_value).resolve()
+    evidence_root = (root / "evidence").resolve()
+    if evidence_path != evidence_root and evidence_root not in evidence_path.parents:
+        raise RuntimeError(f"VIBE_ASSET_EVIDENCE_PATH_BLOCKED:{evidence_path}")
+    if not evidence_path.is_file():
+        raise RuntimeError(f"VIBE_ASSET_EVIDENCE_FILE_MISSING:{evidence_path}")
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise RuntimeError(f"VIBE_ASSET_EVIDENCE_INVALID_JSON:{exc}") from exc
+
+    if evidence.get("mode") != "RESEARCH_ONLY":
+        raise RuntimeError("VIBE_ASSET_POLICY_FAIL:mode")
+    if evidence.get("live") is not False:
+        raise RuntimeError("VIBE_ASSET_POLICY_FAIL:live")
+    if evidence.get("shell_tools") is not False:
+        raise RuntimeError("VIBE_ASSET_POLICY_FAIL:shell_tools")
+    if evidence.get("broker_execution") is not False:
+        raise RuntimeError("VIBE_ASSET_POLICY_FAIL:broker_execution")
+
+    return {
+        "returncode": 0,
+        "stdout": stdout,
+        "stderr": stderr,
+        "research_only": True,
+        "live": False,
+        "shell_tools": False,
+        "broker_execution": False,
+        "action": action,
+        "asset": asset or None,
+        "run_id": stdout_run_id or None,
+        "evidence_path": str(evidence_path),
+        "evidence": evidence,
+    }
+
+
 def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[str, Any]) -> dict[str, Any]:
     if name not in ALLOWLIST:
         raise RuntimeError(f"Comando bloqueado por allowlist: {name}")
@@ -700,6 +824,9 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
             raise RuntimeError("run_vibe_nq6_smoke no acepta payload; comando fijo y fail-closed")
         result = _run_vibe_nq6_smoke(runtime)
 
+    elif name == "run_vibe_asset_research":
+        result = _run_vibe_asset_research(payload)
+
     elif name == "run_project":
         project = _project_from_payload(name, payload)
         result = runtime.start_project(project)
@@ -815,7 +942,7 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
         raise RuntimeError(f"Comando no implementado: {name}")
 
     return {
-        "transport": "fixed_vibe_research_process" if name == "run_vibe_nq6_smoke" else "sqcli_process",
+        "transport": "fixed_vibe_research_process" if name in {"run_vibe_nq6_smoke", "run_vibe_asset_research"} else "sqcli_process",
         "sqcli_path": cfg.sqcli_path,
         "command": name,
         **result,
@@ -861,7 +988,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v5-vibe-nq6-smoke",
+            "bridge_version": "142-autonomy-v6-vibe-multi-asset",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
