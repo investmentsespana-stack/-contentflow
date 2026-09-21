@@ -94,6 +94,29 @@ class LiveTelemetryTests(unittest.TestCase):
             self.assertTrue(out["running_inferred"])
             alive.assert_called_once()
 
+    @mock.patch.object(module, "_project_file_status")
+    @mock.patch.object(module, "_sqx_instance_alive", return_value=(True, "help"))
+    @mock.patch.object(module, "_sqx_http_call")
+    def test_status_project_prefers_live_http_when_gui_is_alive(self, http_call, alive, file_status):
+        http_call.side_effect = [
+            {"returncode": 0, "stdout": "Usage: sqcli.exe", "stderr": ""},
+            {"returncode": 0, "stdout": "Project GOLD BREAKOUT M30 - Dukascopy is STOPPED", "stderr": ""},
+        ]
+        file_status.return_value = {
+            "project_root": r"C:\\SQX\\user\\projects\\GOLD",
+            "status_metrics": {},
+            "running_inferred": False,
+            "log_tail": "old log",
+        }
+        cfg = module.BridgeConfig("d", "n", r"C:\\SQX\\sqcli.exe", allow_project_control=True)
+        runtime = module.SqCliRuntime(cfg.sqcli_path)
+        result = module.sqx_call(cfg, runtime, "status_project", {"project": "GOLD BREAKOUT M30 - Dukascopy"})
+        self.assertEqual(result["transport"], "sqx_http_api")
+        self.assertTrue(result["attached_existing_instance"])
+        self.assertIn("STOPPED", result["stdout"])
+        self.assertEqual(result["telemetry_source"], "sqx_http_api")
+        self.assertEqual(http_call.call_count, 2)
+
     @mock.patch.object(module, "_run_sqcli")
     @mock.patch.object(module, "_sqx_http_call")
     def test_existing_http_instance_is_preferred(self, http_call, run_sqcli):
