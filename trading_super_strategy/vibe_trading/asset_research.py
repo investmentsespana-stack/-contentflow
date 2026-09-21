@@ -124,6 +124,32 @@ def _safe_run_id(value: str) -> str:
         raise ValueError("INVALID_RUN_ID")
     return run_id
 
+def _preset_preflight() -> dict[str, Any]:
+    """Validate the installed user preset without starting workers."""
+    try:
+        os.environ.setdefault("VIBE_TRADING_HOME", str(ROOT / "state"))
+        os.environ["VIBE_TRADING_ENABLE_SHELL_TOOLS"] = "0"
+        from src.swarm.presets import inspect_preset
+        report = inspect_preset("cygnus_single_asset_strategy_desk")
+        return {"ok": bool(report.get("valid")), "report": report}
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+def _failure_detail(call: dict[str, Any]) -> str:
+    parts: list[str] = []
+    if call.get("error"):
+        parts.append(str(call.get("error")))
+    result = call.get("result")
+    if result is not None:
+        try:
+            parts.append(json.dumps(result, ensure_ascii=False, default=str))
+        except Exception:
+            parts.append(str(result))
+    if call.get("excerpt"):
+        parts.append(str(call.get("excerpt")))
+    text = " | ".join(x for x in parts if x).strip()
+    return text[:6000]
+
 async def _call(client: Client, name: str, args: dict[str, Any]) -> dict[str, Any]:
     try:
         result = await client.call_tool(name, args)
@@ -207,6 +233,13 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
             evidence["reason"] = "cygnus_single_asset_strategy_desk not installed"
             return evidence
 
+        preflight = _preset_preflight()
+        evidence["preset_preflight"] = preflight
+        if not preflight.get("ok"):
+            evidence["status"] = "BLOCKED_PRESET_INVALID"
+            evidence["reason"] = json.dumps(preflight, ensure_ascii=False, default=str)[:6000]
+            return evidence
+
         swarm = await _call(client, "run_swarm", {
             "preset_name": "cygnus_single_asset_strategy_desk",
             "variables": {
@@ -221,7 +254,11 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
         evidence["calls"].append(swarm)
         run_id = _run_id(swarm.get("result"))
         evidence["run_id"] = run_id
-        evidence["status"] = "STARTED" if swarm.get("ok") and run_id else "FAILED_TO_START"
+        if swarm.get("ok") and run_id:
+            evidence["status"] = "STARTED"
+        else:
+            evidence["status"] = "FAILED_TO_START"
+            evidence["reason"] = _failure_detail(swarm) or "run_swarm returned no run_id"
         return evidence
 
 async def inspect(action: str, run_id: str, mcp_url: str) -> dict[str, Any]:
@@ -254,6 +291,9 @@ async def run(args: argparse.Namespace) -> int:
         print(f"ASSET={asset}")
         print(f"STATUS={evidence.get('status')}")
         print(f"RUN_ID={evidence.get('run_id') or ''}")
+        if evidence.get("reason"):
+            safe_reason = str(evidence.get("reason")).replace("\r", " ").replace("\n", " ")
+            print(f"DETAIL={safe_reason[:6000]}")
         print("MODE=RESEARCH_ONLY")
         print("LIVE=false")
         print("SHELL_TOOLS=false")
