@@ -52,6 +52,9 @@ jobs:
           if ($s -notmatch 'VIBE_TRADING_ENABLE_SHELL_TOOLS.*0') { throw 'shell tools fail-closed missing' }
           if ($s -notmatch 'LANGCHAIN_PROVIDER.*openai-codex') { throw 'native provider config missing' }
           if ($s -notmatch 'LANGCHAIN_MODEL_NAME.*openai-codex/gpt-5\.4') { throw 'native model config missing' }
+          $runner = Get-Content trading_super_strategy/vibe_trading/asset_research.py -Raw
+          if ($runner -notmatch 'os\.environ\["LANGCHAIN_PROVIDER"\]\s*=\s*"openai-codex"') { throw 'runner provider pin missing' }
+          if ($runner -notmatch 'os\.environ\["LANGCHAIN_MODEL_NAME"\]\s*=\s*"openai-codex/gpt-5\.4"') { throw 'runner model pin missing' }
           if ($s -match 'mt5-live-trade|alpaca-live-trade|ibkr-live-trade') { throw 'live broker profile must not be installed' }
           $presets = @(
             'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml',
@@ -111,6 +114,8 @@ jobs:
           Copy-Item trading_super_strategy\vibe_trading\AUTHORIZE_VIBE_CODEX.cmd dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\Install-VibeNativeV7.ps1 dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\INSTALL_VIBE_NATIVE_V7.cmd dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Patch-VibeNativeV71.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\PATCH_VIBE_NATIVE_V71.cmd dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json dist\Cygnus-Vibe-Trading-Research\data\
       - uses: actions/upload-artifact@v4
         with:
