@@ -36,7 +36,7 @@ jobs:
       - name: Compile and inspect native Vibe control plane
         shell: pwsh
         run: |
-          python -m py_compile trading_super_strategy/vibe_trading/asset_research.py trading_super_strategy/vibe_trading/Vibe-Codex-DeviceAuth.py trading_super_strategy/vibe_trading/vibe_full_preflight.py
+          python -m py_compile trading_super_strategy/vibe_trading/tradingview_futures_guard.py trading_super_strategy/vibe_trading/asset_research.py trading_super_strategy/vibe_trading/Vibe-Codex-DeviceAuth.py trading_super_strategy/vibe_trading/vibe_full_preflight.py
           python -c "import importlib.util,pathlib; p=pathlib.Path('trading_super_strategy/vibe_trading/Vibe-Codex-DeviceAuth.py'); spec=importlib.util.spec_from_file_location('vibe_device_auth',p); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); assert m.DEVICE_VERIFY_URL=='https://auth.openai.com/codex/device'; assert m.DEVICE_REDIRECT_URI=='https://auth.openai.com/deviceauth/callback'; print('VIBE_DEVICE_AUTH_IMPORT_PASS')"
           $env:VIBE_TRADING_HOME = "$PWD\.ci-vibe-state"
           New-Item -ItemType Directory -Force "$env:VIBE_TRADING_HOME\swarm\presets" | Out-Null
@@ -109,6 +109,7 @@ jobs:
           Copy-Item trading_super_strategy\vibe_trading\Test-NQ6FrozenWithVibe.ps1 dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_inventory.json dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\asset_research.py dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\tradingview_futures_guard.py dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\cygnus_single_asset_strategy_desk.yaml dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\cygnus_asset_research_minimal.yaml dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\PATCH_VIBE_V61.ps1 dist\Cygnus-Vibe-Trading-Research\
