@@ -81,6 +81,12 @@ jobs:
             $t = Get-Content $p -Raw
             if($t -match '\bbash\b|background_run|cancel_background'){ throw "shell-capable tool in $p" }
           }
+          $futures = Get-Content trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml -Raw
+          if($futures -notmatch 'HARD BACKTEST CONTRACT'){ throw 'hard backtest contract missing' }
+          if($futures -notmatch 'strategy_manifest\.json'){ throw 'SQX transfer manifest contract missing' }
+          if($futures -notmatch 'SQX_READY'){ throw 'SQX readiness gate missing' }
+          if($futures -notmatch 'ZERO_BACKTESTED_CANDIDATES'){ throw 'zero-backtest fail-closed marker missing' }
+          if($futures -notmatch 'STRATEGY_DISCOVERY_FAILED'){ throw 'judge fail-closed marker missing' }
           Write-Host "SAFETY_ASSERTIONS_PASS"
       - name: NQ6 frozen MCP probe
         shell: pwsh
