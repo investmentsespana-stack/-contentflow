@@ -1096,15 +1096,28 @@ class BridgeWorker(threading.Thread):
             sqx_ok = True
             probe_excerpt = f"active:{active.get('project')} pid={active.get('pid')} elapsed={active.get('elapsed_seconds')}s"
         else:
-            # Heartbeats must not restart SQX every 30 seconds. A cached probe
-            # is explicitly timestamped; on-demand commands still run afresh.
+            # After a Bridge restart the running SQX process is no longer owned
+            # by this Python runtime. Prefer Build 142's loopback HTTP API so a
+            # heartbeat never attempts to launch a competing sqcli.exe.
             if not self.last_probe or time.monotonic() - self.last_probe >= 300:
                 self.last_probe = 0.0
                 self.cached_probe_excerpt = ""
-                probe = sqx_call(self.cfg, self.runtime, "list_projects", {})
-                self.cached_probe_excerpt = probe.get("stdout", "")[:1200]
+                try:
+                    probe = _sqx_http_call("-h", timeout=5.0)
+                    self.cached_probe_excerpt = (
+                        "attached_existing_instance=true transport=sqx_http_api\n"
+                        + probe.get("stdout", "")[:1100]
+                    )
+                except Exception as http_exc:
+                    try:
+                        probe = sqx_call(self.cfg, self.runtime, "list_projects", {})
+                        self.cached_probe_excerpt = probe.get("stdout", "")[:1200]
+                    except Exception as cli_exc:
+                        self.cached_probe_excerpt = (
+                            f"SQX probe unavailable: http={http_exc}; cli={cli_exc}"
+                        )[:1200]
                 self.last_probe = time.monotonic()
-            sqx_ok = True
+            sqx_ok = not self.cached_probe_excerpt.startswith("SQX probe unavailable:")
             probe_excerpt = self.cached_probe_excerpt
         health = {
             "hostname": socket.gethostname(),
