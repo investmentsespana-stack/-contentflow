@@ -105,10 +105,11 @@ class LiveTelemetryTests(unittest.TestCase):
     @mock.patch.object(module, "_sqx_instance_alive", return_value=(True, "help"))
     @mock.patch.object(module, "_sqx_http_call")
     def test_status_project_prefers_live_http_when_gui_is_alive(self, http_call, alive, file_status):
-        http_call.side_effect = [
-            {"returncode": 0, "stdout": "Usage: sqcli.exe", "stderr": ""},
-            {"returncode": 0, "stdout": "Project GOLD BREAKOUT M30 - Dukascopy is STOPPED", "stderr": ""},
-        ]
+        http_call.return_value = {
+            "returncode": 0,
+            "stdout": "Project GOLD BREAKOUT M30 - Dukascopy is STOPPED",
+            "stderr": "",
+        }
         file_status.return_value = {
             "project_root": r"C:\\SQX\\user\\projects\\GOLD",
             "status_metrics": {},
@@ -122,7 +123,7 @@ class LiveTelemetryTests(unittest.TestCase):
         self.assertTrue(result["attached_existing_instance"])
         self.assertIn("STOPPED", result["stdout"])
         self.assertEqual(result["telemetry_source"], "sqx_http_api")
-        self.assertEqual(http_call.call_count, 2)
+        self.assertEqual(http_call.call_count, 1)
 
     @mock.patch.object(module, "_run_sqcli")
     @mock.patch.object(module, "_sqx_http_call")
