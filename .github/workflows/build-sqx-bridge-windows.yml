@@ -70,7 +70,7 @@ jobs:
         run: python trading_super_strategy/sqx_bridge/test_vibe_nq6_bridge_gate.py
       - name: Compile multi-asset Vibe runner
         shell: pwsh
-        run: python -m py_compile trading_super_strategy/vibe_trading/asset_research.py
+        run: python -m py_compile trading_super_strategy/vibe_trading/tradingview_futures_guard.py trading_super_strategy/vibe_trading/asset_research.py
       - name: Test fixed Vibe multi-asset research gate
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py
@@ -128,6 +128,7 @@ jobs:
           Copy-Item trading_super_strategy\vibe_trading\Test-NQ6FrozenWithVibe.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\nq6_frozen_inventory.json dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\asset_research.py dist\vibe\
+          Copy-Item trading_super_strategy\vibe_trading\tradingview_futures_guard.py dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\cygnus_single_asset_strategy_desk.yaml dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json dist\vibe\data\
 
