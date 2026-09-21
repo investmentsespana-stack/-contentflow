@@ -32,7 +32,8 @@ const CANONICAL_ALLOWLIST=[
   "create_databank",
   "copy_databank",
   "move_databank",
-  "freeze_databank"
+  "freeze_databank",
+  "live_project_control"
 ] as const;
 
 const canonicalCapabilities=(effective:string[]=CANONICAL_ALLOWLIST.slice())=>({
