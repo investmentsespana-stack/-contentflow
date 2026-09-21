@@ -55,10 +55,16 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: self-hosted
     timeout-minutes: 15
     steps:
+      - name: Reject non-Windows runner
+        if: runner.os != 'Windows'
+        run: |
+          echo "WRONG_RUNNER_OS=${{ runner.os }}"
+          exit 1
       - name: Verify exact VPS
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           if ($env:COMPUTERNAME -ne 'WIN-31RCI8K7JR2') {
