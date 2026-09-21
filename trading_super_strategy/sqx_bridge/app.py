@@ -37,6 +37,15 @@ SQX_HTTP_TIMEOUT_SECONDS = 30.0
 VIBE_ALLOWED_ASSETS = {"NQ", "ES", "CL", "GC", "DXY"}
 VIBE_ASSET_ALIASES = {"DX": "DXY"}
 VIBE_ASSET_ACTIONS = {"start", "status", "result"}
+VIBE_SYNC_MAX_FILE_BYTES = 512 * 1024
+VIBE_SYNC_ALLOWED_FILES = {
+    "asset_research.py",
+    "tradingview_futures_guard.py",
+    "vibe_full_preflight.py",
+    "cygnus_native_smoke.yaml",
+    "cygnus_futures_strategy_lab.yaml",
+    "cygnus_dxy_macro_lab.yaml",
+}
 
 READ_ONLY = {
     "cli_help",
@@ -53,6 +62,8 @@ READ_ONLY = {
     "save_project_config",
     "run_vibe_nq6_smoke",
     "run_vibe_asset_research",
+    "vibe_diagnose",
+    "stack_health",
 }
 RESEARCH_CONTROL = {
     "run_project",
@@ -913,6 +924,244 @@ def _run_vibe_nq6_smoke(runtime: SqCliRuntime) -> dict[str, Any]:
     }
 
 
+
+def _vibe_preset_destinations(name: str) -> list[Path]:
+    if name not in {"cygnus_native_smoke.yaml", "cygnus_futures_strategy_lab.yaml", "cygnus_dxy_macro_lab.yaml"}:
+        return []
+    return [
+        Path.home() / ".vibe-trading" / "swarm" / "presets" / name,
+        VIBE_ROOT / "state" / "swarm" / "presets" / name,
+    ]
+
+
+def _vibe_runtime_destinations(name: str) -> list[Path]:
+    if name in {"asset_research.py", "tradingview_futures_guard.py", "vibe_full_preflight.py"}:
+        return [VIBE_ROOT / name]
+    return _vibe_preset_destinations(name)
+
+
+def _sync_vibe_runtime(payload: dict[str, Any]) -> dict[str, Any]:
+    files = payload.get("files")
+    if not isinstance(files, list) or not files:
+        raise RuntimeError("sync_vibe_runtime requiere payload.files no vacío")
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    backup_root = ARTIFACT_DIR / "vibe_backups" / stamp
+    backup_root.mkdir(parents=True, exist_ok=False)
+    written: list[dict[str, Any]] = []
+    backups: list[tuple[Path, Path | None]] = []
+    try:
+        for item in files:
+            if not isinstance(item, dict):
+                raise RuntimeError("sync_vibe_runtime: item inválido")
+            name = str(item.get("name") or "").strip()
+            if name not in VIBE_SYNC_ALLOWED_FILES:
+                raise RuntimeError(f"VIBE_SYNC_FILE_BLOCKED:{name}")
+            encoded = str(item.get("content_b64") or "")
+            expected_sha = str(item.get("sha256") or "").lower().strip()
+            if not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+                raise RuntimeError(f"VIBE_SYNC_SHA256_INVALID:{name}")
+            try:
+                data = base64.b64decode(encoded, validate=True)
+            except Exception as exc:
+                raise RuntimeError(f"VIBE_SYNC_BASE64_INVALID:{name}:{exc}") from exc
+            if not data or len(data) > VIBE_SYNC_MAX_FILE_BYTES:
+                raise RuntimeError(f"VIBE_SYNC_SIZE_INVALID:{name}:{len(data)}")
+            actual_sha = hashlib.sha256(data).hexdigest()
+            if actual_sha != expected_sha:
+                raise RuntimeError(f"VIBE_SYNC_HASH_MISMATCH:{name}")
+
+            destinations = _vibe_runtime_destinations(name)
+            if not destinations:
+                raise RuntimeError(f"VIBE_SYNC_DESTINATION_MISSING:{name}")
+            for dest in destinations:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                backup: Path | None = None
+                if dest.exists():
+                    backup = backup_root / _safe_slug(str(dest).replace(":", "_"))
+                    backup.parent.mkdir(parents=True, exist_ok=True)
+                    backup.write_bytes(dest.read_bytes())
+                temp = dest.with_name(dest.name + ".cygnus_tmp")
+                temp.write_bytes(data)
+                if hashlib.sha256(temp.read_bytes()).hexdigest() != expected_sha:
+                    raise RuntimeError(f"VIBE_SYNC_TEMP_VERIFY_FAILED:{name}")
+                os.replace(temp, dest)
+                if hashlib.sha256(dest.read_bytes()).hexdigest() != expected_sha:
+                    raise RuntimeError(f"VIBE_SYNC_DEST_VERIFY_FAILED:{name}")
+                backups.append((dest, backup))
+                written.append({"name": name, "destination": str(dest), "sha256": expected_sha, "size": len(data)})
+
+        py_files = [str(VIBE_ROOT / n) for n in ("tradingview_futures_guard.py", "asset_research.py", "vibe_full_preflight.py") if (VIBE_ROOT / n).is_file()]
+        if py_files:
+            cp = subprocess.run(
+                [str(VIBE_PYTHON), "-m", "py_compile", *py_files],
+                cwd=str(VIBE_ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=120,
+                shell=False,
+            )
+            if cp.returncode != 0:
+                raise RuntimeError("VIBE_SYNC_PY_COMPILE_FAILED:" + _decode(cp.stderr)[:1600])
+
+        manifest = {
+            "schema": "cygnus.vibe.runtime_sync.v1",
+            "synced_at_utc": stamp,
+            "files": written,
+            "restart_required": False,
+            "reason": "asset runner is launched fresh per request; presets are read from disk for new runs",
+        }
+        manifest_bytes = json.dumps(manifest, indent=2, ensure_ascii=False).encode("utf-8")
+        manifest_path = backup_root / "sync_manifest.json"
+        manifest_path.write_bytes(manifest_bytes)
+        return {
+            "returncode": 0,
+            "stdout": f"VIBE_RUNTIME_SYNC=PASS files={len(written)}",
+            "stderr": "",
+            "synced": written,
+            "backup_root": str(backup_root),
+            "manifest_path": str(manifest_path),
+            "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+        }
+    except Exception:
+        for dest, backup in reversed(backups):
+            try:
+                if backup and backup.exists():
+                    temp = dest.with_name(dest.name + ".rollback_tmp")
+                    temp.write_bytes(backup.read_bytes())
+                    os.replace(temp, dest)
+                elif dest.exists():
+                    dest.unlink()
+            except Exception:
+                pass
+        raise
+
+
+def _vibe_service_control(action: str) -> dict[str, Any]:
+    action = str(action or "").strip().lower()
+    if action not in {"start", "stop", "restart"}:
+        raise RuntimeError(f"VIBE_SERVICE_ACTION_BLOCKED:{action}")
+    scripts = {
+        "start": VIBE_ROOT / "Start-VibeNative.ps1",
+        "stop": VIBE_ROOT / "Stop-VibeNative.ps1",
+    }
+    for p in scripts.values():
+        if not p.is_file():
+            raise RuntimeError(f"VIBE_SERVICE_SCRIPT_MISSING:{p}")
+    outputs: list[str] = []
+    actions = ["stop", "start"] if action == "restart" else [action]
+    for step in actions:
+        cp = subprocess.run(
+            ["powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(scripts[step])],
+            cwd=str(VIBE_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=180,
+            shell=False,
+        )
+        text_out = "\n".join(x for x in (_decode(cp.stdout).strip(), _decode(cp.stderr).strip()) if x)
+        outputs.append(f"[{step}] {text_out}")
+        if cp.returncode != 0:
+            raise RuntimeError(f"VIBE_SERVICE_{step.upper()}_FAILED:{text_out[:1800]}")
+        if step == "stop" and action == "restart":
+            time.sleep(2)
+    return {
+        "returncode": 0,
+        "stdout": "\n".join(outputs),
+        "stderr": "",
+        "service_action": action,
+    }
+
+
+def _latest_vibe_health_evidence() -> Path | None:
+    if not (VIBE_ROOT / "evidence").is_dir():
+        return None
+    candidates = sorted(
+        [p for p in (VIBE_ROOT / "evidence").glob("vibe-full-health*.json") if p.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
+def _vibe_diagnose() -> dict[str, Any]:
+    script = VIBE_ROOT / "vibe_full_preflight.py"
+    if not VIBE_PYTHON.is_file():
+        raise RuntimeError(f"VIBE_PYTHON_MISSING:{VIBE_PYTHON}")
+    if not script.is_file():
+        raise RuntimeError(f"VIBE_PREFLIGHT_MISSING:{script}")
+    cp = subprocess.run(
+        [str(VIBE_PYTHON), str(script)],
+        cwd=str(VIBE_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=240,
+        shell=False,
+    )
+    evidence_path = _latest_vibe_health_evidence()
+    evidence: dict[str, Any] = {}
+    if evidence_path and evidence_path.is_file():
+        try:
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            evidence = {"status": "UNREADABLE", "error": str(exc)}
+    checks = evidence.get("checks") if isinstance(evidence, dict) else {}
+    failed_checks = []
+    if isinstance(checks, dict):
+        failed_checks = [name for name, value in checks.items() if not (isinstance(value, dict) and value.get("ok") is True)]
+    return {
+        "returncode": 0,
+        "stdout": _decode(cp.stdout).strip(),
+        "stderr": _decode(cp.stderr).strip(),
+        "preflight_rc": cp.returncode,
+        "diagnostic_complete": True,
+        "status": evidence.get("status") if isinstance(evidence, dict) else None,
+        "failed_checks": failed_checks,
+        "evidence_path": str(evidence_path) if evidence_path else None,
+        "evidence": evidence,
+    }
+
+
+def _stack_health(cfg: BridgeConfig) -> dict[str, Any]:
+    sqx_alive, sqx_probe = _sqx_instance_alive()
+    vibe_python = VIBE_PYTHON.is_file()
+    asset_runner = VIBE_ASSET_SCRIPT.is_file()
+    guard = VIBE_ROOT / "tradingview_futures_guard.py"
+    guard_present = guard.is_file()
+    mcp_ready = False
+    mcp_error = None
+    try:
+        with socket.create_connection(("127.0.0.1", 8900), timeout=2):
+            mcp_ready = True
+    except Exception as exc:
+        mcp_error = f"{type(exc).__name__}:{exc}"
+    evidence_path = _latest_vibe_health_evidence()
+    latest_health = None
+    if evidence_path:
+        try:
+            latest_health = json.loads(evidence_path.read_text(encoding="utf-8")).get("status")
+        except Exception:
+            latest_health = "UNREADABLE"
+    return {
+        "returncode": 0,
+        "stdout": "STACK_HEALTH_CHECKED",
+        "stderr": "",
+        "bridge_version": "142-autonomy-v6.4-stack-control",
+        "strategyquant": {"http_alive": sqx_alive, "probe_excerpt": sqx_probe[:800]},
+        "vibe": {
+            "python_present": vibe_python,
+            "asset_runner_present": asset_runner,
+            "mcp_8900_ready": mcp_ready,
+            "mcp_error": mcp_error,
+            "latest_health_status": latest_health,
+            "latest_health_evidence": str(evidence_path) if evidence_path else None,
+        },
+        "tradingview_guard": {"present": guard_present},
+        "research_only": True,
+        "broker_execution": False,
+        "arbitrary_shell": False,
+    }
+
+
 def _run_vibe_asset_research(payload: dict[str, Any]) -> dict[str, Any]:
     """Run fixed, allowlisted multi-asset Vibe research. No arbitrary prompt or shell input."""
     action = str(payload.get("action") or "start").strip().lower()
@@ -1219,6 +1468,27 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
     elif name == "run_vibe_asset_research":
         result = _run_vibe_asset_research(payload)
 
+    elif name == "vibe_diagnose":
+        if payload:
+            raise RuntimeError("vibe_diagnose no acepta payload")
+        result = _vibe_diagnose()
+        extra["transport"] = "fixed_vibe_preflight"
+
+    elif name == "stack_health":
+        if payload:
+            raise RuntimeError("stack_health no acepta payload")
+        result = _stack_health(cfg)
+        extra["transport"] = "local_stack_probe"
+
+    elif name == "sync_vibe_runtime":
+        result = _sync_vibe_runtime(payload)
+        extra["transport"] = "atomic_vibe_runtime_sync"
+
+    elif name in {"start_vibe", "stop_vibe", "restart_vibe"}:
+        action = {"start_vibe": "start", "stop_vibe": "stop", "restart_vibe": "restart"}[name]
+        result = _vibe_service_control(action)
+        extra["transport"] = "fixed_vibe_service_control"
+
     elif name == "live_project_control":
         project = _project_from_payload(name, payload)
         action = str(payload.get("action") or "").strip().lower()
@@ -1441,7 +1711,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6.3-http-control-freeze",
+            "bridge_version": "142-autonomy-v6.4-stack-control",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
@@ -1511,7 +1781,7 @@ class App(tk.Tk):
         pad = {"padx": 12, "pady": 8}
         top = ttk.Frame(self)
         top.pack(fill="x", **pad)
-        ttk.Label(top, text="Cygnus SQX Bridge · Build 142 · Live Telemetry v6.2", font=("Segoe UI", 15, "bold")).pack(side="left")
+        ttk.Label(top, text="Cygnus SQX Bridge · Build 142 · Stack Control v6.4", font=("Segoe UI", 15, "bold")).pack(side="left")
         self.status_var = tk.StringVar(value="No conectado")
         ttk.Label(top, textvariable=self.status_var).pack(side="right")
 
