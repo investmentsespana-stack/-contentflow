@@ -1,6 +1,7 @@
 import importlib.util
 import pathlib
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -55,6 +56,43 @@ class LiveTelemetryTests(unittest.TestCase):
         )
         with self.assertRaises(RuntimeError):
             module._sqx_http_value('GOLD" & -exit', "project", "status_project")
+
+
+    def test_direct_databank_file_count_without_sqcli(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            sqcli = root / "sqcli.exe"
+            sqcli.write_bytes(b"stub")
+            bank = root / "user" / "projects" / "GOLD BREAKOUT M30 - Dukascopy" / "databanks" / "Final strategies"
+            bank.mkdir(parents=True)
+            for i in range(3):
+                (bank / f"Strategy {i}.sqx").write_bytes(b"x")
+            cfg = module.BridgeConfig("d", "n", str(sqcli))
+            out = module._databank_file_count(
+                cfg, "GOLD BREAKOUT M30 - Dukascopy", "Final strategies"
+            )
+            self.assertEqual(out["records"], 3)
+            self.assertTrue(out["databank_path"].endswith("Final strategies"))
+
+    @mock.patch.object(module, "_sqx_instance_alive", return_value=(True, "help"))
+    def test_project_file_status_infers_running_from_unclosed_log(self, alive):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            sqcli = root / "sqcli.exe"
+            sqcli.write_bytes(b"stub")
+            logdir = root / "user" / "projects" / "GOLD BREAKOUT M30 - Dukascopy" / "log"
+            logdir.mkdir(parents=True)
+            (logdir / "global_log_20260921_120000.log").write_text(
+                "=========== Project started ===========\n"
+                "Build strategies : Initializing backtest data...\n",
+                encoding="utf-8",
+            )
+            cfg = module.BridgeConfig("d", "n", str(sqcli))
+            out = module._project_file_status(cfg, "GOLD BREAKOUT M30 - Dukascopy")
+            self.assertTrue(out["instance_http_alive"])
+            self.assertTrue(out["unclosed_start_marker"])
+            self.assertTrue(out["running_inferred"])
+            alive.assert_called_once()
 
     @mock.patch.object(module, "_run_sqcli")
     @mock.patch.object(module, "_sqx_http_call")
