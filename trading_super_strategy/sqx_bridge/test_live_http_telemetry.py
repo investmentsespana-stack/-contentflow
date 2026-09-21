@@ -49,6 +49,13 @@ class LiveTelemetryTests(unittest.TestCase):
             188,
         )
 
+    def test_sqx_http_literal_encoding_keeps_equals_and_encodes_space(self):
+        out = module._encode_sqx_http_cmd('-project action=status name="GOLD BREAKOUT M30 - Dukascopy"')
+        self.assertIn("action=status", out)
+        self.assertNotIn("%3D", out)
+        self.assertIn("%20", out)
+        self.assertNotIn("+action", out)
+
     def test_http_value_is_fail_closed(self):
         self.assertEqual(
             module._sqx_http_value("GOLD BREAKOUT M30 - Dukascopy", "project", "status_project"),
