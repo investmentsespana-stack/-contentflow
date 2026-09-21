@@ -1,0 +1,58 @@
+name: SQX VPS Secure Port Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sqx-vps-secure-port-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Obtain GitHub OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sqx-deploy-target');
+            core.setSecret(token);
+            core.setOutput('token', token);
+
+      - name: Resolve target and probe approved management ports
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -fsS             -H "Authorization: Bearer $OIDC_TOKEN"             "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-deploy-target"             > target.json
+          test "$(jq -r '.ok' target.json)" = "true"
+          test "$(jq -r '.device_name' target.json)" = "WIN-31RCI8K7JR2"
+          HOST="$(jq -r '.target_ip' target.json)"
+          echo "::add-mask::$HOST"
+          export HOST
+          python3 - <<'PY'
+          import os,socket
+          host=os.environ["HOST"]
+          ports={
+            22:"SSH",
+            3389:"RDP",
+            5985:"WINRM_HTTP",
+            5986:"WINRM_HTTPS",
+            445:"SMB",
+            5050:"SQX_HTTP",
+            8080:"SQX_GUI",
+          }
+          for port,name in ports.items():
+              s=socket.socket()
+              s.settimeout(4)
+              rc=s.connect_ex((host,port))
+              s.close()
+              print(f"{name}_OPEN={str(rc==0).lower()}")
+          PY
