@@ -13,6 +13,7 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -244,17 +245,33 @@ def _sqx_http_value(value: str, field: str, command: str) -> str:
     return _safe_resource_name(value, field, command)
 
 
+def _encode_sqx_http_cmd(command: str) -> str:
+    """Encode only characters SQX's literal cmd= parser cannot receive raw.
+
+    SQX Build 142 does not URL-decode '+' to space or '%3D' to '='. Keep
+    command separators such as '=' and '-' literal, encode spaces as %20, and
+    normalize Windows backslashes to forward slashes (accepted by SQX/Java).
+    """
+    return urllib.parse.quote(
+        command.replace("\\", "/"),
+        safe="=-/.,:_+()[]{}*\"'",
+    )
+
+
 def _sqx_http_call(command: str, timeout: float = SQX_HTTP_TIMEOUT_SECONDS) -> dict[str, Any]:
     """Call the loopback-only SQX Build 142 HTTP CLI endpoint.
 
-    This is intentionally not exposed as an arbitrary bridge command. Only
-    fixed read-only bridge operations build the command string.
+    This is intentionally not exposed as arbitrary shell. Only fixed SQX
+    command families are accepted, and the query value uses SQX's literal
+    encoding rules instead of standard form encoding.
     """
     if not command.startswith(("-project ", "-databank ", "-h")):
         raise RuntimeError("SQX_HTTP_COMMAND_BLOCKED")
+    encoded = _encode_sqx_http_cmd(command)
+    url = f"{SQX_HTTP_API}?cmd={encoded}"
     try:
         with httpx.Client(timeout=timeout) as client:
-            response = client.get(SQX_HTTP_API, params={"cmd": command})
+            response = client.get(url)
             response.raise_for_status()
     except httpx.HTTPError as exc:
         raise RuntimeError(f"SQX_HTTP_UNAVAILABLE:{type(exc).__name__}:{exc}") from exc
