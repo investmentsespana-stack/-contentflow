@@ -1,0 +1,127 @@
+name: Deploy SQX Bridge V6.4 to Windows VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-sqx-bridge-v64-selfhosted.yml'
+      - 'trading_super_strategy/sqx_bridge/app.py'
+      - 'trading_super_strategy/vibe_trading/asset_research.py'
+      - 'trading_super_strategy/vibe_trading/tradingview_futures_guard.py'
+      - 'trading_super_strategy/vibe_trading/vibe_full_preflight.py'
+      - 'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sqx-bridge-v64-windows-vps
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build bridge
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r trading_super_strategy/sqx_bridge/requirements.txt pyinstaller
+          python -m py_compile trading_super_strategy/sqx_bridge/app.py
+          python trading_super_strategy/sqx_bridge/test_startup_gate.py
+          python trading_super_strategy/sqx_bridge/test_live_http_telemetry.py
+          pyinstaller --noconfirm --clean --onefile --windowed --name CygnusSQXBridge --collect-all keyring trading_super_strategy/sqx_bridge/app.py
+          New-Item -ItemType Directory -Force deploy | Out-Null
+          Copy-Item dist/CygnusSQXBridge.exe deploy/CygnusSQXBridge.exe
+          Copy-Item trading_super_strategy/vibe_trading/asset_research.py deploy/asset_research.py
+          Copy-Item trading_super_strategy/vibe_trading/tradingview_futures_guard.py deploy/tradingview_futures_guard.py
+          Copy-Item trading_super_strategy/vibe_trading/vibe_full_preflight.py deploy/vibe_full_preflight.py
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml deploy/cygnus_native_smoke.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml deploy/cygnus_futures_strategy_lab.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml deploy/cygnus_dxy_macro_lab.yaml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sqx-bridge-v64-deploy
+          path: deploy/
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact VPS
+        shell: pwsh
+        run: |
+          if ($env:COMPUTERNAME -ne 'WIN-31RCI8K7JR2') {
+            throw "WRONG_WINDOWS_RUNNER:$env:COMPUTERNAME"
+          }
+          Write-Host "TARGET_VPS_VERIFIED=$env:COMPUTERNAME"
+      - uses: actions/download-artifact@v4
+        with:
+          name: sqx-bridge-v64-deploy
+          path: deploy
+      - name: Install bridge and synchronize Vibe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $bridgeRoot='C:\Cygnus\SQXBridge'
+          $vibeRoot='C:\Cygnus\VibeTrading'
+          $config=Join-Path $env:APPDATA 'CygnusSQXBridge\config.json'
+          if(-not (Test-Path $config -PathType Leaf)){ throw "PAIRING_CONFIG_MISSING:$config" }
+          if(-not (Test-Path $vibeRoot -PathType Container)){ throw "VIBE_ROOT_MISSING:$vibeRoot" }
+          $python=Join-Path $vibeRoot '.venv\Scripts\python.exe'
+          if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python" }
+
+          New-Item -ItemType Directory -Force $bridgeRoot | Out-Null
+          $target=Join-Path $bridgeRoot 'CygnusSQXBridge.exe'
+          if(Test-Path $target){
+            Copy-Item $target ($target+'.backup-'+(Get-Date -Format 'yyyyMMddHHmmss')) -Force
+          }
+
+          Get-Process -Name 'CygnusSQXBridge' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          Copy-Item 'deploy\CygnusSQXBridge.exe' $target -Force
+
+          foreach($name in @('asset_research.py','tradingview_futures_guard.py','vibe_full_preflight.py')){
+            $dest=Join-Path $vibeRoot $name
+            if(Test-Path $dest){ Copy-Item $dest ($dest+'.backup-'+(Get-Date -Format 'yyyyMMddHHmmss')) -Force }
+            Copy-Item (Join-Path 'deploy' $name) $dest -Force
+          }
+
+          $userPreset=Join-Path $HOME '.vibe-trading\swarm\presets'
+          $statePreset=Join-Path $vibeRoot 'state\swarm\presets'
+          New-Item -ItemType Directory -Force $userPreset,$statePreset | Out-Null
+          foreach($name in @('cygnus_native_smoke.yaml','cygnus_futures_strategy_lab.yaml','cygnus_dxy_macro_lab.yaml')){
+            Copy-Item (Join-Path 'deploy' $name) (Join-Path $userPreset $name) -Force
+            Copy-Item (Join-Path 'deploy' $name) (Join-Path $statePreset $name) -Force
+          }
+
+          & $python -m py_compile (Join-Path $vibeRoot 'tradingview_futures_guard.py') (Join-Path $vibeRoot 'asset_research.py') (Join-Path $vibeRoot 'vibe_full_preflight.py')
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_COMPILE_FAILED' }
+
+          $proc=Start-Process -FilePath $target -WorkingDirectory $bridgeRoot -PassThru
+          Start-Sleep -Seconds 5
+          if($proc.HasExited){ throw "BRIDGE_EXITED_EARLY:$($proc.ExitCode)" }
+
+          # Restart only Vibe services so new presets/runners are loaded. Do not touch SQX.
+          $stop=Join-Path $vibeRoot 'Stop-VibeNative.ps1'
+          $start=Join-Path $vibeRoot 'Start-VibeNative.ps1'
+          if((Test-Path $stop) -and (Test-Path $start)){
+            powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $stop | Out-Null
+            Start-Sleep -Seconds 2
+            powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $start
+          }
+
+          Write-Host 'CYGNUS_STACK_DEPLOY=PASS'
+          Write-Host 'BRIDGE_EXPECTED_VERSION=142-autonomy-v6.4-stack-control'
+          Write-Host 'SQX_PROCESS_TOUCHED=false'
+          Write-Host 'BROKER_EXECUTION=false'
