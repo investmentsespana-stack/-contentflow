@@ -89,7 +89,13 @@ Deno.serve(async(req:Request)=>{
     const health=body?.health&&typeof body.health==="object"?body.health:{};
     const reported=Array.isArray(health?.capabilities)?health.capabilities.map((x:unknown)=>String(x)):[];
     const effective=CANONICAL_ALLOWLIST.filter(x=>reported.includes(x));
-    const normalizedHealth={...health,capabilities:effective};
+    const sourceIpRaw=
+      req.headers.get("cf-connecting-ip") ??
+      req.headers.get("x-real-ip") ??
+      req.headers.get("x-forwarded-for") ??
+      "";
+    const sourceIp=sourceIpRaw.split(",")[0].trim().slice(0,80);
+    const normalizedHealth={...health,capabilities:effective,source_ip:sourceIp||null};
     await db.from("trading_sqx_bridge_devices").update({last_health:normalizedHealth,capabilities:canonicalCapabilities(effective),last_seen_at:now,updated_at:now}).eq("id",device.id);
     return json({ok:true,device_id:device.id,capabilities:canonicalCapabilities(effective)});
   }
