@@ -20,6 +20,7 @@ const CANONICAL_ALLOWLIST=[
   "get_strategy_stats",
   "save_project_config",
   "run_vibe_nq6_smoke",
+  "run_vibe_asset_research",
   "run_project",
   "stop_project",
   "pause_project",
@@ -36,7 +37,7 @@ const CANONICAL_ALLOWLIST=[
 const canonicalCapabilities=(effective:string[]=CANONICAL_ALLOWLIST.slice())=>({
   transport:"sqcli_process",
   sqx_build:"142.2396",
-  bridge_profile:"research_autonomy_v5_vibe_nq6",
+  bridge_profile:"research_autonomy_v6_vibe_multi_asset",
   allowlist:effective,
   read_only_default:true,
   no_arbitrary_shell:true,
@@ -67,7 +68,7 @@ Deno.serve(async(req:Request)=>{
     const {data:device,error:de}=await db.from("trading_sqx_bridge_devices").insert({device_name:deviceName||"StrategyQuant PC",token_hash:tokenHash,status:"ACTIVE",capabilities:canonicalCapabilities([]),last_seen_at:new Date().toISOString()}).select("id,device_name").single();
     if(de||!device) return json({error:"device_create_failed",detail:de?.message},500);
     await db.from("trading_sqx_bridge_pairing_codes").update({used_at:new Date().toISOString()}).eq("code_hash",codeHash);
-    await db.from("trading_sqx_bridge_events").insert({device_id:device.id,event_type:"PAIRED",payload:{label:pairing.label??null,transport:"sqcli_process",sqx_build:"142.2396",bridge_profile:"research_autonomy_v5_vibe_nq6"}});
+    await db.from("trading_sqx_bridge_events").insert({device_id:device.id,event_type:"PAIRED",payload:{label:pairing.label??null,transport:"sqcli_process",sqx_build:"142.2396",bridge_profile:"research_autonomy_v6_vibe_multi_asset"}});
     return json({ok:true,device_id:device.id,device_name:device.device_name,bridge_token:token});
   }
 
