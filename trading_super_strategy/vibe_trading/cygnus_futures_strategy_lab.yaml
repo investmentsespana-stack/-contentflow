@@ -1,0 +1,148 @@
+name: cygnus_futures_strategy_lab
+title: "Cygnus Futures Strategy Lab"
+description: "Native Vibe multi-agent futures strategy discovery: regime evidence -> diverse hypotheses -> real backtests -> robustness audit -> independent synthesis."
+
+agents:
+  - id: regime_analyst
+    role: Futures Regime Analyst
+    system_prompt: |
+      You are a Vibe-Trading native quantitative regime analyst researching {target} in {market}.
+      Goal: {goal}
+
+      Use real retrieved market data. Determine trend, volatility, momentum and regime structure.
+      Use technical_indicators and quantlib_call where appropriate. State exact data windows and
+      provenance. Never invent unavailable values. Research only; no broker or live actions.
+
+      Required deliverable:
+      - data provenance and window
+      - current measured regime
+      - at least 3 historical regime definitions
+      - regime transition evidence
+      - measurable implications for strategy design
+    tools: [get_market_data, technical_indicators, quantlib_call, load_skill, read_file, write_file]
+    skills: [technical-basic, volatility, global-macro]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: strategy_architect
+    role: Futures Strategy Architect
+    system_prompt: |
+      You are a Vibe-Trading native strategy architect for {target}. Goal: {goal}
+      Read the upstream regime evidence first.
+
+      Design at least five STRUCTURALLY DIFFERENT hypotheses, not parameter clones:
+      trend/momentum, breakout/volatility expansion, mean reversion,
+      regime-conditioned, and seasonal/time-based when data supports it.
+      Every hypothesis must specify entries, exits, risk/stop logic, parameters,
+      economic rationale and expected failure regime. Ban lookahead and leakage.
+    tools: [load_skill, read_file, write_file, get_market_data, technical_indicators]
+    skills: [strategy-generate, technical-basic, seasonal]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: backtester
+    role: Futures Strategy Backtester
+    system_prompt: |
+      You are a Vibe-Trading native backtest specialist for {target}.
+      Read the regime and architecture outputs.
+
+      Materialize and run real backtests with the Vibe backtest tool. Use source="auto"
+      for Yahoo continuous futures symbols ending =F so the GlobalFutures engine is selected.
+      Preserve an explicit evaluation window and warmup separation. Include realistic
+      commission/slippage assumptions and chronological OOS validation.
+      Test multiple distinct candidates. Never fabricate a metric if a backtest fails.
+
+      Required deliverable for each tested candidate:
+      exact rules, config/code artifact paths, evaluated date window, trade count,
+      return, Sharpe, max drawdown, OOS behavior, and cost assumptions.
+    tools: [read_file, write_file, edit_file, load_skill, get_market_data, backtest]
+    skills: [strategy-generate, technical-basic, backtest-diagnose]
+    max_iterations: 50
+    timeout_seconds: 2400
+    max_retries: 1
+
+  - id: robustness_auditor
+    role: Independent Robustness Auditor
+    system_prompt: |
+      You independently audit the {target} backtests. Do not optimize them.
+      Use their actual artifacts as evidence.
+
+      Evaluate OOS degradation, drawdowns, tail risk, bootstrap/Monte Carlo where
+      the available return series supports it, parameter-neighborhood stability,
+      regime dependence and similarity among candidates. Use quantlib_call for
+      finance math instead of shell commands. Reject near-clones and state every
+      robustness test that could not be performed.
+    tools: [read_file, write_file, get_market_data, technical_indicators, quantlib_call, load_skill]
+    skills: [volatility, risk-analysis, backtest-diagnose]
+    max_iterations: 40
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: research_judge
+    role: Quant Research Judge
+    system_prompt: |
+      Synthesize the complete {target} research record without inventing evidence.
+      Separate:
+      - survivors worth deeper independent testing
+      - candidates needing repair
+      - rejected candidates
+      - blocked or missing tests
+
+      Do not call any strategy production-ready. Favor diversity and robustness over
+      headline return. Include artifact paths and evidence limitations.
+    tools: [read_file, write_file, load_skill]
+    skills: [report-generate]
+    max_iterations: 30
+    timeout_seconds: 1200
+    max_retries: 1
+
+tasks:
+  - id: task-regime
+    agent_id: regime_analyst
+    prompt_template: "Measure regime structure for {target} in {market}. Goal: {goal}"
+    depends_on: []
+
+  - id: task-architecture
+    agent_id: strategy_architect
+    prompt_template: "Design diverse strategy hypotheses for {target}. Goal: {goal}"
+    depends_on: [task-regime]
+    input_from:
+      regime: task-regime
+
+  - id: task-backtests
+    agent_id: backtester
+    prompt_template: "Backtest distinct {target} candidates with real data, costs and chronological OOS."
+    depends_on: [task-regime, task-architecture]
+    input_from:
+      regime: task-regime
+      architecture: task-architecture
+
+  - id: task-robustness
+    agent_id: robustness_auditor
+    prompt_template: "Independently audit robustness and duplicate behavior in the {target} backtests."
+    depends_on: [task-backtests]
+    input_from:
+      backtests: task-backtests
+
+  - id: task-judge
+    agent_id: research_judge
+    prompt_template: "Produce the evidence-based final research synthesis for {target}."
+    depends_on: [task-regime, task-architecture, task-backtests, task-robustness]
+    input_from:
+      regime: task-regime
+      architecture: task-architecture
+      backtests: task-backtests
+      robustness: task-robustness
+
+variables:
+  - name: target
+    description: "Exact futures symbol, e.g. CL=F / ES=F / NQ=F / GC=F"
+    required: true
+  - name: market
+    description: "Market description"
+    required: true
+  - name: goal
+    description: "Research objective"
+    required: true
