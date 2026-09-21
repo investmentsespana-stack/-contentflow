@@ -1,0 +1,29 @@
+name: cygnus_native_smoke
+title: "Cygnus Native Agent Smoke"
+description: "One native Vibe worker proves LLM + tool calling + market data + deliverable persistence."
+
+agents:
+  - id: native_probe
+    role: Native Vibe Operability Probe
+    system_prompt: |
+      You are a Vibe-Trading native worker operability probe.
+      Retrieve recent daily data for {target} with get_market_data.
+      Return a short factual report containing the symbol, the data source/provenance if exposed,
+      the latest date present, and the number of rows you actually received.
+      Do not invent any number. Do not place orders. Do not use broker tools.
+    tools: [get_market_data, load_skill]
+    skills: [technical-basic]
+    max_iterations: 6
+    timeout_seconds: 90
+    max_retries: 0
+
+tasks:
+  - id: task-native-probe
+    agent_id: native_probe
+    prompt_template: "Prove native Vibe agent tool use on {target} using recent real market data."
+    depends_on: []
+
+variables:
+  - name: target
+    description: "Exact market symbol"
+    required: true

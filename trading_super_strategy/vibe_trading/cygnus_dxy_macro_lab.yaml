@@ -1,0 +1,116 @@
+name: cygnus_dxy_macro_lab
+title: "Cygnus DXY Macro & Regime Lab"
+description: "Native Vibe multi-agent research on DXY as a macro/regime factor, without pretending the cash index is an executable futures contract."
+
+agents:
+  - id: dxy_data_analyst
+    role: DXY Market Data Analyst
+    system_prompt: |
+      Analyze {target} for {goal}. IMPORTANT: when fetching {target}, call
+      get_market_data with source="yahoo" explicitly because DX-Y.NYB is a Yahoo index symbol.
+      Measure trend, volatility, momentum and regime shifts. Name the exact sample window.
+      Research only; no broker/live actions.
+    tools: [get_market_data, technical_indicators, quantlib_call, load_skill, read_file, write_file]
+    skills: [technical-basic, volatility, global-macro]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: macro_fx_analyst
+    role: Dollar Macro & FX Analyst
+    system_prompt: |
+      Research the macro forces relevant to {target}: rate differentials, real rates,
+      risk-off/risk-on conditions, major FX pairs and commodity linkages. Goal: {goal}.
+      Use tool-backed evidence and clearly distinguish current observations from hypotheses.
+    tools: [get_market_data, load_skill, read_file, write_file, research_papers]
+    skills: [global-macro, macro-analysis, credit-analysis]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: cross_asset_analyst
+    role: Cross-Asset Regime Analyst
+    system_prompt: |
+      Evaluate how DXY regimes interact with ES, NQ, CL and GC. Fetch actual market data,
+      measure relationships on aligned windows, and avoid causal claims that are not supported.
+      Identify whether DXY is useful as a filter/regime variable rather than merely a standalone signal.
+    tools: [get_market_data, quantlib_call, technical_indicators, read_file, write_file, load_skill]
+    skills: [correlation-regime, global-macro, technical-basic]
+    max_iterations: 40
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: dxy_strategy_designer
+    role: DXY Strategy & Filter Designer
+    system_prompt: |
+      Synthesize the upstream evidence into systematic DXY hypotheses and cross-asset filters.
+      IMPORTANT: DX-Y.NYB is treated as a research index proxy, not an execution-ready futures
+      contract. Do not claim executable DX-futures PnL until the ICE DX contract multiplier,
+      commission/slippage and continuous-contract roll handling are explicitly modeled.
+
+      Produce diverse rule sets and define how each would be validated without lookahead.
+    tools: [read_file, write_file, load_skill, get_market_data, technical_indicators]
+    skills: [strategy-generate, technical-basic, cross-market-strategy]
+    max_iterations: 35
+    timeout_seconds: 1800
+    max_retries: 1
+
+  - id: dxy_judge
+    role: DXY Research Judge
+    system_prompt: |
+      Produce the final evidence-based DXY report. Separate robust observations,
+      testable hypotheses, blocked tests, and the explicit work required before any DX-futures
+      strategy can be certified. Do not label the cash-index proxy as trade-ready.
+    tools: [read_file, write_file, load_skill]
+    skills: [report-generate]
+    max_iterations: 30
+    timeout_seconds: 1200
+    max_retries: 1
+
+tasks:
+  - id: task-dxy-data
+    agent_id: dxy_data_analyst
+    prompt_template: "Measure DXY price/regime evidence for {target}. Goal: {goal}"
+    depends_on: []
+
+  - id: task-dxy-macro
+    agent_id: macro_fx_analyst
+    prompt_template: "Research macro/FX forces for DXY over {timeframe}. Goal: {goal}"
+    depends_on: []
+
+  - id: task-cross-asset
+    agent_id: cross_asset_analyst
+    prompt_template: "Measure DXY relationships with ES, NQ, CL and GC."
+    depends_on: [task-dxy-data]
+    input_from:
+      dxy_data: task-dxy-data
+
+  - id: task-dxy-design
+    agent_id: dxy_strategy_designer
+    prompt_template: "Design systematic DXY hypotheses and cross-asset filters."
+    depends_on: [task-dxy-data, task-dxy-macro, task-cross-asset]
+    input_from:
+      dxy_data: task-dxy-data
+      macro: task-dxy-macro
+      cross_asset: task-cross-asset
+
+  - id: task-dxy-judge
+    agent_id: dxy_judge
+    prompt_template: "Synthesize the final DXY research record."
+    depends_on: [task-dxy-data, task-dxy-macro, task-cross-asset, task-dxy-design]
+    input_from:
+      dxy_data: task-dxy-data
+      macro: task-dxy-macro
+      cross_asset: task-cross-asset
+      design: task-dxy-design
+
+variables:
+  - name: target
+    description: "Yahoo DXY index proxy; use DX-Y.NYB"
+    required: true
+  - name: goal
+    description: "Research objective"
+    required: true
+  - name: timeframe
+    description: "Research horizon"
+    required: true
