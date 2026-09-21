@@ -249,6 +249,8 @@ def _sqx_http_call(command: str, timeout: float = SQX_HTTP_TIMEOUT_SECONDS) -> d
     lowered = text.lower()
     if "parameter 'cmd' is missing" in lowered or 'parameter "cmd" is missing' in lowered:
         raise RuntimeError("SQX_HTTP_CMD_PARAMETER_REJECTED")
+    if "unrecognized command" in lowered:
+        raise RuntimeError("SQX_HTTP_COMMAND_UNRECOGNIZED:" + text[:500])
     return {
         "returncode": 0,
         "stdout": text,
@@ -287,6 +289,138 @@ def _parse_sqx_status_metrics(text: str) -> dict[str, Any]:
     return metrics
 
 
+
+def _sqx_project_root(cfg: BridgeConfig, project: str) -> Path:
+    safe_project = _safe_resource_name(project, "project", "project_telemetry")
+    sqx_root = Path(cfg.sqcli_path).resolve().parent
+    projects_root = (sqx_root / "user" / "projects").resolve()
+    project_root = (projects_root / safe_project).resolve()
+    if projects_root != project_root and projects_root not in project_root.parents:
+        raise RuntimeError("SQX_PROJECT_PATH_BLOCKED")
+    if not project_root.is_dir():
+        raise RuntimeError(f"SQX_PROJECT_DIR_MISSING:{project_root}")
+    return project_root
+
+
+def _read_text_tail(path: Path, max_bytes: int = 512 * 1024) -> str:
+    with path.open("rb") as fh:
+        size = path.stat().st_size
+        if size > max_bytes:
+            fh.seek(size - max_bytes)
+        data = fh.read()
+    return _decode(data)
+
+
+def _latest_project_log(cfg: BridgeConfig, project: str) -> dict[str, Any]:
+    project_root = _sqx_project_root(cfg, project)
+    log_dir = project_root / "log"
+    if not log_dir.is_dir():
+        raise RuntimeError(f"SQX_PROJECT_LOG_DIR_MISSING:{log_dir}")
+    logs = [p for p in log_dir.glob("global_log_*.log") if p.is_file()]
+    if not logs:
+        logs = [p for p in log_dir.glob("*.log") if p.is_file()]
+    if not logs:
+        raise RuntimeError(f"SQX_PROJECT_LOG_MISSING:{log_dir}")
+    latest = max(logs, key=lambda p: p.stat().st_mtime)
+    text = _read_text_tail(latest)
+    mtime = latest.stat().st_mtime
+    age = max(0.0, time.time() - mtime)
+
+    start_pos = max(
+        text.lower().rfind("=========== project started ===========".lower()),
+        text.lower().rfind("starting project"),
+    )
+    terminal_markers = (
+        "project stopped",
+        "project finished",
+        "project aborted",
+        "stopping project",
+        "exit app",
+    )
+    terminal_pos = max([text.lower().rfind(x) for x in terminal_markers] + [-1])
+    unclosed_start = start_pos >= 0 and terminal_pos < start_pos
+
+    return {
+        "project_root": str(project_root),
+        "log_path": str(latest),
+        "log_size": latest.stat().st_size,
+        "log_mtime_epoch": mtime,
+        "log_age_seconds": round(age, 1),
+        "unclosed_start_marker": unclosed_start,
+        "status_metrics": _parse_sqx_status_metrics(text),
+        "log_tail": text[-12000:],
+    }
+
+
+def _sqx_instance_alive() -> tuple[bool, str]:
+    try:
+        probe = _sqx_http_call("-h", timeout=5.0)
+        return True, probe.get("stdout", "")[:1000]
+    except Exception as exc:
+        return False, str(exc)[:1000]
+
+
+def _databank_file_count(cfg: BridgeConfig, project: str, databank: str) -> dict[str, Any]:
+    project_root = _sqx_project_root(cfg, project)
+    safe_databank = _safe_resource_name(databank, "databank", "count_databank")
+
+    direct = [
+        project_root / "databanks" / safe_databank,
+        project_root / "databank" / safe_databank,
+        project_root / "data" / "databanks" / safe_databank,
+        project_root / safe_databank,
+    ]
+    candidates: list[Path] = []
+    for p in direct:
+        if p.is_dir():
+            candidates.append(p.resolve())
+
+    if not candidates:
+        # Constrained discovery: only directories already below this validated project.
+        target = safe_databank.casefold()
+        for p in project_root.rglob("*"):
+            if p.is_dir() and p.name.casefold() == target:
+                rp = p.resolve()
+                if project_root == rp or project_root in rp.parents:
+                    candidates.append(rp)
+
+    best: tuple[int, Path, list[Path]] | None = None
+    for p in candidates:
+        strategy_files = [x for x in p.rglob("*.sqx") if x.is_file()]
+        score = len(strategy_files)
+        if best is None or score > best[0]:
+            best = (score, p, strategy_files)
+
+    if best is None:
+        raise RuntimeError(
+            f"SQX_DATABANK_DIR_NOT_FOUND:project={project};databank={databank}"
+        )
+
+    count, path, files = best
+    latest_mtime = max((x.stat().st_mtime for x in files), default=path.stat().st_mtime)
+    return {
+        "records": count,
+        "databank_path": str(path),
+        "strategy_extension": ".sqx",
+        "latest_strategy_mtime_epoch": latest_mtime,
+        "latest_strategy_age_seconds": round(max(0.0, time.time() - latest_mtime), 1),
+        "sample_files": [x.name for x in sorted(files, key=lambda x: x.name)[:5]],
+    }
+
+
+def _project_file_status(cfg: BridgeConfig, project: str) -> dict[str, Any]:
+    log = _latest_project_log(cfg, project)
+    instance_alive, probe_excerpt = _sqx_instance_alive()
+    inferred_running = bool(instance_alive and log.get("unclosed_start_marker"))
+    return {
+        **log,
+        "instance_http_alive": instance_alive,
+        "http_probe_excerpt": probe_excerpt,
+        "running_inferred": inferred_running,
+        "telemetry_source": "sqx_project_files+http_liveness",
+    }
+
+
 def _read_only_http_or_sqcli(
     cfg: BridgeConfig,
     runtime: "SqCliRuntime",
@@ -307,6 +441,11 @@ def _read_only_http_or_sqcli(
     except RuntimeError as http_exc:
         if runtime.is_running():
             raise RuntimeError(f"SQX_LIVE_TELEMETRY_UNAVAILABLE:{http_exc}") from http_exc
+        live_instance, _ = _sqx_instance_alive()
+        if live_instance:
+            raise RuntimeError(
+                f"SQX_EXISTING_INSTANCE_DETECTED_NO_COMPETING_CLI:{http_exc}"
+            ) from http_exc
         result = _run_sqcli(cfg.sqcli_path, sqcli_args, timeout=timeout)
         combined = "\n".join(
             x for x in (result.get("stdout", ""), result.get("stderr", "")) if x
@@ -824,17 +963,35 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
             }
             extra["runtime"] = active
             extra["status_metrics"] = _parse_sqx_status_metrics(result["stdout"])
+            extra["telemetry_source"] = "bridge_owned_process"
         else:
-            safe_project = _sqx_http_value(project, "project", name)
-            result, telemetry = _read_only_http_or_sqcli(
-                cfg,
-                runtime,
-                command_name=name,
-                http_command=f'-project action=status name="{safe_project}"',
-                sqcli_args=["-project", "action=status", f"name={project}"],
-                timeout=180,
-            )
-            extra.update(telemetry)
+            try:
+                file_status = _project_file_status(cfg, project)
+                state = "RUNNING" if file_status.get("running_inferred") else "STATE_UNCERTAIN"
+                result = {
+                    "returncode": 0,
+                    "stdout": (
+                        f"Project {project} {state} via read-only project telemetry\n"
+                        + file_status.get("log_tail", "")
+                    ),
+                    "stderr": "",
+                }
+                extra["runtime"] = file_status
+                extra["status_metrics"] = file_status.get("status_metrics", {})
+                extra["transport"] = "sqx_project_files"
+                extra["attached_existing_instance"] = bool(file_status.get("instance_http_alive"))
+            except RuntimeError as file_exc:
+                safe_project = _sqx_http_value(project, "project", name)
+                result, telemetry = _read_only_http_or_sqcli(
+                    cfg,
+                    runtime,
+                    command_name=name,
+                    http_command=f'-project action=status name="{safe_project}"',
+                    sqcli_args=["-project", "action=status", f"name={project}"],
+                    timeout=180,
+                )
+                extra.update(telemetry)
+                extra["project_file_telemetry_error"] = str(file_exc)
 
     elif name == "list_symbols":
         _require_idle(runtime, name)
@@ -851,17 +1008,30 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
     elif name == "count_databank":
         project = _project_from_payload(name, payload)
         databank = _databank_from_payload(name, payload)
-        safe_project = _sqx_http_value(project, "project", name)
-        safe_databank = _sqx_http_value(databank, "databank", name)
-        result, telemetry = _read_only_http_or_sqcli(
-            cfg,
-            runtime,
-            command_name=name,
-            http_command=f'-databank action=count project="{safe_project}" name="{safe_databank}"',
-            sqcli_args=["-databank", "action=count", f"project={project}", f"name={databank}"],
-            timeout=180,
-        )
-        extra.update(telemetry)
+        try:
+            file_count = _databank_file_count(cfg, project, databank)
+            result = {
+                "returncode": 0,
+                "stdout": f"Records: {file_count['records']}",
+                "stderr": "",
+            }
+            extra.update(file_count)
+            extra["status_metrics"] = {"records": file_count["records"]}
+            extra["transport"] = "sqx_project_files"
+            extra["attached_existing_instance"] = _sqx_instance_alive()[0]
+        except RuntimeError as file_exc:
+            safe_project = _sqx_http_value(project, "project", name)
+            safe_databank = _sqx_http_value(databank, "databank", name)
+            result, telemetry = _read_only_http_or_sqcli(
+                cfg,
+                runtime,
+                command_name=name,
+                http_command=f'-databank action=count project="{safe_project}" name="{safe_databank}"',
+                sqcli_args=["-databank", "action=count", f"project={project}", f"name={databank}"],
+                timeout=180,
+            )
+            extra.update(telemetry)
+            extra["project_file_telemetry_error"] = str(file_exc)
 
     elif name in {"export_databank", "list_strategies", "get_strategy_stats"}:
         project = _project_from_payload(name, payload)
@@ -1122,7 +1292,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6.1-live-telemetry",
+            "bridge_version": "142-autonomy-v6.2-project-files",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
@@ -1192,7 +1362,7 @@ class App(tk.Tk):
         pad = {"padx": 12, "pady": 8}
         top = ttk.Frame(self)
         top.pack(fill="x", **pad)
-        ttk.Label(top, text="Cygnus SQX Bridge · Build 142 · Live Telemetry v6.1", font=("Segoe UI", 15, "bold")).pack(side="left")
+        ttk.Label(top, text="Cygnus SQX Bridge · Build 142 · Live Telemetry v6.2", font=("Segoe UI", 15, "bold")).pack(side="left")
         self.status_var = tk.StringVar(value="No conectado")
         ttk.Label(top, textvariable=self.status_var).pack(side="right")
 
