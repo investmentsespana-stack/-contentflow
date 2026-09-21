@@ -54,6 +54,21 @@ Set-DotEnvValue $envFile "MAX_RETRIES" "3"
 Set-DotEnvValue $envFile "VIBE_TRADING_ENABLE_SHELL_TOOLS" "0"
 Set-DotEnvValue $envFile "VIBE_TRADING_API_URL" "http://127.0.0.1:8899"
 
+# Vibe's dotenv lookup is ~/.vibe-trading/.env -> package agent/.env -> CWD/.env.
+# Keep a non-secret mirror in the Vibe working directory so the boot guardian can
+# run under SYSTEM after a VPS reboot while OAuth remains exclusively in
+# $Root\state\auth via VIBE_TRADING_HOME.
+$rootEnv = Join-Path $Root ".env"
+@(
+  "LANGCHAIN_PROVIDER=openai-codex",
+  "LANGCHAIN_MODEL_NAME=openai-codex/gpt-5.4",
+  "LANGCHAIN_TEMPERATURE=0",
+  "TIMEOUT_SECONDS=180",
+  "MAX_RETRIES=3",
+  "VIBE_TRADING_ENABLE_SHELL_TOOLS=0",
+  "VIBE_TRADING_API_URL=http://127.0.0.1:8899"
+) | Set-Content -Encoding UTF8 $rootEnv
+
 Step "Canonicalizing the Vibe OAuth store..."
 $canonicalAuth = Join-Path $Root "state\auth"
 $canonicalToken = Join-Path $canonicalAuth "openai-codex.json"
@@ -89,11 +104,23 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$Root\Stop-Vibe
 Start-Sleep -Seconds 2
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$Root\Start-VibeNative.ps1"
 
+Step "Registering Vibe guardian for VPS reboot recovery..."
+$taskName = "CygnusVibeGuardian"
+$taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Root\Vibe-Guardian.ps1`""
+$taskTrigger = New-ScheduledTaskTrigger -AtStartup
+$taskPrincipal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$taskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
+Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal -Settings $taskSettings -Force | Out-Null
+
 Step "Starting a self-healing guardian for the current VPS session..."
 Get-CimInstance Win32_Process | Where-Object {
   $_.CommandLine -match [regex]::Escape("$Root\Vibe-Guardian.ps1")
 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoLogo","-NoProfile","-ExecutionPolicy","Bypass","-File","$Root\Vibe-Guardian.ps1") -WindowStyle Hidden | Out-Null
+
+$task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+if($task.State -eq "Disabled"){ throw "VIBE_GUARDIAN_TASK_DISABLED" }
+Write-Host "VIBE_BOOT_GUARDIAN=REGISTERED"
 
 Step "Running full native Vibe preflight..."
 & $python "$Root\vibe_full_preflight.py"
