@@ -21,6 +21,8 @@ const CANONICAL_ALLOWLIST=[
   "save_project_config",
   "run_vibe_nq6_smoke",
   "run_vibe_asset_research",
+  "vibe_diagnose",
+  "stack_health",
   "run_project",
   "stop_project",
   "pause_project",
