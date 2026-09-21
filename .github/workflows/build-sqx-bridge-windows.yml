@@ -39,6 +39,7 @@ jobs:
           $files = @(
             'trading_super_strategy/sqx_bridge/Install-ResearchV5.ps1',
             'trading_super_strategy/sqx_bridge/Install-ResearchV6.ps1',
+            'trading_super_strategy/sqx_bridge/Install-LiveTelemetryV61.ps1',
             'trading_super_strategy/vibe_trading/install_vibe_trading_research.ps1',
             'trading_super_strategy/vibe_trading/Test-NQ6FrozenWithVibe.ps1'
           )
@@ -55,6 +56,10 @@ jobs:
       - name: Test startup certification gate
         shell: pwsh
         run: python trading_super_strategy/sqx_bridge/test_startup_gate.py
+
+      - name: Test live HTTP telemetry attach
+        shell: pwsh
+        run: python trading_super_strategy/sqx_bridge/test_live_http_telemetry.py
 
       - name: Test futures resource repair
         shell: pwsh
@@ -81,9 +86,14 @@ jobs:
           @"
           CYGNUS SQX BRIDGE - STRATEGYQUANT BUILD 142
 
-          RESEARCH V6 MULTI-ASSET UPDATE
+          RESEARCH V6.1 LIVE TELEMETRY UPDATE
 
-          Preferred: double-click INSTALL_RESEARCH_V6.cmd.
+          Preferred telemetry repair: double-click INSTALL_LIVE_TELEMETRY_V61.cmd.
+          V6.1 preserves pairing, replaces only the Bridge, and attaches read-only
+          status/databank telemetry to an already-running SQX Build 142 process
+          through the loopback HTTP API. It does NOT stop SQX or GOLD.
+
+          Base V6: double-click INSTALL_RESEARCH_V6.cmd.
           V6 preserves pairing and enables fixed Vibe research for NQ, ES, CL, GC and DXY.
           V5 remains packaged only for backward recovery.
 
@@ -103,6 +113,8 @@ jobs:
           Copy-Item trading_super_strategy\sqx_bridge\INSTALL_RESEARCH_V5.cmd dist\INSTALL_RESEARCH_V5.cmd
           Copy-Item trading_super_strategy\sqx_bridge\Install-ResearchV6.ps1 dist\Install-ResearchV6.ps1
           Copy-Item trading_super_strategy\sqx_bridge\INSTALL_RESEARCH_V6.cmd dist\INSTALL_RESEARCH_V6.cmd
+          Copy-Item trading_super_strategy\sqx_bridge\Install-LiveTelemetryV61.ps1 dist\Install-LiveTelemetryV61.ps1
+          Copy-Item trading_super_strategy\sqx_bridge\INSTALL_LIVE_TELEMETRY_V61.cmd dist\INSTALL_LIVE_TELEMETRY_V61.cmd
           Copy-Item trading_super_strategy\vibe_trading\install_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\verify_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\README.md dist\vibe\
