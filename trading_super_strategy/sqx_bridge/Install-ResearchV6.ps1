@@ -11,11 +11,12 @@ function Step([string]$Message) { Write-Host "[Cygnus Research V6] $Message" }
 $packageRoot = $PSScriptRoot
 $bridgeSource = Join-Path $packageRoot "CygnusSQXBridge.exe"
 $assetScript = Join-Path $packageRoot "vibe\asset_research.py"
+$guardScript = Join-Path $packageRoot "vibe\tradingview_futures_guard.py"
 $presetSource = Join-Path $packageRoot "vibe\cygnus_single_asset_strategy_desk.yaml"
 $configPath = Join-Path $env:APPDATA "CygnusSQXBridge\config.json"
 $python = Join-Path $VibeInstallRoot ".venv\Scripts\python.exe"
 
-foreach($required in @($bridgeSource,$assetScript,$presetSource,$configPath,$python)){
+foreach($required in @($bridgeSource,$assetScript,$guardScript,$presetSource,$configPath,$python)){
   if(-not (Test-Path $required -PathType Leaf)){ throw "REQUIRED_FILE_MISSING:$required" }
 }
 
@@ -32,7 +33,8 @@ if(-not $mcpReady){ throw "VIBE_MCP_NOT_READY" }
 
 Step "Installing fixed multi-asset research script..."
 Copy-Item $assetScript (Join-Path $VibeInstallRoot "asset_research.py") -Force
-& $python -m py_compile (Join-Path $VibeInstallRoot "asset_research.py")
+Copy-Item $guardScript (Join-Path $VibeInstallRoot "tradingview_futures_guard.py") -Force
+& $python -m py_compile (Join-Path $VibeInstallRoot "tradingview_futures_guard.py") (Join-Path $VibeInstallRoot "asset_research.py")
 if($LASTEXITCODE -ne 0){ throw "ASSET_RESEARCH_COMPILE_FAILED" }
 
 Step "Installing Cygnus single-asset swarm preset..."
