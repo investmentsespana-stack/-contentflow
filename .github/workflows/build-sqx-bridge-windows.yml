@@ -41,6 +41,7 @@ jobs:
             'trading_super_strategy/sqx_bridge/Install-ResearchV6.ps1',
             'trading_super_strategy/sqx_bridge/Install-LiveTelemetryV61.ps1',
             'trading_super_strategy/sqx_bridge/Install-ProjectTelemetryV62.ps1',
+            'trading_super_strategy/sqx_bridge/Install-LiveControlV63.ps1',
             'trading_super_strategy/vibe_trading/install_vibe_trading_research.ps1',
             'trading_super_strategy/vibe_trading/Test-NQ6FrozenWithVibe.ps1'
           )
@@ -89,7 +90,12 @@ jobs:
 
           RESEARCH V6.1 LIVE TELEMETRY UPDATE
 
-          Preferred telemetry repair: double-click INSTALL_PROJECT_TELEMETRY_V62.cmd.
+          Preferred control upgrade: double-click INSTALL_LIVE_CONTROL_V63.cmd.
+          V6.3 preserves pairing, upgrades live GUI START/STOP/PAUSE/RESUME over
+          StrategyQuant's loopback HTTP API, adds immutable databank freeze manifests,
+          and rejects semantic sqcli failures even when exit code is zero.
+
+          Previous telemetry repair: double-click INSTALL_PROJECT_TELEMETRY_V62.cmd.
           V6.2 preserves pairing, replaces only the Bridge, and reads project logs
           plus databank .sqx files directly from the validated StrategyQuant project
           directory. It never launches a competing sqcli.exe while SQX is already
@@ -121,6 +127,8 @@ jobs:
           Copy-Item trading_super_strategy\sqx_bridge\INSTALL_LIVE_TELEMETRY_V61.cmd dist\INSTALL_LIVE_TELEMETRY_V61.cmd
           Copy-Item trading_super_strategy\sqx_bridge\Install-ProjectTelemetryV62.ps1 dist\Install-ProjectTelemetryV62.ps1
           Copy-Item trading_super_strategy\sqx_bridge\INSTALL_PROJECT_TELEMETRY_V62.cmd dist\INSTALL_PROJECT_TELEMETRY_V62.cmd
+          Copy-Item trading_super_strategy\sqx_bridge\Install-LiveControlV63.ps1 dist\Install-LiveControlV63.ps1
+          Copy-Item trading_super_strategy\sqx_bridge\INSTALL_LIVE_CONTROL_V63.cmd dist\INSTALL_LIVE_CONTROL_V63.cmd
           Copy-Item trading_super_strategy\vibe_trading\install_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\verify_vibe_trading_research.ps1 dist\vibe\
           Copy-Item trading_super_strategy\vibe_trading\README.md dist\vibe\
