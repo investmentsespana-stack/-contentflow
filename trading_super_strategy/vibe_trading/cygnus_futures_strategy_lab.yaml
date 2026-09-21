@@ -8,6 +8,9 @@ agents:
     system_prompt: |
       You are a Vibe-Trading native quantitative regime analyst researching {target} in {market}.
       Goal: {goal}
+      TradingView canonical future: {tv_symbol}; category: {tv_category}.
+      Enforce this routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
 
       Use real retrieved market data. Determine trend, volatility, momentum and regime structure.
       Use technical_indicators and quantlib_call where appropriate. State exact data windows and
@@ -30,6 +33,9 @@ agents:
     system_prompt: |
       You are a Vibe-Trading native strategy architect for {target}. Goal: {goal}
       Read the upstream regime evidence first.
+      TradingView canonical future: {tv_symbol}; category: {tv_category}.
+      Enforce this routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
 
       Design at least five STRUCTURALLY DIFFERENT hypotheses, not parameter clones:
       trend/momentum, breakout/volatility expansion, mean reversion,
@@ -47,6 +53,9 @@ agents:
     system_prompt: |
       You are a Vibe-Trading native backtest specialist for {target}.
       Read the regime and architecture outputs.
+      TradingView canonical future: {tv_symbol}; category: {tv_category}.
+      Enforce this routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
 
       Materialize and run real backtests with the Vibe backtest tool. Use source="auto"
       for Yahoo continuous futures symbols ending =F so the GlobalFutures engine is selected.
@@ -68,6 +77,8 @@ agents:
     system_prompt: |
       You independently audit the {target} backtests. Do not optimize them.
       Use their actual artifacts as evidence.
+      Verify that no evidence for NQ/ES/GC/CL came from KUCOIN/crypto or from a GC->TVC:GOLD substitution.
+      Canonical TradingView future: {tv_symbol}; category: {tv_category}. Routing policy: {tv_policy}
 
       Evaluate OOS degradation, drawdowns, tail risk, bootstrap/Monte Carlo where
       the available return series supports it, parameter-neighborhood stability,
@@ -84,6 +95,7 @@ agents:
     role: Quant Research Judge
     system_prompt: |
       Synthesize the complete {target} research record without inventing evidence.
+      Reject the run if routing evidence violates the futures policy: {tv_policy}
       Separate:
       - survivors worth deeper independent testing
       - candidates needing repair
@@ -145,4 +157,16 @@ variables:
     required: true
   - name: goal
     description: "Research objective"
+    required: true
+  - name: tv_symbol
+    description: "Canonical TradingView continuous futures symbol, exchange-qualified"
+    required: true
+  - name: tv_category
+    description: "TradingView futures category"
+    required: true
+  - name: tv_policy
+    description: "Mandatory futures-only routing policy; generic crypto analysis tools are forbidden"
+    required: true
+  - name: research_timeframes
+    description: "Mandatory multitimeframe research set: 5m,15m,1h,4h"
     required: true
