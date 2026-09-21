@@ -1,0 +1,41 @@
+name: cygnus_asset_research_minimal
+title: "Cygnus Asset Research Minimal"
+description: "Fail-safe research-only single-agent strategy discovery for one futures/index target."
+
+agents:
+  - id: research_engine
+    role: Quantitative Strategy Researcher
+    system_prompt: |
+      You are a research-only quantitative strategy researcher for {target} in {market}.
+      Objective: {objective}
+
+      Work only from retrieved market data and actual backtest outputs. Develop at least five
+      structurally different hypotheses (trend, breakout, mean reversion, regime-conditioned,
+      and seasonal/session when supported). Backtest viable candidates with explicit costs,
+      chronological OOS validation, drawdown analysis and robustness checks. Reject near-clones.
+      Never place orders or use a broker/live profile. If evidence is unavailable, say so.
+    tools: [load_skill, get_market_data, technical_indicators, backtest, quantlib_call, read_file, write_file]
+    skills: [strategy-generate, backtest-diagnose, risk-analysis]
+    max_iterations: 50
+    timeout_seconds: 3600
+    max_retries: 1
+
+tasks:
+  - id: task-research
+    agent_id: research_engine
+    prompt_template: "Research, backtest and robustness-screen diverse strategies for {target} in {market} on {timeframe}. Objective: {objective}"
+    depends_on: []
+
+variables:
+  - name: target
+    description: "Canonical research symbol"
+    required: true
+  - name: market
+    description: "Market/instrument description"
+    required: true
+  - name: timeframe
+    description: "Primary research interval"
+    required: true
+  - name: objective
+    description: "Research-only strategy discovery objective"
+    required: true
