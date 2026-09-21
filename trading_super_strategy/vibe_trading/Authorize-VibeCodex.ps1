@@ -3,6 +3,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $env:VIBE_TRADING_HOME = "$Root\state"
+$env:LANGCHAIN_PROVIDER = "openai-codex"
+$env:LANGCHAIN_MODEL_NAME = "openai-codex/gpt-5.4"
 $env:VIBE_TRADING_ENABLE_SHELL_TOOLS = "0"
 $env:CYGNUS_RESEARCH_ONLY = "1"
 
