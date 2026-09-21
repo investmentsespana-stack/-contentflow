@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: sqx-bridge-v64-windows-vps
+  group: sqx-bridge-v64-windows-vps-v2
   cancel-in-progress: false
 
 jobs:
