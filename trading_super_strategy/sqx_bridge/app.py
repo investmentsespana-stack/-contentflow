@@ -32,6 +32,8 @@ VIBE_PYTHON = VIBE_ROOT / ".venv" / "Scripts" / "python.exe"
 VIBE_NQ6_SCRIPT = VIBE_ROOT / "nq6_frozen_vibe_smoke.py"
 VIBE_ASSET_SCRIPT = VIBE_ROOT / "asset_research.py"
 VIBE_MCP_URL = "http://127.0.0.1:8900/mcp"
+SQX_HTTP_API = "http://127.0.0.1:5050/call"
+SQX_HTTP_TIMEOUT_SECONDS = 30.0
 VIBE_ALLOWED_ASSETS = {"NQ", "ES", "CL", "GC", "DXY"}
 VIBE_ASSET_ALIASES = {"DX": "DXY"}
 VIBE_ASSET_ACTIONS = {"start", "status", "result"}
@@ -219,6 +221,106 @@ def _run_sqcli(path: str, args: list[str], timeout: int = 180) -> dict[str, Any]
         hint = " Cierra StrategyQuant X gráfico antes de usar el bridge." if "another instance" in combined.lower() else ""
         raise RuntimeError(f"SQCLI rc={cp.returncode}: {combined[:4000]}{hint}")
     return {"returncode": cp.returncode, "stdout": stdout, "stderr": stderr}
+
+
+def _sqx_http_value(value: str, field: str, command: str) -> str:
+    """Validate a value before embedding it into a fixed SQX HTTP CLI command."""
+    return _safe_resource_name(value, field, command)
+
+
+def _sqx_http_call(command: str, timeout: float = SQX_HTTP_TIMEOUT_SECONDS) -> dict[str, Any]:
+    """Call the loopback-only SQX Build 142 HTTP CLI endpoint.
+
+    This is intentionally not exposed as an arbitrary bridge command. Only
+    fixed read-only bridge operations build the command string.
+    """
+    if not command.startswith(("-project ", "-databank ", "-h")):
+        raise RuntimeError("SQX_HTTP_COMMAND_BLOCKED")
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(SQX_HTTP_API, params={"cmd": command})
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"SQX_HTTP_UNAVAILABLE:{type(exc).__name__}:{exc}") from exc
+
+    text = response.text.strip()
+    if not text:
+        raise RuntimeError("SQX_HTTP_EMPTY_RESPONSE")
+    lowered = text.lower()
+    if "parameter 'cmd' is missing" in lowered or 'parameter "cmd" is missing' in lowered:
+        raise RuntimeError("SQX_HTTP_CMD_PARAMETER_REJECTED")
+    return {
+        "returncode": 0,
+        "stdout": text,
+        "stderr": "",
+        "http_status": response.status_code,
+        "http_api": SQX_HTTP_API,
+    }
+
+
+def _parse_sqx_status_metrics(text: str) -> dict[str, Any]:
+    """Extract stable progress counters from SQX status output."""
+    metrics: dict[str, Any] = {}
+    patterns: tuple[tuple[str, str, type], ...] = (
+        ("strategies_generated", r"Strategies generated\s+([0-9]+)", int),
+        ("rejected_pct", r"Rejected\s+([0-9.]+)\s*%", float),
+        ("accepted_pct", r"Accepted\s+([0-9.]+)\s*%", float),
+        ("failed", r"Failed\s+([0-9]+)", int),
+        ("passed", r"Passed\s+([0-9]+)", int),
+        ("strategies_per_hour", r"Strategies per hour\s+([0-9.]+)", float),
+        ("accepted_strategies_per_hour", r"Accepted strategies per hour\s+([0-9.]+)", float),
+        ("in_databank", r"In databank\s+([0-9]+)", int),
+    )
+    for key, pattern, caster in patterns:
+        match = re.search(pattern, text or "", flags=re.IGNORECASE)
+        if match:
+            try:
+                metrics[key] = caster(match.group(1))
+            except (TypeError, ValueError):
+                pass
+    running_match = re.search(r"Running time so far\s+(.+)", text or "", flags=re.IGNORECASE)
+    if running_match:
+        metrics["running_time"] = running_match.group(1).strip()
+    record_match = re.search(r"Records:\s*([0-9]+)", text or "", flags=re.IGNORECASE)
+    if record_match:
+        metrics["records"] = int(record_match.group(1))
+    return metrics
+
+
+def _read_only_http_or_sqcli(
+    cfg: BridgeConfig,
+    runtime: "SqCliRuntime",
+    *,
+    command_name: str,
+    http_command: str,
+    sqcli_args: list[str],
+    timeout: int = 180,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Prefer the already-running SQX HTTP API; never start a second SQX for telemetry."""
+    try:
+        result = _sqx_http_call(http_command)
+        return result, {
+            "transport": "sqx_http_api",
+            "attached_existing_instance": True,
+            "status_metrics": _parse_sqx_status_metrics(result.get("stdout", "")),
+        }
+    except RuntimeError as http_exc:
+        if runtime.is_running():
+            raise RuntimeError(f"SQX_LIVE_TELEMETRY_UNAVAILABLE:{http_exc}") from http_exc
+        result = _run_sqcli(cfg.sqcli_path, sqcli_args, timeout=timeout)
+        combined = "\n".join(
+            x for x in (result.get("stdout", ""), result.get("stderr", "")) if x
+        )
+        if "another instance of strategyquant x is running" in combined.lower():
+            raise RuntimeError(
+                "SQX_EXISTING_INSTANCE_DETECTED_BUT_HTTP_TELEMETRY_UNAVAILABLE:"
+                + str(http_exc)
+            ) from http_exc
+        return result, {
+            "transport": "sqcli_process",
+            "attached_existing_instance": False,
+            "status_metrics": _parse_sqx_status_metrics(combined),
+        }
 
 
 class SqCliRuntime:
@@ -721,8 +823,18 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
                 "stderr": "",
             }
             extra["runtime"] = active
+            extra["status_metrics"] = _parse_sqx_status_metrics(result["stdout"])
         else:
-            result = _run_sqcli(cfg.sqcli_path, ["-project", "action=status", f"name={project}"])
+            safe_project = _sqx_http_value(project, "project", name)
+            result, telemetry = _read_only_http_or_sqcli(
+                cfg,
+                runtime,
+                command_name=name,
+                http_command=f'-project action=status name="{safe_project}"',
+                sqcli_args=["-project", "action=status", f"name={project}"],
+                timeout=180,
+            )
+            extra.update(telemetry)
 
     elif name == "list_symbols":
         _require_idle(runtime, name)
@@ -737,10 +849,19 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
         result = _run_sqcli(cfg.sqcli_path, ["-data", "action=timezones"])
 
     elif name == "count_databank":
-        _require_idle(runtime, name)
         project = _project_from_payload(name, payload)
         databank = _databank_from_payload(name, payload)
-        result = _run_sqcli(cfg.sqcli_path, ["-databank", "action=count", f"project={project}", f"name={databank}"])
+        safe_project = _sqx_http_value(project, "project", name)
+        safe_databank = _sqx_http_value(databank, "databank", name)
+        result, telemetry = _read_only_http_or_sqcli(
+            cfg,
+            runtime,
+            command_name=name,
+            http_command=f'-databank action=count project="{safe_project}" name="{safe_databank}"',
+            sqcli_args=["-databank", "action=count", f"project={project}", f"name={databank}"],
+            timeout=180,
+        )
+        extra.update(telemetry)
 
     elif name in {"export_databank", "list_strategies", "get_strategy_stats"}:
         project = _project_from_payload(name, payload)
@@ -988,7 +1109,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6-vibe-multi-asset",
+            "bridge_version": "142-autonomy-v6.1-live-telemetry",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
@@ -1058,7 +1179,7 @@ class App(tk.Tk):
         pad = {"padx": 12, "pady": 8}
         top = ttk.Frame(self)
         top.pack(fill="x", **pad)
-        ttk.Label(top, text="Cygnus SQX Bridge · Build 142 · Autonomy v2", font=("Segoe UI", 15, "bold")).pack(side="left")
+        ttk.Label(top, text="Cygnus SQX Bridge · Build 142 · Live Telemetry v6.1", font=("Segoe UI", 15, "bold")).pack(side="left")
         self.status_var = tk.StringVar(value="No conectado")
         ttk.Label(top, textvariable=self.status_var).pack(side="right")
 
