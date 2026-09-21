@@ -6,11 +6,16 @@ import importlib.metadata
 import json
 import os
 import re
+import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from fastmcp import Client
+
+MODULE_DIR = Path(__file__).resolve().parent
+if str(MODULE_DIR) not in sys.path:
+    sys.path.insert(0, str(MODULE_DIR))
 
 from tradingview_futures_guard import (
     build_snapshot_plan,
