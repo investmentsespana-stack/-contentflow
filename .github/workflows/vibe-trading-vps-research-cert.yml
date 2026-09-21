@@ -1,6 +1,10 @@
 name: Vibe Trading VPS Research Certification
 
 on:
+  push:
+    paths:
+      - 'trading_super_strategy/vibe_trading/**'
+      - '.github/workflows/vibe-trading-vps-research-cert.yml'
   pull_request:
     paths:
       - 'trading_super_strategy/vibe_trading/**'
