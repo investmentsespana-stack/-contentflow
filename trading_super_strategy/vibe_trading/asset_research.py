@@ -240,14 +240,15 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
             evidence["reason"] = json.dumps(preflight, ensure_ascii=False, default=str)[:6000]
             return evidence
 
+        variables = {
+            "target": meta["target"],
+            "market": meta["market"],
+            "timeframe": meta["timeframe"],
+            "objective": objective,
+        }
         swarm = await _call(client, "run_swarm", {
             "preset_name": "cygnus_single_asset_strategy_desk",
-            "variables": {
-                "target": meta["target"],
-                "market": meta["market"],
-                "timeframe": meta["timeframe"],
-                "objective": objective,
-            },
+            "variables": variables,
             "wait_seconds": 0,
             "start_only": True,
         })
@@ -256,9 +257,32 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
         evidence["run_id"] = run_id
         if swarm.get("ok") and run_id:
             evidence["status"] = "STARTED"
-        else:
-            evidence["status"] = "FAILED_TO_START"
-            evidence["reason"] = _failure_detail(swarm) or "run_swarm returned no run_id"
+            evidence["launch_mode"] = "primary_multi_agent"
+            return evidence
+
+        evidence["primary_failure"] = _failure_detail(swarm) or "run_swarm returned no run_id"
+
+        fallback = await _call(client, "run_swarm", {
+            "preset_name": "cygnus_asset_research_minimal",
+            "variables": variables,
+            "wait_seconds": 0,
+            "start_only": True,
+        })
+        evidence["calls"].append(fallback)
+        fallback_run_id = _run_id(fallback.get("result"))
+        if fallback.get("ok") and fallback_run_id:
+            evidence["run_id"] = fallback_run_id
+            evidence["status"] = "STARTED"
+            evidence["launch_mode"] = "fallback_minimal"
+            evidence["reason"] = evidence["primary_failure"]
+            return evidence
+
+        evidence["status"] = "FAILED_TO_START"
+        evidence["fallback_failure"] = _failure_detail(fallback) or "fallback run_swarm returned no run_id"
+        evidence["reason"] = (
+            "PRIMARY=" + str(evidence["primary_failure"]) +
+            " | FALLBACK=" + str(evidence["fallback_failure"])
+        )[:6000]
         return evidence
 
 async def inspect(action: str, run_id: str, mcp_url: str) -> dict[str, Any]:
