@@ -66,6 +66,7 @@ RESEARCH_CONTROL = {
     "create_databank",
     "copy_databank",
     "move_databank",
+    "freeze_databank",
 }
 ALLOWLIST = READ_ONLY | RESEARCH_CONTROL
 
@@ -217,8 +218,11 @@ def _run_sqcli(path: str, args: list[str], timeout: int = 180) -> dict[str, Any]
     stdout = _decode(cp.stdout).strip()
     stderr = _decode(cp.stderr).strip()
     combined = "\n".join(x for x in (stdout, stderr) if x).strip()
+    lowered = combined.lower()
+    if "another instance of strategyquant x is running" in lowered:
+        raise RuntimeError("SQCLI_SEMANTIC_FAILURE:another_instance_running")
     if cp.returncode != 0:
-        hint = " Cierra StrategyQuant X gráfico antes de usar el bridge." if "another instance" in combined.lower() else ""
+        hint = " Cierra StrategyQuant X gráfico antes de usar el bridge." if "another instance" in lowered else ""
         raise RuntimeError(f"SQCLI rc={cp.returncode}: {combined[:4000]}{hint}")
     return {"returncode": cp.returncode, "stdout": stdout, "stderr": stderr}
 
@@ -258,6 +262,31 @@ def _sqx_http_call(command: str, timeout: float = SQX_HTTP_TIMEOUT_SECONDS) -> d
         "http_status": response.status_code,
         "http_api": SQX_HTTP_API,
     }
+
+
+def _sqx_http_project_control(action: str, project: str) -> dict[str, Any]:
+    """Control the already-running SQX GUI instance through its loopback HTTP API."""
+    action = str(action or "").strip().lower()
+    if action not in {"start", "stop", "pause", "resume"}:
+        raise RuntimeError(f"SQX_HTTP_CONTROL_ACTION_BLOCKED:{action}")
+    safe_project = _sqx_http_value(project, "project", f"http_{action}_project")
+    result = _sqx_http_call(f'-project action={action} name="{safe_project}"')
+    text = "\n".join(x for x in (result.get("stdout", ""), result.get("stderr", "")) if x)
+    lowered = text.lower()
+    failure_tokens = (
+        "cannot start project",
+        "cannot stop project",
+        "cannot pause project",
+        "cannot resume project",
+        "unresolved resources",
+        "failed",
+        "error:",
+    )
+    if any(token in lowered for token in failure_tokens):
+        raise RuntimeError(f"SQX_HTTP_CONTROL_FAILED:{action}:{text[:1200]}")
+    result["control_action"] = action
+    result["project"] = project
+    return result
 
 
 def _parse_sqx_status_metrics(text: str) -> dict[str, Any]:
@@ -406,6 +435,77 @@ def _databank_file_count(cfg: BridgeConfig, project: str, databank: str) -> dict
         "latest_strategy_age_seconds": round(max(0.0, time.time() - latest_mtime), 1),
         "sample_files": [x.name for x in sorted(files, key=lambda x: x.name)[:5]],
     }
+
+
+def _freeze_databank_snapshot(cfg: BridgeConfig, project: str, databank: str, label: str | None = None) -> dict[str, Any]:
+    """Create an immutable file snapshot of a StrategyQuant databank with SHA-256 manifest."""
+    info = _databank_file_count(cfg, project, databank)
+    source = Path(info["databank_path"]).resolve()
+    project_root = _sqx_project_root(cfg, project)
+    if project_root != source and project_root not in source.parents:
+        raise RuntimeError("SQX_FREEZE_SOURCE_OUTSIDE_PROJECT")
+
+    safe_label = _safe_slug(label or time.strftime("%Y%m%d-%H%M%S"), "snapshot")
+    snapshot_root = ARTIFACT_DIR / "frozen_databanks" / _safe_slug(project) / _safe_slug(databank) / safe_label
+    if snapshot_root.exists():
+        raise RuntimeError(f"SQX_FREEZE_ALREADY_EXISTS:{snapshot_root}")
+    snapshot_root.mkdir(parents=True, exist_ok=False)
+
+    entries: list[dict[str, Any]] = []
+    try:
+        files = sorted([p for p in source.rglob("*.sqx") if p.is_file()], key=lambda p: str(p.relative_to(source)).casefold())
+        for src in files:
+            rel = src.relative_to(source)
+            before = src.read_bytes()
+            before_sha = hashlib.sha256(before).hexdigest()
+            dest = snapshot_root / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(before)
+            copied_sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+            after_sha = hashlib.sha256(src.read_bytes()).hexdigest()
+            if not (before_sha == copied_sha == after_sha):
+                raise RuntimeError(f"SQX_FREEZE_MUTATION_DETECTED:{rel}")
+            entries.append({
+                "file": str(rel).replace("\\", "/"),
+                "size": len(before),
+                "sha256": before_sha,
+            })
+        manifest = {
+            "project": project,
+            "databank": databank,
+            "label": safe_label,
+            "created_at_epoch": time.time(),
+            "strategy_count": len(entries),
+            "source_path": str(source),
+            "snapshot_path": str(snapshot_root),
+            "files": entries,
+        }
+        manifest_bytes = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
+        manifest_path = snapshot_root / "manifest.json"
+        manifest_path.write_bytes(manifest_bytes)
+        return {
+            "returncode": 0,
+            "stdout": f"Frozen {len(entries)} strategies from {project}/{databank}",
+            "stderr": "",
+            "snapshot_path": str(snapshot_root),
+            "manifest_path": str(manifest_path),
+            "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+            "strategy_count": len(entries),
+        }
+    except Exception:
+        for p in sorted(snapshot_root.rglob("*"), reverse=True):
+            try:
+                if p.is_file():
+                    p.unlink()
+                elif p.is_dir():
+                    p.rmdir()
+            except Exception:
+                pass
+        try:
+            snapshot_root.rmdir()
+        except Exception:
+            pass
+        raise
 
 
 def _project_file_status(cfg: BridgeConfig, project: str) -> dict[str, Any]:
@@ -1120,16 +1220,45 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
 
     elif name == "run_project":
         project = _project_from_payload(name, payload)
-        result = runtime.start_project(project)
+        live_instance, _ = _sqx_instance_alive()
+        if live_instance:
+            result = _sqx_http_project_control("start", project)
+            extra.update({"transport": "sqx_http_api", "attached_existing_instance": True})
+        else:
+            result = runtime.start_project(project)
 
     elif name == "stop_project":
         project = _project_from_payload(name, payload)
-        result = runtime.stop_project(project)
+        active = runtime.status(project)
+        if active and active.get("running"):
+            result = runtime.stop_project(project)
+        else:
+            live_instance, _ = _sqx_instance_alive()
+            if live_instance:
+                result = _sqx_http_project_control("stop", project)
+                extra.update({"transport": "sqx_http_api", "attached_existing_instance": True})
+            else:
+                result = runtime.stop_project(project)
 
     elif name in {"pause_project", "resume_project"}:
         project = _project_from_payload(name, payload)
         action = "pause" if name == "pause_project" else "resume"
-        result = _run_sqcli(cfg.sqcli_path, ["-project", f"action={action}", f"name={project}"], timeout=180)
+        live_instance, _ = _sqx_instance_alive()
+        if live_instance:
+            result = _sqx_http_project_control(action, project)
+            extra.update({"transport": "sqx_http_api", "attached_existing_instance": True})
+        else:
+            result = _run_sqcli(cfg.sqcli_path, ["-project", f"action={action}", f"name={project}"], timeout=180)
+
+    elif name == "freeze_databank":
+        project = _project_from_payload(name, payload)
+        databank = _databank_from_payload(name, payload)
+        label = str(payload.get("label") or "").strip() or None
+        result = _freeze_databank_snapshot(cfg, project, databank, label)
+        extra.update({
+            "transport": "sqx_project_files",
+            "attached_existing_instance": _sqx_instance_alive()[0],
+        })
 
     elif name == "add_instrument":
         _require_idle(runtime, name)
@@ -1292,7 +1421,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6.2-project-files",
+            "bridge_version": "142-autonomy-v6.3-http-control-freeze",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
