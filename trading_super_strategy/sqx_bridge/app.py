@@ -67,6 +67,7 @@ RESEARCH_CONTROL = {
     "copy_databank",
     "move_databank",
     "freeze_databank",
+    "live_project_control",
 }
 ALLOWLIST = READ_ONLY | RESEARCH_CONTROL
 
@@ -1217,6 +1218,25 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
 
     elif name == "run_vibe_asset_research":
         result = _run_vibe_asset_research(payload)
+
+    elif name == "live_project_control":
+        project = _project_from_payload(name, payload)
+        action = str(payload.get("action") or "").strip().lower()
+        if action not in {"start", "stop", "pause", "resume"}:
+            raise RuntimeError("live_project_control requiere action=start|stop|pause|resume")
+        active = runtime.status(project)
+        live_instance, _ = _sqx_instance_alive()
+        if action == "stop" and active and active.get("running"):
+            result = runtime.stop_project(project)
+        elif live_instance:
+            result = _sqx_http_project_control(action, project)
+            extra.update({"transport": "sqx_http_api", "attached_existing_instance": True})
+        elif action == "start":
+            result = runtime.start_project(project)
+        elif action == "stop":
+            result = runtime.stop_project(project)
+        else:
+            result = _run_sqcli(cfg.sqcli_path, ["-project", f"action={action}", f"name={project}"], timeout=180)
 
     elif name == "run_project":
         project = _project_from_payload(name, payload)
