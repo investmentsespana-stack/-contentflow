@@ -8,12 +8,15 @@ $env:LANGCHAIN_MODEL_NAME = "openai-codex/gpt-5.4"
 $env:VIBE_TRADING_ENABLE_SHELL_TOOLS = "0"
 $env:CYGNUS_RESEARCH_ONLY = "1"
 
-$vibe="$Root\.venv\Scripts\vibe-trading.exe"
-if(-not (Test-Path $vibe -PathType Leaf)){ throw "VIBE_CLI_MISSING:$vibe" }
+$python="$Root\.venv\Scripts\python.exe"
+if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python" }
 
-Write-Host "Opening Vibe native ChatGPT/Codex OAuth login..."
-& $vibe provider login openai-codex
-if($LASTEXITCODE -ne 0){ throw "VIBE_CODEX_OAUTH_FAILED:$LASTEXITCODE" }
+$deviceAuth="$Root\Vibe-Codex-DeviceAuth.py"
+if(-not (Test-Path $deviceAuth -PathType Leaf)){ throw "VIBE_DEVICE_AUTH_HELPER_MISSING:$deviceAuth" }
+
+Write-Host "Starting Vibe-owned OpenAI Codex device-code login..."
+& $python $deviceAuth
+if($LASTEXITCODE -ne 0){ throw "VIBE_CODEX_DEVICE_AUTH_FAILED:$LASTEXITCODE" }
 
 Write-Host "OAuth stored in the canonical Vibe runtime. Restarting Vibe services only..."
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$Root\Stop-VibeNative.ps1" | Out-Null
