@@ -1315,33 +1315,45 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
             extra["status_metrics"] = _parse_sqx_status_metrics(result["stdout"])
             extra["telemetry_source"] = "bridge_owned_process"
         else:
-            try:
-                file_status = _project_file_status(cfg, project)
-                state = "RUNNING" if file_status.get("running_inferred") else "STATE_UNCERTAIN"
-                result = {
-                    "returncode": 0,
-                    "stdout": (
-                        f"Project {project} {state} via read-only project telemetry\n"
-                        + file_status.get("log_tail", "")
-                    ),
-                    "stderr": "",
-                }
-                extra["runtime"] = file_status
-                extra["status_metrics"] = file_status.get("status_metrics", {})
-                extra["transport"] = "sqx_project_files"
-                extra["attached_existing_instance"] = bool(file_status.get("instance_http_alive"))
-            except RuntimeError as file_exc:
-                safe_project = _sqx_http_value(project, "project", name)
-                result, telemetry = _read_only_http_or_sqcli(
-                    cfg,
-                    runtime,
-                    command_name=name,
-                    http_command=f'-project action=status name="{safe_project}"',
-                    sqcli_args=["-project", "action=status", f"name={project}"],
-                    timeout=180,
-                )
-                extra.update(telemetry)
-                extra["project_file_telemetry_error"] = str(file_exc)
+            safe_project = _sqx_http_value(project, "project", name)
+            live_instance, _ = _sqx_instance_alive()
+            if live_instance:
+                result = _sqx_http_call(f'-project action=status name="{safe_project}"')
+                extra["transport"] = "sqx_http_api"
+                extra["attached_existing_instance"] = True
+                extra["status_metrics"] = _parse_sqx_status_metrics(result.get("stdout", ""))
+                extra["telemetry_source"] = "sqx_http_api"
+                try:
+                    extra["file_evidence"] = _project_file_status(cfg, project)
+                except Exception as file_exc:
+                    extra["project_file_telemetry_error"] = str(file_exc)
+            else:
+                try:
+                    file_status = _project_file_status(cfg, project)
+                    state = "RUNNING" if file_status.get("running_inferred") else "STATE_UNCERTAIN"
+                    result = {
+                        "returncode": 0,
+                        "stdout": (
+                            f"Project {project} {state} via read-only project telemetry\n"
+                            + file_status.get("log_tail", "")
+                        ),
+                        "stderr": "",
+                    }
+                    extra["runtime"] = file_status
+                    extra["status_metrics"] = file_status.get("status_metrics", {})
+                    extra["transport"] = "sqx_project_files"
+                    extra["attached_existing_instance"] = False
+                except RuntimeError as file_exc:
+                    result, telemetry = _read_only_http_or_sqcli(
+                        cfg,
+                        runtime,
+                        command_name=name,
+                        http_command=f'-project action=status name="{safe_project}"',
+                        sqcli_args=["-project", "action=status", f"name={project}"],
+                        timeout=180,
+                    )
+                    extra.update(telemetry)
+                    extra["project_file_telemetry_error"] = str(file_exc)
 
     elif name == "list_symbols":
         _require_idle(runtime, name)
