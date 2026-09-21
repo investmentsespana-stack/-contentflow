@@ -1,0 +1,207 @@
+name: Deploy SQX Bridge V6.4 via Hosted SSH
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-sqx-bridge-v64-hosted-ssh.yml'
+      - 'trading_super_strategy/sqx_bridge/app.py'
+      - 'trading_super_strategy/sqx_bridge/test_live_http_telemetry.py'
+      - 'trading_super_strategy/sqx_bridge/test_startup_gate.py'
+      - 'trading_super_strategy/vibe_trading/asset_research.py'
+      - 'trading_super_strategy/vibe_trading/tradingview_futures_guard.py'
+      - 'trading_super_strategy/vibe_trading/vibe_full_preflight.py'
+      - 'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: sqx-bridge-v64-hosted-ssh-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build and unit certify bridge
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r trading_super_strategy/sqx_bridge/requirements.txt pyinstaller
+          python -m py_compile trading_super_strategy/sqx_bridge/app.py
+          python trading_super_strategy/sqx_bridge/test_startup_gate.py
+          python trading_super_strategy/sqx_bridge/test_live_http_telemetry.py
+          python trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py
+          pyinstaller --noconfirm --clean --onefile --windowed --name CygnusSQXBridge --collect-all keyring trading_super_strategy/sqx_bridge/app.py
+
+          New-Item -ItemType Directory -Force deploy | Out-Null
+          Copy-Item dist/CygnusSQXBridge.exe deploy/CygnusSQXBridge.exe
+          Copy-Item trading_super_strategy/vibe_trading/asset_research.py deploy/asset_research.py
+          Copy-Item trading_super_strategy/vibe_trading/tradingview_futures_guard.py deploy/tradingview_futures_guard.py
+          Copy-Item trading_super_strategy/vibe_trading/vibe_full_preflight.py deploy/vibe_full_preflight.py
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml deploy/cygnus_native_smoke.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml deploy/cygnus_futures_strategy_lab.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml deploy/cygnus_dxy_macro_lab.yaml
+          Compress-Archive -Path deploy/* -DestinationPath CygnusBridgeV64.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cygnus-bridge-v64-hosted-ssh
+          path: CygnusBridgeV64.zip
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cygnus-bridge-v64-hosted-ssh
+          path: deploy
+
+      - name: Obtain GitHub OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sqx-deploy-target');
+            core.setSecret(token);
+            core.setOutput('token', token);
+
+      - name: Resolve active VPS target securely
+        id: target
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -fsS             -H "Authorization: Bearer $OIDC_TOKEN"             "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-deploy-target"             > target.json
+          test "$(jq -r '.ok' target.json)" = "true"
+          test "$(jq -r '.device_name' target.json)" = "WIN-31RCI8K7JR2"
+          HOST="$(jq -r '.target_ip' target.json)"
+          test -n "$HOST"
+          echo "::add-mask::$HOST"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+          echo "TARGET_DEVICE=WIN-31RCI8K7JR2"
+
+      - name: Probe SSH
+        id: sshprobe
+        shell: bash
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+          SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo "SSH_KEY_MISSING"; exit 2; }
+          python3 - <<'PY'
+          import os,socket,sys
+          host=os.environ["HOST"]
+          s=socket.socket()
+          s.settimeout(5)
+          rc=s.connect_ex((host,22))
+          s.close()
+          print("SSH_PORT_OPEN="+str(rc==0).lower())
+          if rc!=0: sys.exit(3)
+          PY
+
+          mkdir -p ~/.ssh
+          KEY=~/.ssh/cygnus_sqx_deploy
+          printf '%s' "$SSH_PRIVATE_KEY" > "$KEY"
+          chmod 600 "$KEY"
+
+          USER_OK=""
+          for USER in Administrator administrator; do
+            if ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "$USER@$HOST"               'powershell.exe -NoLogo -NoProfile -Command "$env:COMPUTERNAME"' > ssh-host.txt 2>&1; then
+              if grep -qi 'WIN-31RCI8K7JR2' ssh-host.txt; then
+                USER_OK="$USER"
+                break
+              fi
+            fi
+          done
+          test -n "$USER_OK" || { echo "SSH_AUTH_NOT_AVAILABLE"; cat ssh-host.txt || true; exit 4; }
+          echo "user=$USER_OK" >> "$GITHUB_OUTPUT"
+          echo "SSH_TARGET_VERIFIED=true"
+
+      - name: Upload package and install directly
+        shell: bash
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+          USER: ${{ steps.sshprobe.outputs.user }}
+        run: |
+          set -euo pipefail
+          KEY=~/.ssh/cygnus_sqx_deploy
+          scp -i "$KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new             deploy/CygnusBridgeV64.zip "$USER@$HOST:CygnusBridgeV64.zip"
+
+          cat > install.ps1 <<'PS1'
+          $ErrorActionPreference='Stop'
+          $zip=Join-Path $HOME 'CygnusBridgeV64.zip'
+          $stage=Join-Path $env:TEMP 'CygnusBridgeV64Deploy'
+          $bridgeRoot='C:\Cygnus\SQXBridge'
+          $vibeRoot='C:\Cygnus\VibeTrading'
+          $config=Join-Path $env:APPDATA 'CygnusSQXBridge\config.json'
+          $python=Join-Path $vibeRoot '.venv\Scripts\python.exe'
+          if(-not (Test-Path $config -PathType Leaf)){ throw "PAIRING_CONFIG_MISSING:$config" }
+          if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python" }
+          if(Test-Path $stage){ Remove-Item $stage -Recurse -Force }
+          Expand-Archive -Path $zip -DestinationPath $stage -Force
+
+          New-Item -ItemType Directory -Force $bridgeRoot | Out-Null
+          $bridgeTarget=Join-Path $bridgeRoot 'CygnusSQXBridge.exe'
+          $stamp=Get-Date -Format 'yyyyMMddHHmmss'
+          if(Test-Path $bridgeTarget){ Copy-Item $bridgeTarget "$bridgeTarget.backup-$stamp" -Force }
+
+          Get-Process -Name 'CygnusSQXBridge' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          Copy-Item (Join-Path $stage 'CygnusSQXBridge.exe') $bridgeTarget -Force
+
+          foreach($name in @('asset_research.py','tradingview_futures_guard.py','vibe_full_preflight.py')){
+            $src=Join-Path $stage $name
+            $dest=Join-Path $vibeRoot $name
+            if(Test-Path $dest){ Copy-Item $dest "$dest.backup-$stamp" -Force }
+            Copy-Item $src $dest -Force
+          }
+
+          $userPreset=Join-Path $HOME '.vibe-trading\swarm\presets'
+          $statePreset=Join-Path $vibeRoot 'state\swarm\presets'
+          New-Item -ItemType Directory -Force $userPreset,$statePreset | Out-Null
+          foreach($name in @('cygnus_native_smoke.yaml','cygnus_futures_strategy_lab.yaml','cygnus_dxy_macro_lab.yaml')){
+            Copy-Item (Join-Path $stage $name) (Join-Path $userPreset $name) -Force
+            Copy-Item (Join-Path $stage $name) (Join-Path $statePreset $name) -Force
+          }
+
+          & $python -m py_compile (Join-Path $vibeRoot 'tradingview_futures_guard.py') (Join-Path $vibeRoot 'asset_research.py') (Join-Path $vibeRoot 'vibe_full_preflight.py')
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_PY_COMPILE_FAILED' }
+
+          $proc=Start-Process -FilePath $bridgeTarget -WorkingDirectory $bridgeRoot -PassThru
+          Start-Sleep -Seconds 5
+          if($proc.HasExited){ throw "BRIDGE_EXITED_EARLY:$($proc.ExitCode)" }
+
+          $stop=Join-Path $vibeRoot 'Stop-VibeNative.ps1'
+          $start=Join-Path $vibeRoot 'Start-VibeNative.ps1'
+          if((Test-Path $stop) -and (Test-Path $start)){
+            powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $stop | Out-Null
+            Start-Sleep -Seconds 2
+            powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $start
+          } else {
+            throw 'VIBE_SERVICE_SCRIPTS_MISSING'
+          }
+
+          Write-Output 'CYGNUS_STACK_DIRECT_INSTALL=PASS'
+          Write-Output 'BRIDGE_EXPECTED_VERSION=142-autonomy-v6.4-stack-control'
+          Write-Output 'SQX_PROCESS_TOUCHED=false'
+          Write-Output 'BROKER_EXECUTION=false'
+          PS1
+
+          B64="$(iconv -f UTF-8 -t UTF-16LE install.ps1 | base64 -w0)"
+          ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$USER@$HOST"             "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $B64"             | tee install-output.txt
+          grep -q 'CYGNUS_STACK_DIRECT_INSTALL=PASS' install-output.txt
