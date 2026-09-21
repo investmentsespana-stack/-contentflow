@@ -573,6 +573,22 @@ def _run_vibe_nq6_smoke(runtime: SqCliRuntime) -> dict[str, Any]:
 
 def _run_vibe_asset_research(payload: dict[str, Any]) -> dict[str, Any]:
     """Run fixed, allowlisted multi-asset Vibe research. No arbitrary prompt or shell input."""
+    action = str(payload.get("action") or "start").strip().lower()
+    if action not in VIBE_ASSET_ACTIONS:
+        raise RuntimeError(f"VIBE_ACTION_NOT_ALLOWED:{action}")
+
+    asset = ""
+    run_id = ""
+    if action == "start":
+        asset = str(payload.get("asset") or "").strip().upper()
+        asset = VIBE_ASSET_ALIASES.get(asset, asset)
+        if asset not in VIBE_ALLOWED_ASSETS:
+            raise RuntimeError(f"ASSET_NOT_ALLOWED:{asset}")
+    else:
+        run_id = str(payload.get("run_id") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9._:-]{1,160}", run_id):
+            raise RuntimeError("INVALID_RUN_ID")
+
     python_exe = VIBE_PYTHON.resolve()
     script = VIBE_ASSET_SCRIPT.resolve()
     root = VIBE_ROOT.resolve()
@@ -583,23 +599,10 @@ def _run_vibe_asset_research(payload: dict[str, Any]) -> dict[str, Any]:
     if root not in python_exe.parents or root not in script.parents:
         raise RuntimeError("VIBE_FIXED_PATH_POLICY_FAIL")
 
-    action = str(payload.get("action") or "start").strip().lower()
-    if action not in VIBE_ASSET_ACTIONS:
-        raise RuntimeError(f"VIBE_ACTION_NOT_ALLOWED:{action}")
-
     args = [str(python_exe), str(script), "--action", action, "--mcp-url", VIBE_MCP_URL]
-    asset = ""
-    run_id = ""
     if action == "start":
-        asset = str(payload.get("asset") or "").strip().upper()
-        asset = VIBE_ASSET_ALIASES.get(asset, asset)
-        if asset not in VIBE_ALLOWED_ASSETS:
-            raise RuntimeError(f"ASSET_NOT_ALLOWED:{asset}")
         args.extend(["--asset", asset])
     else:
-        run_id = str(payload.get("run_id") or "").strip()
-        if not re.fullmatch(r"[A-Za-z0-9._:-]{1,160}", run_id):
-            raise RuntimeError("INVALID_RUN_ID")
         args.extend(["--run-id", run_id])
 
     env = os.environ.copy()
