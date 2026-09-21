@@ -12,6 +12,13 @@ from typing import Any
 
 from fastmcp import Client
 
+from tradingview_futures_guard import (
+    build_snapshot_plan,
+    codex_policy_text,
+    resolve_route,
+    validate_timeframes,
+)
+
 ROOT = Path(r"C:\Cygnus\VibeTrading")
 STATE_ROOT = ROOT / "state"
 EVIDENCE_ROOT = ROOT / "evidence"
@@ -35,24 +42,32 @@ ASSETS: dict[str, dict[str, str]] = {
         "market": "WTI crude oil futures, NYMEX/CME",
         "preset": "cygnus_futures_strategy_lab",
         "goal": "discover diverse systematic CL strategies with real-data backtests, OOS validation and robustness evidence",
+        "tv_symbol": "NYMEX:CL1!",
+        "tv_category": "energy",
     },
     "ES": {
         "target": "ES=F",
         "market": "E-mini S&P 500 futures, CME",
         "preset": "cygnus_futures_strategy_lab",
         "goal": "discover diverse systematic ES strategies with real-data backtests, OOS validation and robustness evidence",
+        "tv_symbol": "CME:ES1!",
+        "tv_category": "equity_index",
     },
     "NQ": {
         "target": "NQ=F",
         "market": "E-mini Nasdaq-100 futures, CME",
         "preset": "cygnus_futures_strategy_lab",
         "goal": "discover diverse systematic NQ strategies with real-data backtests, OOS validation and robustness evidence",
+        "tv_symbol": "CME:NQ1!",
+        "tv_category": "equity_index",
     },
     "GC": {
         "target": "GC=F",
         "market": "Gold futures, COMEX",
         "preset": "cygnus_futures_strategy_lab",
         "goal": "discover diverse systematic GC strategies with real-data backtests, OOS validation and robustness evidence",
+        "tv_symbol": "COMEX:GC1!",
+        "tv_category": "metals",
     },
     "DXY": {
         "target": "DX-Y.NYB",
@@ -327,6 +342,25 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
         evidence["checks"]["llm_smoke"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     try:
+        plan = build_snapshot_plan()
+        validate_timeframes(("5m", "15m", "1h", "4h"))
+        route_consistency = all(
+            ASSETS[root].get("tv_symbol") == resolve_route(root).qualified_symbol
+            and ASSETS[root].get("tv_category") == resolve_route(root).category
+            for root in ("NQ", "ES", "GC", "CL")
+        )
+        evidence["checks"]["tradingview_futures_guard"] = {
+            "ok": route_consistency,
+            "plan": plan,
+            "policy": codex_policy_text(),
+        }
+    except Exception as exc:
+        evidence["checks"]["tradingview_futures_guard"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    try:
         async with Client(mcp_url) as client:
             await client.ping()
             tools = await client.list_tools()
@@ -427,6 +461,10 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
                     "target": meta["target"],
                     "market": meta["market"],
                     "goal": meta["goal"],
+                    "tv_symbol": meta["tv_symbol"],
+                    "tv_category": meta["tv_category"],
+                    "tv_policy": codex_policy_text(),
+                    "research_timeframes": ",".join(validate_timeframes(("5m", "15m", "1h", "4h"))),
                 },
                 "wait_seconds": 0,
                 "start_only": True,
