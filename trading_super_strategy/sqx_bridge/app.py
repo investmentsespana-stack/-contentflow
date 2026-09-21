@@ -499,12 +499,20 @@ def _freeze_databank_snapshot(cfg: BridgeConfig, project: str, databank: str, la
                 "size": len(before),
                 "sha256": before_sha,
             })
+        after_info = _databank_file_count(cfg, project, databank)
+        if int(after_info.get("records", -1)) != int(info.get("records", -2)):
+            raise RuntimeError(
+                f"SQX_FREEZE_DATABANK_CHANGED:before={info.get('records')}:after={after_info.get('records')}"
+            )
+
         manifest = {
             "project": project,
             "databank": databank,
             "label": safe_label,
             "created_at_epoch": time.time(),
             "strategy_count": len(entries),
+            "source_records_before": info.get("records"),
+            "source_records_after": after_info.get("records"),
             "source_path": str(source),
             "snapshot_path": str(snapshot_root),
             "files": entries,
