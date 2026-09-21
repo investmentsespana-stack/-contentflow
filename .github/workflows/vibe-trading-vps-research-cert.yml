@@ -33,19 +33,35 @@ jobs:
           vibe-trading --version
           vibe-trading serve --help
           vibe-trading-mcp --help
-      - name: Compile asset research runner
+      - name: Compile and inspect native Vibe control plane
         shell: pwsh
         run: |
-          python -m py_compile trading_super_strategy/vibe_trading/asset_research.py
-          python -c "import importlib.util, pathlib, pandas as pd, numpy as np; p=pathlib.Path('trading_super_strategy/vibe_trading/asset_research.py'); s=importlib.util.spec_from_file_location('ar',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); n=320; x=np.linspace(100,140,n)+np.sin(np.arange(n)/7)*3; df=pd.DataFrame({'date':pd.date_range('2025-01-01',periods=n),'open':x,'high':x+1,'low':x-1,'close':x}); cs=m._strategy_candidates(df); assert len(cs)>=10; row,_=m._evaluate_candidate('t',next(iter(cs.values())),df['close'].pct_change().fillna(0),int(n*.7),123); assert 'oos_30pct' in row; print('ASSET_RESEARCH_V62_DETERMINISTIC_PASS')"
+          python -m py_compile trading_super_strategy/vibe_trading/asset_research.py trading_super_strategy/vibe_trading/vibe_full_preflight.py
+          $env:VIBE_TRADING_HOME = "$PWD\.ci-vibe-state"
+          New-Item -ItemType Directory -Force "$env:VIBE_TRADING_HOME\swarm\presets" | Out-Null
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_native_smoke.yaml "$env:VIBE_TRADING_HOME\swarm\presets\"
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_futures_strategy_lab.yaml "$env:VIBE_TRADING_HOME\swarm\presets\"
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_dxy_macro_lab.yaml "$env:VIBE_TRADING_HOME\swarm\presets\"
+          python -c "from src.swarm.presets import inspect_preset; names=['cygnus_native_smoke','cygnus_futures_strategy_lab','cygnus_dxy_macro_lab']; reports=[inspect_preset(n) for n in names]; assert all(r.get('valid') for r in reports), reports; print('VIBE_NATIVE_PRESETS_PASS')"
+          python -c "import importlib.util,pathlib; p=pathlib.Path('trading_super_strategy/vibe_trading/asset_research.py'); s=importlib.util.spec_from_file_location('ar',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); assert set(m.ASSETS)=={'CL','ES','NQ','GC','DXY'}; assert m.ASSETS['DXY']['preset']=='cygnus_dxy_macro_lab'; print('VIBE_NATIVE_RUNNER_STATIC_PASS')"
       - name: Static safety assertions
         shell: pwsh
         run: |
-          $s = Get-Content trading_super_strategy/vibe_trading/install_vibe_trading_research.ps1 -Raw
+          $s = Get-Content trading_super_strategy/vibe_trading/Install-VibeNativeV7.ps1 -Raw
           if ($s -notmatch '127\.0\.0\.1') { throw 'loopback bind missing' }
           if ($s -notmatch 'VIBE_TRADING_ENABLE_SHELL_TOOLS.*0') { throw 'shell tools fail-closed missing' }
-          if ($s -notmatch 'RESEARCH_ONLY') { throw 'research-only policy missing' }
+          if ($s -notmatch 'LANGCHAIN_PROVIDER.*openai-codex') { throw 'native provider config missing' }
+          if ($s -notmatch 'LANGCHAIN_MODEL_NAME.*openai-codex/gpt-5\.4') { throw 'native model config missing' }
           if ($s -match 'mt5-live-trade|alpaca-live-trade|ibkr-live-trade') { throw 'live broker profile must not be installed' }
+          $presets = @(
+            'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml',
+            'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml',
+            'trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml'
+          )
+          foreach($p in $presets){
+            $t = Get-Content $p -Raw
+            if($t -match '\bbash\b|background_run|cancel_background'){ throw "shell-capable tool in $p" }
+          }
           Write-Host "SAFETY_ASSERTIONS_PASS"
       - name: NQ6 frozen MCP probe
         shell: pwsh
@@ -84,6 +100,17 @@ jobs:
           Copy-Item trading_super_strategy\vibe_trading\PATCH_VIBE_V61.cmd dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\PATCH_VIBE_V62.ps1 dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\PATCH_VIBE_V62.cmd dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\vibe_full_preflight.py dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_native_smoke.yaml dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_futures_strategy_lab.yaml dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_dxy_macro_lab.yaml dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Start-VibeNative.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Stop-VibeNative.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Vibe-Guardian.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Authorize-VibeCodex.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\AUTHORIZE_VIBE_CODEX.cmd dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Install-VibeNativeV7.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\INSTALL_VIBE_NATIVE_V7.cmd dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json dist\Cygnus-Vibe-Trading-Research\data\
       - uses: actions/upload-artifact@v4
         with:
