@@ -20,6 +20,12 @@ DEFAULT_MCP_URL = "http://127.0.0.1:8900/mcp"
 # Keep the Vibe worker runtime, OAuth store, swarm store and this control script
 # on the same canonical runtime root.
 os.environ["VIBE_TRADING_HOME"] = str(STATE_ROOT)
+# Force the native Vibe provider/model inside this fixed research process.
+# The long-running Bridge may carry stale environment variables from an older
+# Vibe install; explicit assignment here prevents them from overriding the
+# canonical Vibe configuration.
+os.environ["LANGCHAIN_PROVIDER"] = "openai-codex"
+os.environ["LANGCHAIN_MODEL_NAME"] = "openai-codex/gpt-5.4"
 os.environ["VIBE_TRADING_ENABLE_SHELL_TOOLS"] = "0"
 os.environ["CYGNUS_RESEARCH_ONLY"] = "1"
 
