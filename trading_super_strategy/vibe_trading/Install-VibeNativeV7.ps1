@@ -47,7 +47,7 @@ function Set-DotEnvValue([string]$Path,[string]$Key,[string]$Value){
 }
 
 Set-DotEnvValue $envFile "LANGCHAIN_PROVIDER" "openai-codex"
-Set-DotEnvValue $envFile "LANGCHAIN_MODEL_NAME" "openai-codex/gpt-5.4"
+Set-DotEnvValue $envFile "LANGCHAIN_MODEL_NAME" "openai-codex/gpt-5.6-terra"
 Set-DotEnvValue $envFile "LANGCHAIN_TEMPERATURE" "0"
 Set-DotEnvValue $envFile "TIMEOUT_SECONDS" "180"
 Set-DotEnvValue $envFile "MAX_RETRIES" "3"
@@ -61,7 +61,7 @@ Set-DotEnvValue $envFile "VIBE_TRADING_API_URL" "http://127.0.0.1:8899"
 $rootEnv = Join-Path $Root ".env"
 @(
   "LANGCHAIN_PROVIDER=openai-codex",
-  "LANGCHAIN_MODEL_NAME=openai-codex/gpt-5.4",
+  "LANGCHAIN_MODEL_NAME=openai-codex/gpt-5.6-terra",
   "LANGCHAIN_TEMPERATURE=0",
   "TIMEOUT_SECONDS=180",
   "MAX_RETRIES=3",
@@ -130,7 +130,7 @@ if($rc -eq 0){
   Write-Host "CYGNUS_VIBE_NATIVE_V7=PASS"
   Write-Host "NATIVE_AGENTS=true"
   Write-Host "PROVIDER=openai-codex"
-  Write-Host "MODEL=openai-codex/gpt-5.4"
+  Write-Host "MODEL=openai-codex/gpt-5.6-terra"
   Write-Host "RESEARCH_ONLY=true"
   Write-Host "LIVE=false"
   Write-Host "SHELL_TOOLS=false"

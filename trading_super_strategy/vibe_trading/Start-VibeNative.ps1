@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 
 $env:VIBE_TRADING_HOME = "$Root\state"
 $env:LANGCHAIN_PROVIDER = "openai-codex"
-$env:LANGCHAIN_MODEL_NAME = "openai-codex/gpt-5.4"
+$env:LANGCHAIN_MODEL_NAME = "openai-codex/gpt-5.6-terra"
 $env:VIBE_TRADING_ALLOWED_FILE_ROOTS = "$Root\data;$Root\evidence;$Root\state"
 $env:VIBE_TRADING_ALLOWED_RUN_ROOTS = "$Root\state\runs;$Root\data"
 $env:VIBE_TRADING_ENABLE_SHELL_TOOLS = "0"

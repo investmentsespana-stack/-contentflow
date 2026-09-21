@@ -25,7 +25,7 @@ os.environ["VIBE_TRADING_HOME"] = str(STATE_ROOT)
 # Vibe install; explicit assignment here prevents them from overriding the
 # canonical Vibe configuration.
 os.environ["LANGCHAIN_PROVIDER"] = "openai-codex"
-os.environ["LANGCHAIN_MODEL_NAME"] = "openai-codex/gpt-5.4"
+os.environ["LANGCHAIN_MODEL_NAME"] = "openai-codex/gpt-5.6-terra"
 os.environ["VIBE_TRADING_ENABLE_SHELL_TOOLS"] = "0"
 os.environ["CYGNUS_RESEARCH_ONLY"] = "1"
 
@@ -300,7 +300,7 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
         evidence["checks"]["provider"] = {
             "ok": (
                 provider.get("provider", "").lower().replace("_", "-") == "openai-codex"
-                and provider.get("model") == "openai-codex/gpt-5.4"
+                and provider.get("model") == "openai-codex/gpt-5.6-terra"
                 and provider.get("oauth_ready") is True
             ),
             **provider,
@@ -392,7 +392,7 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
     provider = _provider_snapshot()
     if not (
         provider.get("provider", "").lower().replace("_", "-") == "openai-codex"
-        and provider.get("model") == "openai-codex/gpt-5.4"
+        and provider.get("model") == "openai-codex/gpt-5.6-terra"
         and provider.get("oauth_ready") is True
     ):
         return {

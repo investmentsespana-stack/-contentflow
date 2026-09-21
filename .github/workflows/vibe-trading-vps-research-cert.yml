@@ -40,9 +40,13 @@ jobs:
           python -c "import importlib.util,pathlib; p=pathlib.Path('trading_super_strategy/vibe_trading/Vibe-Codex-DeviceAuth.py'); spec=importlib.util.spec_from_file_location('vibe_device_auth',p); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); assert m.DEVICE_VERIFY_URL=='https://auth.openai.com/codex/device'; assert m.DEVICE_REDIRECT_URI=='https://auth.openai.com/deviceauth/callback'; print('VIBE_DEVICE_AUTH_IMPORT_PASS')"
           $env:VIBE_TRADING_HOME = "$PWD\.ci-vibe-state"
           New-Item -ItemType Directory -Force "$env:VIBE_TRADING_HOME\swarm\presets" | Out-Null
+          New-Item -ItemType Directory -Force "$HOME\.vibe-trading\swarm\presets" | Out-Null
           Copy-Item trading_super_strategy\vibe_trading\cygnus_native_smoke.yaml "$env:VIBE_TRADING_HOME\swarm\presets\"
           Copy-Item trading_super_strategy\vibe_trading\cygnus_futures_strategy_lab.yaml "$env:VIBE_TRADING_HOME\swarm\presets\"
           Copy-Item trading_super_strategy\vibe_trading\cygnus_dxy_macro_lab.yaml "$env:VIBE_TRADING_HOME\swarm\presets\"
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_native_smoke.yaml "$HOME\.vibe-trading\swarm\presets\"
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_futures_strategy_lab.yaml "$HOME\.vibe-trading\swarm\presets\"
+          Copy-Item trading_super_strategy\vibe_trading\cygnus_dxy_macro_lab.yaml "$HOME\.vibe-trading\swarm\presets\"
           python -c "from src.swarm.presets import inspect_preset; names=['cygnus_native_smoke','cygnus_futures_strategy_lab','cygnus_dxy_macro_lab']; reports=[inspect_preset(n) for n in names]; assert all(r.get('valid') for r in reports), reports; print('VIBE_NATIVE_PRESETS_PASS')"
           python -c "import importlib.util,pathlib; p=pathlib.Path('trading_super_strategy/vibe_trading/asset_research.py'); s=importlib.util.spec_from_file_location('ar',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); assert set(m.ASSETS)=={'CL','ES','NQ','GC','DXY'}; assert m.ASSETS['DXY']['preset']=='cygnus_dxy_macro_lab'; print('VIBE_NATIVE_RUNNER_STATIC_PASS')"
       - name: Static safety assertions
@@ -52,15 +56,18 @@ jobs:
           if ($s -notmatch '127\.0\.0\.1') { throw 'loopback bind missing' }
           if ($s -notmatch 'VIBE_TRADING_ENABLE_SHELL_TOOLS.*0') { throw 'shell tools fail-closed missing' }
           if ($s -notmatch 'LANGCHAIN_PROVIDER.*openai-codex') { throw 'native provider config missing' }
-          if ($s -notmatch 'LANGCHAIN_MODEL_NAME.*openai-codex/gpt-5\.4') { throw 'native model config missing' }
+          if ($s -notmatch 'LANGCHAIN_MODEL_NAME.*openai-codex/gpt-5\.6-terra') { throw 'native model config missing' }
           $runner = Get-Content trading_super_strategy/vibe_trading/asset_research.py -Raw
           if ($runner -notmatch 'os\.environ\["LANGCHAIN_PROVIDER"\]\s*=\s*"openai-codex"') { throw 'runner provider pin missing' }
-          if ($runner -notmatch 'os\.environ\["LANGCHAIN_MODEL_NAME"\]\s*=\s*"openai-codex/gpt-5\.4"') { throw 'runner model pin missing' }
+          if ($runner -notmatch 'os\.environ\["LANGCHAIN_MODEL_NAME"\]\s*=\s*"openai-codex/gpt-5\.6-terra"') { throw 'runner model pin missing' }
           if ($s -match 'mt5-live-trade|alpaca-live-trade|ibkr-live-trade') { throw 'live broker profile must not be installed' }
           $auth = Get-Content trading_super_strategy/vibe_trading/Vibe-Codex-DeviceAuth.py -Raw
           if ($auth -notmatch '_build_codex_token_storage') { throw 'device auth must use Vibe-owned storage' }
           if ($auth -match '\\.codex[/\\\\]auth\\.json') { throw 'device auth must not copy Codex CLI token' }
           if ($auth -notmatch 'deviceauth/usercode' -or $auth -notmatch 'deviceauth/token' -or $auth -notmatch 'deviceauth/callback') { throw 'device auth endpoints missing' }
+          $v73 = Get-Content trading_super_strategy/vibe_trading/Patch-VibeNativeV73.ps1 -Raw
+          if ($v73 -notmatch '\$HOME.*\.vibe-trading\\swarm\\presets') { throw 'V7.3 must install presets into Vibe 0.1.15 user preset path' }
+          if ($v73 -notmatch 'openai-codex/gpt-5\.6-terra') { throw 'V7.3 supported ChatGPT Codex model missing' }
           $presets = @(
             'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml',
             'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml',
@@ -124,6 +131,8 @@ jobs:
           Copy-Item trading_super_strategy\vibe_trading\Vibe-Codex-DeviceAuth.py dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\Patch-VibeNativeV72.ps1 dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\PATCH_VIBE_NATIVE_V72.cmd dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\Patch-VibeNativeV73.ps1 dist\Cygnus-Vibe-Trading-Research\
+          Copy-Item trading_super_strategy\vibe_trading\PATCH_VIBE_NATIVE_V73.cmd dist\Cygnus-Vibe-Trading-Research\
           Copy-Item trading_super_strategy\vibe_trading\data\nq6_frozen_manifest.json dist\Cygnus-Vibe-Trading-Research\data\
       - uses: actions/upload-artifact@v4
         with:
