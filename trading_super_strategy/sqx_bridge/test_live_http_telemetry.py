@@ -56,6 +56,18 @@ class LiveTelemetryTests(unittest.TestCase):
         self.assertIn("%20", out)
         self.assertNotIn("+action", out)
 
+    @mock.patch.object(module, "_sqx_http_call")
+    def test_project_control_uses_single_quoted_name(self, http_call):
+        http_call.return_value = {
+            "returncode": 0,
+            "stdout": "Project GOLD BREAKOUT M30 - Dukascopy stopped",
+            "stderr": "",
+        }
+        module._sqx_http_project_control("stop", "GOLD BREAKOUT M30 - Dukascopy")
+        sent = http_call.call_args.args[0]
+        self.assertIn("name='GOLD BREAKOUT M30 - Dukascopy'", sent)
+        self.assertNotIn('name="GOLD BREAKOUT M30 - Dukascopy"', sent)
+
     def test_http_value_is_fail_closed(self):
         self.assertEqual(
             module._sqx_http_value("GOLD BREAKOUT M30 - Dukascopy", "project", "status_project"),
