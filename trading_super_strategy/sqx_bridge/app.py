@@ -80,6 +80,10 @@ RESEARCH_CONTROL = {
     "move_databank",
     "freeze_databank",
     "live_project_control",
+    "sync_vibe_runtime",
+    "start_vibe",
+    "stop_vibe",
+    "restart_vibe",
 }
 ALLOWLIST = READ_ONLY | RESEARCH_CONTROL
 
