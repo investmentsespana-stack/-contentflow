@@ -56,8 +56,10 @@ agents:
       research timeframes are supplied in the task prompt. Treat those task-prompt
       values as authoritative for this run.
 
-      Materialize and run real backtests with the Vibe backtest tool. Use source="auto"
-      for Yahoo continuous futures symbols ending =F so the GlobalFutures engine is selected.
+      Materialize and run real backtests with the Vibe backtest tool. For Yahoo continuous
+      futures symbols ending =F, config.json MUST use source="yahoo". Never use source="auto",
+      "akshare", or "tushare" for these candidates. Vibe 0.1.15 can route =F correctly through
+      Yahoo, while its generic futures auto backtest chain does not include Yahoo.
       Preserve an explicit evaluation window and warmup separation. Include realistic
       commission/slippage assumptions and chronological OOS validation.
 
@@ -176,6 +178,8 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Mandatory backtest data source: {backtest_source}. Every candidate config.json must set
+      "source": "{backtest_source}" and preserve the exact {target} symbol.
       Candidate run directories MUST be relative to this agent workspace in the form
       runs/<candidate_id>; write config.json and code/signal_engine.py under that same
       relative directory, then call backtest with run_dir="runs/<candidate_id>".
@@ -230,4 +234,7 @@ variables:
     required: true
   - name: research_timeframes
     description: "Mandatory multitimeframe research set: 5m,15m,1h,4h"
+    required: true
+  - name: backtest_source
+    description: "Pinned backtest source for Yahoo continuous futures (=F); must be yahoo"
     required: true
