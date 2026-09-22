@@ -303,7 +303,7 @@ def _sqx_http_project_control(action: str, project: str) -> dict[str, Any]:
     if action not in {"start", "stop", "pause", "resume"}:
         raise RuntimeError(f"SQX_HTTP_CONTROL_ACTION_BLOCKED:{action}")
     safe_project = _sqx_http_value(project, "project", f"http_{action}_project")
-    result = _sqx_http_call(f'-project action={action} name="{safe_project}"')
+    result = _sqx_http_call(f"-project action={action} name='{safe_project}'")
     text = "\n".join(x for x in (result.get("stdout", ""), result.get("stderr", "")) if x)
     lowered = text.lower()
     failure_tokens = (
@@ -1174,7 +1174,7 @@ def _stack_health(cfg: BridgeConfig) -> dict[str, Any]:
         "returncode": 0,
         "stdout": "STACK_HEALTH_CHECKED",
         "stderr": "",
-        "bridge_version": "142-autonomy-v6.4-stack-control",
+        "bridge_version": "142-autonomy-v6.4.1-stack-control",
         "strategyquant": {"http_alive": sqx_alive, "probe_excerpt": sqx_probe[:800]},
         "vibe": {
             "python_present": vibe_python,
@@ -1347,7 +1347,7 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
             safe_project = _sqx_http_value(project, "project", name)
             live_instance, _ = _sqx_instance_alive()
             if live_instance:
-                result = _sqx_http_call(f'-project action=status name="{safe_project}"')
+                result = _sqx_http_call(f"-project action=status name='{safe_project}'")
                 extra["transport"] = "sqx_http_api"
                 extra["attached_existing_instance"] = True
                 extra["status_metrics"] = _parse_sqx_status_metrics(result.get("stdout", ""))
@@ -1377,7 +1377,7 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
                         cfg,
                         runtime,
                         command_name=name,
-                        http_command=f'-project action=status name="{safe_project}"',
+                        http_command=f"-project action=status name='{safe_project}'",
                         sqcli_args=["-project", "action=status", f"name={project}"],
                         timeout=180,
                     )
@@ -1752,7 +1752,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6.4-stack-control",
+            "bridge_version": "142-autonomy-v6.4.1-stack-control",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
