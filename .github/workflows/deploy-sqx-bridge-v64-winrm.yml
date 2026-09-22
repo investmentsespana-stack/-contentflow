@@ -1,0 +1,308 @@
+name: Deploy SQX Bridge V6.4 via WinRM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-sqx-bridge-v64-winrm.yml'
+      - 'trading_super_strategy/sqx_bridge/app.py'
+      - 'trading_super_strategy/sqx_bridge/test_live_http_telemetry.py'
+      - 'trading_super_strategy/sqx_bridge/test_startup_gate.py'
+      - 'trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py'
+      - 'trading_super_strategy/vibe_trading/asset_research.py'
+      - 'trading_super_strategy/vibe_trading/tradingview_futures_guard.py'
+      - 'trading_super_strategy/vibe_trading/vibe_full_preflight.py'
+      - 'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml'
+      - 'trading_super_strategy/vibe_trading/Start-VibeNative.ps1'
+      - 'trading_super_strategy/vibe_trading/Stop-VibeNative.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: sqx-bridge-v64-winrm
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build and certify bridge
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r trading_super_strategy/sqx_bridge/requirements.txt pyinstaller
+          python -m py_compile trading_super_strategy/sqx_bridge/app.py
+          python trading_super_strategy/sqx_bridge/test_startup_gate.py
+          python trading_super_strategy/sqx_bridge/test_live_http_telemetry.py
+          python trading_super_strategy/sqx_bridge/test_resource_repair.py
+          python trading_super_strategy/sqx_bridge/test_vibe_nq6_bridge_gate.py
+          python trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py
+          python -m py_compile trading_super_strategy/vibe_trading/tradingview_futures_guard.py trading_super_strategy/vibe_trading/asset_research.py trading_super_strategy/vibe_trading/vibe_full_preflight.py
+
+          pyinstaller --noconfirm --clean --onefile --windowed --name CygnusSQXBridge --collect-all keyring trading_super_strategy/sqx_bridge/app.py
+
+          New-Item -ItemType Directory -Force deploy | Out-Null
+          Copy-Item dist/CygnusSQXBridge.exe deploy/CygnusSQXBridge.exe
+          Copy-Item trading_super_strategy/vibe_trading/asset_research.py deploy/asset_research.py
+          Copy-Item trading_super_strategy/vibe_trading/tradingview_futures_guard.py deploy/tradingview_futures_guard.py
+          Copy-Item trading_super_strategy/vibe_trading/vibe_full_preflight.py deploy/vibe_full_preflight.py
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml deploy/cygnus_native_smoke.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml deploy/cygnus_futures_strategy_lab.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml deploy/cygnus_dxy_macro_lab.yaml
+          Copy-Item trading_super_strategy/vibe_trading/Start-VibeNative.ps1 deploy/Start-VibeNative.ps1
+          Copy-Item trading_super_strategy/vibe_trading/Stop-VibeNative.ps1 deploy/Stop-VibeNative.ps1
+
+          $manifest = @{
+            bridge_version='142-autonomy-v6.4-stack-control'
+            git_sha='${{ github.sha }}'
+            research_only=$true
+            broker_execution=$false
+            arbitrary_shell=$false
+            files=@{}
+          }
+          Get-ChildItem deploy -File | ForEach-Object {
+            $manifest.files[$_.Name] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+          }
+          $manifest | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 deploy/deploy_manifest.json
+
+      - name: Upload deployment payload
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cygnus-bridge-v64-winrm
+          path: deploy/
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Obtain GitHub OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sqx-deploy-target');
+            core.setSecret(token);
+            core.setOutput('token', token);
+
+      - name: Resolve exact VPS target
+        id: target
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -fsS -H "Authorization: Bearer $OIDC_TOKEN"             "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-deploy-target" > target.json
+          test "$(jq -r '.ok' target.json)" = "true"
+          test "$(jq -r '.device_name' target.json)" = "WIN-31RCI8K7JR2"
+          HOST="$(jq -r '.target_ip' target.json)"
+          test -n "$HOST"
+          echo "::add-mask::$HOST"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+          echo "TARGET_DEVICE=WIN-31RCI8K7JR2"
+
+      - name: Resolve temporary signed artifact URL
+        id: artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          test -n "$ARTIFACT_ID"
+          curl -sS -D headers.txt -o /dev/null             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT_ID/zip"
+          URL="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]*:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' headers.txt)"
+          test -n "$URL"
+          echo "::add-mask::$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate WinRM and install directly
+        shell: bash
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+          WINDOWS_USER: ${{ secrets.WINDOWS_VPS_USER }}
+          WINDOWS_PASSWORD: ${{ secrets.WINDOWS_VPS_PASSWORD }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.url }}
+        run: |
+          set -euo pipefail
+          test -n "$WINDOWS_USER" || { echo "WINDOWS_VPS_USER secret is missing"; exit 20; }
+          test -n "$WINDOWS_PASSWORD" || { echo "WINDOWS_VPS_PASSWORD secret is missing"; exit 21; }
+          python3 -m pip install --quiet pywinrm requests-ntlm
+
+          cat > /tmp/deploy_winrm.py <<'PY'
+          import json, os, sys, time
+          import winrm
+
+          host=os.environ["HOST"]
+          user=os.environ["WINDOWS_USER"]
+          password=os.environ["WINDOWS_PASSWORD"]
+          artifact_url=os.environ["ARTIFACT_URL"]
+          endpoint=f"http://{host}:5985/wsman"
+
+          candidates=[user]
+          if "\\" not in user and "@" not in user:
+              candidates += [f".\\{user}", f"WIN-31RCI8K7JR2\\{user}"]
+
+          session=None
+          chosen=None
+          errors=[]
+          for candidate in candidates:
+              try:
+                  s=winrm.Session(
+                      endpoint,
+                      auth=(candidate,password),
+                      transport="ntlm",
+                      read_timeout_sec=180,
+                      operation_timeout_sec=120,
+                  )
+                  r=s.run_ps("$env:COMPUTERNAME")
+                  out=(r.std_out or b"").decode("utf-8","replace").strip()
+                  err=(r.std_err or b"").decode("utf-8","replace").strip()
+                  if r.status_code==0 and out.upper()=="WIN-31RCI8K7JR2":
+                      session=s
+                      chosen=candidate
+                      break
+                  errors.append(f"{candidate}:rc={r.status_code}:host={out}:err={err[:300]}")
+              except Exception as exc:
+                  errors.append(f"{candidate}:{type(exc).__name__}:{exc}")
+
+          if session is None:
+              print("WINRM_AUTH_FAILED")
+              for e in errors:
+                  print(e)
+              sys.exit(22)
+
+          print("WINRM_TARGET_VERIFIED=true")
+          safe_url=artifact_url.replace("'","''")
+          ps=r"""
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'WIN-31RCI8K7JR2'){ throw "WRONG_TARGET:$env:COMPUTERNAME" }
+
+          $url='__ARTIFACT_URL__'
+          $stamp=Get-Date -Format 'yyyyMMddHHmmss'
+          $stage=Join-Path $env:TEMP ("CygnusBridgeV64-"+$stamp)
+          $zip=Join-Path $stage 'payload.zip'
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+          $payload=Join-Path $stage 'payload'
+          Expand-Archive -Path $zip -DestinationPath $payload -Force
+
+          $manifestPath=Get-ChildItem $payload -Filter deploy_manifest.json -Recurse -File | Select-Object -First 1 -ExpandProperty FullName
+          if(-not $manifestPath){ throw 'DEPLOY_MANIFEST_MISSING' }
+          $manifest=Get-Content $manifestPath -Raw | ConvertFrom-Json
+          if($manifest.bridge_version -ne '142-autonomy-v6.4-stack-control'){ throw "WRONG_BRIDGE_VERSION:$($manifest.bridge_version)" }
+          if($manifest.research_only -ne $true){ throw 'RESEARCH_ONLY_ASSERTION_FAILED' }
+          if($manifest.broker_execution -ne $false){ throw 'BROKER_EXECUTION_ASSERTION_FAILED' }
+          if($manifest.arbitrary_shell -ne $false){ throw 'ARBITRARY_SHELL_ASSERTION_FAILED' }
+
+          $exe=Get-ChildItem $payload -Filter CygnusSQXBridge.exe -Recurse -File | Select-Object -First 1 -ExpandProperty FullName
+          if(-not $exe){ throw 'BRIDGE_EXE_MISSING' }
+          $exeHash=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          if($exeHash -ne [string]$manifest.files.'CygnusSQXBridge.exe'){ throw 'BRIDGE_EXE_HASH_MISMATCH' }
+
+          $config=Join-Path $env:APPDATA 'CygnusSQXBridge\config.json'
+          if(-not (Test-Path $config -PathType Leaf)){ throw "PAIRING_CONFIG_MISSING:$config" }
+
+          $vibeRoot='C:\Cygnus\VibeTrading'
+          $vibePython=Join-Path $vibeRoot '.venv\Scripts\python.exe'
+          if(-not (Test-Path $vibePython -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$vibePython" }
+
+          $bridgeProc=Get-CimInstance Win32_Process -Filter "Name='CygnusSQXBridge.exe'" | Select-Object -First 1
+          $currentPath=$null
+          if($bridgeProc -and $bridgeProc.ExecutablePath){ $currentPath=[string]$bridgeProc.ExecutablePath }
+          if(-not $currentPath){ $currentPath='C:\Cygnus\SQXBridge\CygnusSQXBridge.exe' }
+          $bridgeRoot=Split-Path $currentPath -Parent
+          New-Item -ItemType Directory -Force $bridgeRoot | Out-Null
+
+          if(Test-Path $currentPath){
+            Copy-Item $currentPath ($currentPath+".backup-"+$stamp) -Force
+          }
+
+          Get-Process -Name 'CygnusSQXBridge' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+
+          $tmpBridge=$currentPath+'.cygnus_tmp'
+          Copy-Item $exe $tmpBridge -Force
+          if((Get-FileHash $tmpBridge -Algorithm SHA256).Hash.ToLower() -ne $exeHash){ throw 'BRIDGE_TEMP_HASH_MISMATCH' }
+          Move-Item $tmpBridge $currentPath -Force
+
+          foreach($name in @('asset_research.py','tradingview_futures_guard.py','vibe_full_preflight.py','Start-VibeNative.ps1','Stop-VibeNative.ps1')){
+            $src=Get-ChildItem $payload -Filter $name -Recurse -File | Select-Object -First 1 -ExpandProperty FullName
+            if(-not $src){ throw "PAYLOAD_FILE_MISSING:$name" }
+            $expected=[string]$manifest.files.$name
+            if((Get-FileHash $src -Algorithm SHA256).Hash.ToLower() -ne $expected){ throw "PAYLOAD_HASH_MISMATCH:$name" }
+            $dest=Join-Path $vibeRoot $name
+            if(Test-Path $dest){ Copy-Item $dest ($dest+".backup-"+$stamp) -Force }
+            $tmp=$dest+'.cygnus_tmp'
+            Copy-Item $src $tmp -Force
+            Move-Item $tmp $dest -Force
+          }
+
+          $presetUser=Join-Path $HOME '.vibe-trading\swarm\presets'
+          $presetState=Join-Path $vibeRoot 'state\swarm\presets'
+          New-Item -ItemType Directory -Force $presetUser,$presetState | Out-Null
+          foreach($name in @('cygnus_native_smoke.yaml','cygnus_futures_strategy_lab.yaml','cygnus_dxy_macro_lab.yaml')){
+            $src=Get-ChildItem $payload -Filter $name -Recurse -File | Select-Object -First 1 -ExpandProperty FullName
+            if(-not $src){ throw "PRESET_MISSING:$name" }
+            $expected=[string]$manifest.files.$name
+            if((Get-FileHash $src -Algorithm SHA256).Hash.ToLower() -ne $expected){ throw "PRESET_HASH_MISMATCH:$name" }
+            Copy-Item $src (Join-Path $presetUser $name) -Force
+            Copy-Item $src (Join-Path $presetState $name) -Force
+          }
+
+          & $vibePython -m py_compile (Join-Path $vibeRoot 'tradingview_futures_guard.py') (Join-Path $vibeRoot 'asset_research.py') (Join-Path $vibeRoot 'vibe_full_preflight.py')
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_PY_COMPILE_FAILED' }
+
+          $newProc=Start-Process -FilePath $currentPath -WorkingDirectory $bridgeRoot -PassThru
+          Start-Sleep -Seconds 7
+          if($newProc.HasExited){ throw "BRIDGE_EXITED_EARLY:$($newProc.ExitCode)" }
+
+          Write-Output "CYGNUS_WINRM_INSTALL=PASS"
+          Write-Output "TARGET_DEVICE=$env:COMPUTERNAME"
+          Write-Output "BRIDGE_PATH=$currentPath"
+          Write-Output "BRIDGE_SHA256=$exeHash"
+          Write-Output "BRIDGE_PID=$($newProc.Id)"
+          Write-Output "VIBE_SYNC=PASS"
+          Write-Output "SQX_PROCESS_TOUCHED=false"
+          Write-Output "BROKER_EXECUTION=false"
+          """ .replace("__ARTIFACT_URL__",safe_url)
+
+          result=session.run_ps(ps)
+          out=(result.std_out or b"").decode("utf-8","replace")
+          err=(result.std_err or b"").decode("utf-8","replace")
+          print(out)
+          if err.strip():
+              print(err,file=sys.stderr)
+          if result.status_code!=0 or "CYGNUS_WINRM_INSTALL=PASS" not in out:
+              sys.exit(23)
+          PY
+
+          python3 /tmp/deploy_winrm.py
+
+      - name: Deployment assertion
+        shell: bash
+        run: |
+          echo "WINRM_DEPLOYMENT=PASS"
+          echo "EXPECTED_BRIDGE_VERSION=142-autonomy-v6.4-stack-control"
+          echo "RESEARCH_ONLY=true"
+          echo "BROKER_EXECUTION=false"
