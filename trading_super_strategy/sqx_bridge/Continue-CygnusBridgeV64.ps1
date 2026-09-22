@@ -1,6 +1,36 @@
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 
+function Invoke-NativeChecked {
+  param(
+    [Parameter(Mandatory=$true)][string]$FilePath,
+    [Parameter(Mandatory=$true)][string[]]$ArgumentList,
+    [Parameter(Mandatory=$true)][string]$Label,
+    [string]$WorkingDirectory = ''
+  )
+  $stdout=Join-Path $env:TEMP ("cygnus-"+[guid]::NewGuid().ToString()+".out")
+  $stderr=Join-Path $env:TEMP ("cygnus-"+[guid]::NewGuid().ToString()+".err")
+  try {
+    $sp=@{
+      FilePath=$FilePath
+      ArgumentList=$ArgumentList
+      Wait=$true
+      PassThru=$true
+      RedirectStandardOutput=$stdout
+      RedirectStandardError=$stderr
+      WindowStyle='Hidden'
+    }
+    if($WorkingDirectory){ $sp.WorkingDirectory=$WorkingDirectory }
+    $p=Start-Process @sp
+    if(Test-Path $stdout){ Get-Content $stdout | Out-Host }
+    if(Test-Path $stderr){ Get-Content $stderr | Out-Host }
+    if($p.ExitCode -ne 0){ throw "$Label RC=$($p.ExitCode)" }
+  }
+  finally {
+    Remove-Item $stdout,$stderr -Force -ErrorAction SilentlyContinue
+  }
+}
+
 if($env:COMPUTERNAME -ne 'WIN-31RCI8K7JR2'){ throw "VPS_INCORRECTO:$env:COMPUTERNAME" }
 
 $stage=Get-ChildItem $env:TEMP -Directory -Filter 'CygnusBridgeV64-*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -15,22 +45,18 @@ $py=Join-Path $vibeRoot '.venv\Scripts\python.exe'
 if(-not (Test-Path $py)){ throw "PYTHON_VIBE_NO_ENCONTRADO:$py" }
 
 Write-Host '3/8 Instalando PyInstaller en el entorno existente...'
-& $py -m pip install --disable-pip-version-check pyinstaller
-if($LASTEXITCODE -ne 0){ throw 'PYINSTALLER_INSTALL_FAIL' }
+Invoke-NativeChecked -FilePath $py -ArgumentList @('-m','pip','install','--disable-pip-version-check','pyinstaller') -Label 'PYINSTALLER_INSTALL_FAIL'
 
 Write-Host '4/8 Ejecutando pruebas...'
 Push-Location $sqx
 try {
-  & $py -m py_compile app.py
-  if($LASTEXITCODE -ne 0){ throw 'APP_COMPILE_FAIL' }
+  Invoke-NativeChecked -FilePath $py -ArgumentList @('-m','py_compile','app.py') -Label 'APP_COMPILE_FAIL' -WorkingDirectory $sqx
   foreach($test in @('test_startup_gate.py','test_live_http_telemetry.py','test_resource_repair.py','test_vibe_nq6_bridge_gate.py','test_vibe_asset_bridge_gate.py')){
     Write-Host "TEST $test"
-    & $py $test
-    if($LASTEXITCODE -ne 0){ throw "TEST_FAIL:$test" }
+    Invoke-NativeChecked -FilePath $py -ArgumentList @($test) -Label "TEST_FAIL:$test" -WorkingDirectory $sqx
   }
   Write-Host '5/8 Compilando puente V6.4...'
-  & $py -m PyInstaller --noconfirm --clean --onefile --windowed --name CygnusSQXBridge --collect-all keyring app.py
-  if($LASTEXITCODE -ne 0){ throw 'PYINSTALLER_FAIL' }
+  Invoke-NativeChecked -FilePath $py -ArgumentList @('-m','PyInstaller','--noconfirm','--clean','--onefile','--windowed','--name','CygnusSQXBridge','--collect-all','keyring','app.py') -Label 'PYINSTALLER_FAIL' -WorkingDirectory $sqx
 } finally { Pop-Location }
 
 $newExe=Join-Path $sqx 'dist\CygnusSQXBridge.exe'
@@ -48,8 +74,7 @@ foreach($name in @('cygnus_native_smoke.yaml','cygnus_futures_strategy_lab.yaml'
   Copy-Item (Join-Path $vibeSource $name) (Join-Path $presetUser $name) -Force
   Copy-Item (Join-Path $vibeSource $name) (Join-Path $presetState $name) -Force
 }
-& $py -m py_compile (Join-Path $vibeRoot 'asset_research.py') (Join-Path $vibeRoot 'tradingview_futures_guard.py') (Join-Path $vibeRoot 'vibe_full_preflight.py')
-if($LASTEXITCODE -ne 0){ throw 'VIBE_COMPILE_FAIL' }
+Invoke-NativeChecked -FilePath $py -ArgumentList @('-m','py_compile',(Join-Path $vibeRoot 'asset_research.py'),(Join-Path $vibeRoot 'tradingview_futures_guard.py'),(Join-Path $vibeRoot 'vibe_full_preflight.py')) -Label 'VIBE_COMPILE_FAIL'
 
 Write-Host '7/8 Reemplazando puente...'
 $proc=Get-CimInstance Win32_Process -Filter "Name='CygnusSQXBridge.exe'" | Select-Object -First 1
