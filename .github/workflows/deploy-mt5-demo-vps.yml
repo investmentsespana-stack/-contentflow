@@ -1,0 +1,110 @@
+name: Deploy MT5 Demo MultiTerminal to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-mt5-demo-vps.yml'
+      - 'trading_super_strategy/mt5_demo/setup_mt5_demo.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: mt5-demo-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain GitHub OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sqx-deploy-target');
+            core.setSecret(token);
+            core.setOutput('token', token);
+
+      - name: Resolve active VPS target securely
+        id: target
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -fsS -H "Authorization: Bearer $OIDC_TOKEN"             "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-deploy-target" > target.json
+          test "$(jq -r '.ok' target.json)" = "true"
+          test "$(jq -r '.device_name' target.json)" = "WIN-31RCI8K7JR2"
+          HOST="$(jq -r '.target_ip' target.json)"
+          test -n "$HOST"
+          echo "::add-mask::$HOST"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+
+      - name: Verify SSH and deploy MT5 demo terminals
+        shell: bash
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+          SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          KEY=~/.ssh/cygnus_mt5_deploy
+          printf '%s' "$SSH_PRIVATE_KEY" > "$KEY"
+          chmod 600 "$KEY"
+
+          USER_OK=""
+          for USER in Administrator administrator; do
+            if ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "$USER@$HOST"               'powershell.exe -NoLogo -NoProfile -Command "$env:COMPUTERNAME"' > host.txt 2>&1; then
+              if grep -qi 'WIN-31RCI8K7JR2' host.txt; then
+                USER_OK="$USER"
+                break
+              fi
+            fi
+          done
+          test -n "$USER_OK" || { echo "SSH_AUTH_NOT_AVAILABLE"; exit 4; }
+
+          scp -i "$KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new             trading_super_strategy/mt5_demo/setup_mt5_demo.ps1 "$USER_OK@$HOST:setup_mt5_demo.ps1"
+
+          cat > run-mt5-demo.ps1 <<'PS1'
+          $ErrorActionPreference='Stop'
+          $script=Join-Path $HOME 'setup_mt5_demo.ps1'
+          if(-not (Test-Path $script -PathType Leaf)){ throw "SETUP_SCRIPT_MISSING:$script" }
+
+          $roots=@('C:\Program Files','C:\Program Files (x86)') | Where-Object { Test-Path $_ }
+          $terminal=$null
+          foreach($root in $roots){
+            $terminal=Get-ChildItem -Path $root -Filter terminal64.exe -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if($terminal){ break }
+          }
+          if(-not $terminal){
+            Write-Output 'MT5_BASE_NOT_FOUND'
+            exit 5
+          }
+
+          $source=$terminal.Directory.FullName
+          Write-Output "MT5_BASE=$source"
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $script -Source "$source" -Copies 3 -Root 'C:\Trading'
+          if($LASTEXITCODE -ne 0){ throw "MT5_SETUP_FAILED:$LASTEXITCODE" }
+
+          foreach($n in @('MT5-DEMO-01','MT5-DEMO-02','MT5-DEMO-03')){
+            $exe=Join-Path (Join-Path 'C:\Trading' $n) 'terminal64.exe'
+            if(-not (Test-Path $exe -PathType Leaf)){ throw "VERIFY_FAILED:$exe" }
+          }
+          if(-not (Test-Path 'C:\Trading\ABRIR-TODOS-DEMO.cmd' -PathType Leaf)){
+            throw 'VERIFY_FAILED:ABRIR-TODOS-DEMO.cmd'
+          }
+          Write-Output 'MT5_DEMO_MULTITERMINAL=PASS'
+          Write-Output 'COPIES=3'
+          Write-Output 'ROOT=C:\Trading'
+          PS1
+
+          B64="$(iconv -f UTF-8 -t UTF-16LE run-mt5-demo.ps1 | base64 -w0)"
+          ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$USER_OK@$HOST"             "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $B64" | tee mt5-output.txt
+          grep -q 'MT5_DEMO_MULTITERMINAL=PASS' mt5-output.txt
