@@ -1,0 +1,45 @@
+name: Inspect DXY CFX Evidence
+
+on:
+  push:
+    branches: [sqx-custom-project-inspection]
+    paths:
+      - '.github/workflows/inspect-dxy-cfx-evidence.yml'
+      - 'tmp_evidence/DXY_CFD_H1_Dukascopy.cfx.b64'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode and inspect CFX
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d tmp_evidence/DXY_CFD_H1_Dukascopy.cfx.b64 > /tmp/dxy.cfx
+          python3 - <<'PY'
+          import re, zipfile, pathlib, xml.etree.ElementTree as ET
+          p=pathlib.Path('/tmp/dxy.cfx')
+          print('CFX_SIZE',p.stat().st_size)
+          with zipfile.ZipFile(p) as z:
+              print('ZIP_ENTRIES',len(z.namelist()))
+              for n in z.namelist():
+                  print('ENTRY',n)
+              texts=[]
+              for n in z.namelist():
+                  if n.lower().endswith(('.xml','.json','.txt','.cfg','.properties')):
+                      raw=z.read(n)
+                      try: t=raw.decode('utf-8')
+                      except: t=raw.decode('cp1252','replace')
+                      texts.append((n,t))
+              needles=['monte carlo','montecarlo','retest','builder','build strategies','walk forward','oos','slippage','databank','goto','go to task','loop','symbol','instrument','dxy','dukascopy','timeframe']
+              for n,t in texts:
+                  low=t.lower()
+                  for needle in needles:
+                      if needle in low:
+                          print('MATCH',needle,'FILE',n)
+                          for m in re.finditer(re.escape(needle),low):
+                              a=max(0,m.start()-180); b=min(len(t),m.end()+320)
+                              print(re.sub(r'\s+',' ',t[a:b]).strip())
+                              break
+          PY
