@@ -302,7 +302,7 @@ def _futures_preset_contract() -> dict[str, Any]:
         task_id: [
             token for token in (
                 "{target}", "{tv_symbol}", "{tv_category}",
-                "{tv_policy}", "{research_timeframes}", "{backtest_source}",
+                "{tv_policy}", "{research_timeframes}",
             )
             if token not in task_prompts.get(task_id, "")
         ]
@@ -316,6 +316,10 @@ def _futures_preset_contract() -> dict[str, Any]:
         'runs/<candidate_id>' in backtest_prompt
         and 'run_dir="runs/<candidate_id>"' in backtest_prompt
     )
+    backtest_source_contract = (
+        "{backtest_source}" in backtest_prompt
+        and '"source": "{backtest_source}"' in backtest_prompt
+    )
 
     return {
         "ok": (
@@ -323,12 +327,14 @@ def _futures_preset_contract() -> dict[str, Any]:
             and not missing_tasks
             and not missing_routing_vars
             and relative_run_dir_contract
+            and backtest_source_contract
         ),
         "preset_path": str(path),
         "system_prompt_placeholders": bad_system_prompts,
         "missing_tasks": missing_tasks,
         "missing_routing_vars": missing_routing_vars,
         "relative_run_dir_contract": relative_run_dir_contract,
+        "backtest_source_contract": backtest_source_contract,
     }
 
 
