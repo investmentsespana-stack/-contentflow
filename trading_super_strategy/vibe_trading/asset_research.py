@@ -238,6 +238,37 @@ def _local_inventory() -> dict[str, Any]:
     }
 
 
+
+def _swarm_run_dir_fix_status() -> dict[str, Any]:
+    """Fail closed if Vibe 0.1.15 regresses the official swarm run_dir fix.
+
+    Official upstream fix:
+    HKUDS/Vibe-Trading commit e30a6427ee79cae5cd06d7444671df23ddbba4fc
+    (2026-09-13).  The vulnerable worker overwrote every tool-declared
+    run_dir with the agent workspace root, causing valid candidate
+    config.json files to be invisible to the backtest tool.
+    """
+    import src.swarm.worker as swarm_worker
+
+    worker_path = Path(swarm_worker.__file__).resolve()
+    text = worker_path.read_text(encoding="utf-8")
+    vulnerable = 'args = {**tc.arguments, "run_dir": str(artifact_dir)}'
+    fixed_dispatch = "args, run_dir_refusal = _tool_arguments("
+
+    return {
+        "ok": (
+            "def _tool_arguments(" in text
+            and fixed_dispatch in text
+            and vulnerable not in text
+        ),
+        "upstream_commit": "e30a6427ee79cae5cd06d7444671df23ddbba4fc",
+        "worker_path": str(worker_path),
+        "has_tool_arguments": "def _tool_arguments(" in text,
+        "has_fixed_dispatch": fixed_dispatch in text,
+        "has_vulnerable_overwrite": vulnerable in text,
+    }
+
+
 def _llm_smoke() -> dict[str, Any]:
     from src.providers.chat import ChatLLM
 
@@ -327,6 +358,15 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
         }
     except Exception as exc:
         evidence["checks"]["package_version"] = {"ok": False, "error": str(exc)}
+
+    try:
+        evidence["checks"]["swarm_run_dir_fix"] = _swarm_run_dir_fix_status()
+    except Exception as exc:
+        evidence["checks"]["swarm_run_dir_fix"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "upstream_commit": "e30a6427ee79cae5cd06d7444671df23ddbba4fc",
+        }
 
     try:
         provider = _provider_snapshot()
