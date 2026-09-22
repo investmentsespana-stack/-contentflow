@@ -269,6 +269,26 @@ def _swarm_run_dir_fix_status() -> dict[str, Any]:
     }
 
 
+
+def _futures_grounding_status() -> dict[str, Any]:
+    """Verify swarm grounding preserves Yahoo continuous-futures symbols."""
+    from src.swarm.grounding import extract_symbols_from_user_vars
+
+    probes = {
+        "ES": extract_symbols_from_user_vars({"target": "ES=F"}),
+        "NQ": extract_symbols_from_user_vars({"target": "NQ=F"}),
+        "GC": extract_symbols_from_user_vars({"target": "GC=F"}),
+        "CL": extract_symbols_from_user_vars({"target": "CL=F"}),
+    }
+    expected = {root: [f"{root}=F"] for root in probes}
+    return {
+        "ok": probes == expected,
+        "probes": probes,
+        "expected": expected,
+        "invariant": "Yahoo continuous futures must not be promoted to .US equities",
+    }
+
+
 def _llm_smoke() -> dict[str, Any]:
     from src.providers.chat import ChatLLM
 
@@ -366,6 +386,14 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
             "upstream_commit": "e30a6427ee79cae5cd06d7444671df23ddbba4fc",
+        }
+
+    try:
+        evidence["checks"]["futures_grounding"] = _futures_grounding_status()
+    except Exception as exc:
+        evidence["checks"]["futures_grounding"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
         }
 
     try:
