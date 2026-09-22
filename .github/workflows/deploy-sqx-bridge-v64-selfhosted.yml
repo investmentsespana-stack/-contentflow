@@ -10,6 +10,7 @@ on:
       - 'trading_super_strategy/vibe_trading/tradingview_futures_guard.py'
       - 'trading_super_strategy/vibe_trading/vibe_full_preflight.py'
       - 'trading_super_strategy/vibe_trading/apply_upstream_vibe_run_dir_fix.py'
+      - 'trading_super_strategy/vibe_trading/apply_vibe_futures_grounding_fix.py'
       - 'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml'
       - 'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml'
       - 'trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml'
@@ -46,6 +47,7 @@ jobs:
           Copy-Item trading_super_strategy/vibe_trading/tradingview_futures_guard.py deploy/tradingview_futures_guard.py
           Copy-Item trading_super_strategy/vibe_trading/vibe_full_preflight.py deploy/vibe_full_preflight.py
           Copy-Item trading_super_strategy/vibe_trading/apply_upstream_vibe_run_dir_fix.py deploy/apply_upstream_vibe_run_dir_fix.py
+          Copy-Item trading_super_strategy/vibe_trading/apply_vibe_futures_grounding_fix.py deploy/apply_vibe_futures_grounding_fix.py
           Copy-Item trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml deploy/cygnus_native_smoke.yaml
           Copy-Item trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml deploy/cygnus_futures_strategy_lab.yaml
           Copy-Item trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml deploy/cygnus_dxy_macro_lab.yaml
@@ -104,7 +106,7 @@ jobs:
             Where-Object {
               $_.Name -match '^pythonw?\.exe          Copy-Item 'deploy\CygnusSQXBridge.exe' $target -Force
 
-          foreach($name in @('asset_research.py','tradingview_futures_guard.py','vibe_full_preflight.py','apply_upstream_vibe_run_dir_fix.py')){
+          foreach($name in @('asset_research.py','tradingview_futures_guard.py','vibe_full_preflight.py','apply_upstream_vibe_run_dir_fix.py','apply_vibe_futures_grounding_fix.py')){
             $dest=Join-Path $vibeRoot $name
             if(Test-Path $dest){ Copy-Item $dest ($dest+'.backup-'+(Get-Date -Format 'yyyyMMddHHmmss')) -Force }
             Copy-Item (Join-Path 'deploy' $name) $dest -Force
@@ -126,6 +128,8 @@ jobs:
           # idempotently before Vibe is restarted.
           & $python (Join-Path $vibeRoot 'apply_upstream_vibe_run_dir_fix.py')
           if($LASTEXITCODE -ne 0){ throw 'VIBE_UPSTREAM_RUN_DIR_FIX_FAILED' }
+          & $python (Join-Path $vibeRoot 'apply_vibe_futures_grounding_fix.py')
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_FUTURES_GROUNDING_FIX_FAILED' }
 
           $proc=Start-Process -FilePath $target -WorkingDirectory $bridgeRoot -PassThru
           Start-Sleep -Seconds 5
@@ -142,9 +146,12 @@ jobs:
 
           & $python (Join-Path $vibeRoot 'apply_upstream_vibe_run_dir_fix.py') --check
           if($LASTEXITCODE -ne 0){ throw 'VIBE_UPSTREAM_RUN_DIR_FIX_CHECK_FAILED' }
+          & $python (Join-Path $vibeRoot 'apply_vibe_futures_grounding_fix.py') --check
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_FUTURES_GROUNDING_FIX_CHECK_FAILED' }
 
           Write-Host 'CYGNUS_STACK_DEPLOY=PASS'
           Write-Host 'VIBE_UPSTREAM_RUN_DIR_FIX=PASS'
+          Write-Host 'VIBE_FUTURES_GROUNDING_FIX=PASS'
           Write-Host 'BRIDGE_EXPECTED_VERSION=142-autonomy-v6.4.3-stack-control'
           Write-Host 'SQX_PROCESS_TOUCHED=false'
           Write-Host 'BROKER_EXECUTION=false'
