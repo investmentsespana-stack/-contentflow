@@ -21,7 +21,7 @@ jobs:
           HOST: 62.113.200.117
         run: |
           set -u
-          for port in 22 5050 5985 5986 3389 8899 8900; do
+          for port in 22 5050 5985 5986 3389 8080 8081 8082 8083 8899 8900; do
             if timeout 4 bash -c "</dev/tcp/$HOST/$port" 2>/dev/null; then
               echo "PORT_$port=OPEN"
             else
