@@ -163,3 +163,5 @@ jobs:
           ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$USER@$HOST"             "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $B64" | tee dxy-output.txt
           grep -q 'DXY_PROJECT_CREATE=PASS' dxy-output.txt
           grep -q 'ORIGINAL_PROJECT_TOUCHED=false' dxy-output.txt
+
+# trigger: DXY one-shot after workflow registration
