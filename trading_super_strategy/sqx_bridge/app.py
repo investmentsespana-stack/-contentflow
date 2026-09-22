@@ -14,6 +14,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,7 @@ READ_ONLY = {
     "list_strategies",
     "get_strategy_stats",
     "save_project_config",
+    "inspect_project_config",
     "run_vibe_nq6_smoke",
     "run_vibe_asset_research",
     "vibe_diagnose",
@@ -1116,6 +1118,86 @@ def _read_artifact(path: Path) -> dict[str, Any]:
     return result
 
 
+def _inspect_cfx_workflow(path: Path) -> dict[str, Any]:
+    """Inspect an SQX .cfx archive without executing any embedded content."""
+    if not path.is_file():
+        raise RuntimeError(f"SQX_CFX_NOT_FOUND:{path}")
+    if not zipfile.is_zipfile(path):
+        raise RuntimeError(f"SQX_CFX_NOT_ZIP:{path}")
+
+    keywords = {
+        "builder": ("builder", "build strategies", "random generation", "genetic"),
+        "retest": ("retester", "retest"),
+        "monte_carlo": ("monte carlo", "montecarlo"),
+        "walk_forward": ("walk forward", "wf matrix", "walkforward"),
+        "filter": ("filter", "ranking"),
+        "loop": ("go to task", "goto", "loop", "restart"),
+        "databank": ("databank", "data bank"),
+        "robustness": ("robustness", "slippage", "oos", "out of sample"),
+    }
+    texts: list[tuple[str, str]] = []
+    names: list[str] = []
+    with zipfile.ZipFile(path, "r") as zf:
+        for info in zf.infolist():
+            names.append(info.filename)
+            lower = info.filename.lower()
+            if info.file_size > 2 * 1024 * 1024:
+                continue
+            if not lower.endswith((".xml", ".json", ".txt", ".cfg", ".properties")):
+                continue
+            try:
+                raw = zf.read(info.filename)
+                text_value = _decode(raw)
+            except Exception:
+                continue
+            if text_value:
+                texts.append((info.filename, text_value))
+
+    combined = "\n".join(text_value for _, text_value in texts)
+    lowered = combined.lower()
+    signals = {
+        key: any(term in lowered for term in terms)
+        for key, terms in keywords.items()
+    }
+
+    excerpts: list[dict[str, str]] = []
+    seen: set[str] = set()
+    terms = [term for group in keywords.values() for term in group]
+    for filename, text_value in texts:
+        low = text_value.lower()
+        for term in terms:
+            start = 0
+            while len(excerpts) < 80:
+                idx = low.find(term, start)
+                if idx < 0:
+                    break
+                left = max(0, idx - 180)
+                right = min(len(text_value), idx + len(term) + 260)
+                snippet = re.sub(r"\\s+", " ", text_value[left:right]).strip()
+                key = f"{filename}|{snippet}"
+                if key not in seen:
+                    seen.add(key)
+                    excerpts.append({"file": filename, "match": term, "excerpt": snippet})
+                start = idx + len(term)
+            if len(excerpts) >= 80:
+                break
+        if len(excerpts) >= 80:
+            break
+
+    score = sum(1 for value in signals.values() if value)
+    return {
+        "artifact_name": path.name,
+        "artifact_size": path.stat().st_size,
+        "artifact_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "archive_entries": names[:250],
+        "text_entries": [name for name, _ in texts],
+        "workflow_signals": signals,
+        "workflow_signal_count": score,
+        "likely_custom_project": score >= 3,
+        "workflow_excerpts": excerpts,
+    }
+
+
 def _export_databank_file(cfg: BridgeConfig, runtime: SqCliRuntime, project: str, databank: str) -> tuple[Path, dict[str, Any]]:
     _require_idle(runtime, "export_databank")
     filename = f"{_safe_slug(project)}__{_safe_slug(databank)}__{int(time.time())}.csv"
@@ -1481,7 +1563,7 @@ def _stack_health(cfg: BridgeConfig) -> dict[str, Any]:
         "returncode": 0,
         "stdout": "STACK_HEALTH_CHECKED",
         "stderr": "",
-        "bridge_version": "142-autonomy-v6.4.3-stack-control",
+        "bridge_version": "142-autonomy-v6.4.4-custom-inspect",
         "strategyquant": {"http_alive": sqx_alive, "probe_excerpt": sqx_probe[:800]},
         "vibe": {
             "python_present": vibe_python,
@@ -1765,6 +1847,16 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
             extra["stats"] = match
         else:
             extra["csv_preview"] = text[:200000]
+
+    elif name == "inspect_project_config":
+        _require_idle(runtime, name)
+        project = _project_from_payload(name, payload)
+        path = CONFIG_EXPORT_DIR / f"inspect__{_safe_slug(project)}__{int(time.time())}.cfx"
+        result = _run_sqcli(cfg.sqcli_path, ["-project", "action=saveconfig", f"name={project}", f"file={path}"], timeout=300)
+        if not path.exists():
+            raise RuntimeError("SQX no produjo el archivo de configuración esperado")
+        extra["project"] = project
+        extra["inspection"] = _inspect_cfx_workflow(path)
 
     elif name == "save_project_config":
         _require_idle(runtime, name)
@@ -2071,7 +2163,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6.4.3-stack-control",
+            "bridge_version": "142-autonomy-v6.4.4-custom-inspect",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
