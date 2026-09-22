@@ -97,3 +97,4 @@ jobs:
           Write-Host "BRIDGE_PID=$($proc.Id)"
           Write-Host 'SQX_PROCESS_TOUCHED=false'
           Write-Host 'BROKER_EXECUTION=false'
+# recovery workflow revision: upstream-run-dir-fix-e30a6427
