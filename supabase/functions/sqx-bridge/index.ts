@@ -35,7 +35,11 @@ const CANONICAL_ALLOWLIST=[
   "copy_databank",
   "move_databank",
   "freeze_databank",
-  "live_project_control"
+  "live_project_control",
+  "sync_vibe_runtime",
+  "start_vibe",
+  "stop_vibe",
+  "restart_vibe"
 ] as const;
 
 const canonicalCapabilities=(effective:string[]=CANONICAL_ALLOWLIST.slice())=>({
