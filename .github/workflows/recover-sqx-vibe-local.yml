@@ -1,0 +1,99 @@
+name: Recover SQX Bridge and Vibe on Windows VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-sqx-vibe-local.yml'
+      - 'trading_super_strategy/vibe_trading/apply_upstream_vibe_run_dir_fix.py'
+      - 'trading_super_strategy/sqx_bridge/app.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recover-sqx-vibe-local
+  cancel-in-progress: true
+
+jobs:
+  recover:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify exact Windows VPS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:COMPUTERNAME -ne 'WIN-31RCI8K7JR2'){
+            throw "WRONG_WINDOWS_RUNNER:$env:COMPUTERNAME"
+          }
+          Write-Host "TARGET_VPS_VERIFIED=$env:COMPUTERNAME"
+
+      - name: Apply upstream Vibe fix and recover local bridge
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $vibeRoot='C:\Cygnus\VibeTrading'
+          $python=Join-Path $vibeRoot '.venv\Scripts\python.exe'
+          $pythonw=Join-Path $vibeRoot '.venv\Scripts\pythonw.exe'
+          $bridgeConfig=Join-Path $env:APPDATA 'CygnusSQXBridge\config.json'
+          $bridgeSourceRoot=Split-Path $bridgeConfig -Parent
+          $bridgeSource=Join-Path $bridgeSourceRoot 'app-v643.py'
+
+          if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python" }
+          if(-not (Test-Path $pythonw -PathType Leaf)){ throw "VIBE_PYTHONW_MISSING:$pythonw" }
+          if(-not (Test-Path $bridgeConfig -PathType Leaf)){ throw "BRIDGE_CONFIG_MISSING:$bridgeConfig" }
+
+          # Stop only Cygnus bridge processes. Do not touch StrategyQuant.
+          Get-Process -Name 'CygnusSQXBridge' -ErrorAction SilentlyContinue |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+            Where-Object {
+              $_.Name -match '^pythonw?\.exe$' -and
+              [string]$_.CommandLine -match '[\\/]CygnusSQXBridge[\\/]app[^\\/]*\.py'
+            } |
+            ForEach-Object {
+              Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+            }
+          Start-Sleep -Seconds 2
+
+          # Persist the current governed bridge source as v6.4.3.
+          New-Item -ItemType Directory -Force $bridgeSourceRoot | Out-Null
+          if(Test-Path $bridgeSource){
+            Copy-Item $bridgeSource ($bridgeSource+'.backup-'+(Get-Date -Format 'yyyyMMddHHmmss')) -Force
+          }
+          Copy-Item 'trading_super_strategy\sqx_bridge\app.py' $bridgeSource -Force
+          & $python -m py_compile $bridgeSource
+          if($LASTEXITCODE -ne 0){ throw 'BRIDGE_SOURCE_COMPILE_FAILED' }
+
+          # Apply HKUDS upstream commit e30a6427 to installed Vibe 0.1.15.
+          & $python 'trading_super_strategy\vibe_trading\apply_upstream_vibe_run_dir_fix.py'
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_UPSTREAM_RUN_DIR_FIX_FAILED' }
+          & $python 'trading_super_strategy\vibe_trading\apply_upstream_vibe_run_dir_fix.py' --check
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_UPSTREAM_RUN_DIR_FIX_CHECK_FAILED' }
+
+          # Restart Vibe so the patched worker module is loaded by fresh processes.
+          $stop=Join-Path $vibeRoot 'Stop-VibeNative.ps1'
+          $start=Join-Path $vibeRoot 'Start-VibeNative.ps1'
+          if(-not (Test-Path $stop -PathType Leaf)){ throw "VIBE_STOP_SCRIPT_MISSING:$stop" }
+          if(-not (Test-Path $start -PathType Leaf)){ throw "VIBE_START_SCRIPT_MISSING:$start" }
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $stop | Out-Null
+          Start-Sleep -Seconds 2
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $start
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_START_FAILED' }
+
+          # Start bridge from the canonical Python source. This preserves the
+          # existing paired config and avoids waiting for a PyInstaller build.
+          $proc=Start-Process -FilePath $pythonw -ArgumentList @($bridgeSource) -WorkingDirectory $bridgeSourceRoot -PassThru
+          Start-Sleep -Seconds 6
+          if($proc.HasExited){ throw "BRIDGE_EXITED_EARLY:$($proc.ExitCode)" }
+
+          Write-Host 'LOCAL_RECOVERY=PASS'
+          Write-Host 'VIBE_UPSTREAM_RUN_DIR_FIX=PASS'
+          Write-Host 'BRIDGE_EXPECTED_VERSION=142-autonomy-v6.4.3-stack-control'
+          Write-Host "BRIDGE_PID=$($proc.Id)"
+          Write-Host 'SQX_PROCESS_TOUCHED=false'
+          Write-Host 'BROKER_EXECUTION=false'
