@@ -41,6 +41,11 @@ os.environ["LANGCHAIN_MODEL_NAME"] = "openai-codex/gpt-5.6-terra"
 os.environ["VIBE_TRADING_ENABLE_SHELL_TOOLS"] = "0"
 os.environ["CYGNUS_RESEARCH_ONLY"] = "1"
 
+# Yahoo-style continuous futures (=F) are served correctly by Vibe's Yahoo loader,
+# but Vibe 0.1.15's generic futures auto chain does not include Yahoo for backtests.
+# Pin the backtest source explicitly and fail closed if a live data probe cannot serve it.
+FUTURES_BACKTEST_SOURCE = "yahoo"
+
 ASSETS: dict[str, dict[str, str]] = {
     "CL": {
         "target": "CL=F",
@@ -275,7 +280,7 @@ def _futures_preset_contract() -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     placeholders = (
         "{target}", "{market}", "{goal}", "{tv_symbol}",
-        "{tv_category}", "{tv_policy}", "{research_timeframes}",
+        "{tv_category}", "{tv_policy}", "{research_timeframes}", "{backtest_source}",
     )
     bad_system_prompts: dict[str, list[str]] = {}
     for agent in data.get("agents", []) or []:
@@ -311,6 +316,10 @@ def _futures_preset_contract() -> dict[str, Any]:
         'runs/<candidate_id>' in backtest_prompt
         and 'run_dir="runs/<candidate_id>"' in backtest_prompt
     )
+    backtest_source_contract = (
+        "{backtest_source}" in backtest_prompt
+        and '"source": "{backtest_source}"' in backtest_prompt
+    )
 
     return {
         "ok": (
@@ -318,12 +327,14 @@ def _futures_preset_contract() -> dict[str, Any]:
             and not missing_tasks
             and not missing_routing_vars
             and relative_run_dir_contract
+            and backtest_source_contract
         ),
         "preset_path": str(path),
         "system_prompt_placeholders": bad_system_prompts,
         "missing_tasks": missing_tasks,
         "missing_routing_vars": missing_routing_vars,
         "relative_run_dir_contract": relative_run_dir_contract,
+        "backtest_source_contract": backtest_source_contract,
     }
 
 
@@ -429,6 +440,44 @@ def _futures_grounding_status() -> dict[str, Any]:
     }
 
 
+def _futures_backtest_source_contract() -> dict[str, Any]:
+    """Prove the exact backtest loader used for Yahoo continuous futures works."""
+    from datetime import datetime, timedelta, timezone
+    from backtest.runner import fetch_data_map
+
+    today = datetime.now(timezone.utc).date()
+    start_date = (today - timedelta(days=7)).isoformat()
+    end_date = (today + timedelta(days=1)).isoformat()
+    probes: dict[str, Any] = {}
+    for interval in ("5m", "15m", "1H", "4H"):
+        try:
+            fetched = fetch_data_map({
+                "codes": ["ES=F"],
+                "source": FUTURES_BACKTEST_SOURCE,
+                "start_date": start_date,
+                "end_date": end_date,
+                "interval": interval,
+            })
+            frame = fetched.data_map.get("ES=F")
+            rows = int(len(frame)) if frame is not None else 0
+            effective = [str(x) for x in fetched.effective_sources]
+            probes[interval] = {
+                "ok": rows > 0 and FUTURES_BACKTEST_SOURCE in effective,
+                "rows": rows,
+                "effective_sources": effective,
+            }
+        except Exception as exc:
+            probes[interval] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    return {
+        "ok": all(bool(v.get("ok")) for v in probes.values()),
+        "source": FUTURES_BACKTEST_SOURCE,
+        "symbol": "ES=F",
+        "window": {"start": start_date, "end": end_date},
+        "probes": probes,
+        "invariant": "Yahoo continuous futures backtests must use source=yahoo, never auto/akshare.",
+    }
+
+
 def _llm_smoke() -> dict[str, Any]:
     from src.providers.chat import ChatLLM
 
@@ -526,6 +575,15 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
             "upstream_commit": "e30a6427ee79cae5cd06d7444671df23ddbba4fc",
+        }
+
+    try:
+        evidence["checks"]["futures_backtest_source"] = _futures_backtest_source_contract()
+    except Exception as exc:
+        evidence["checks"]["futures_backtest_source"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "source": FUTURES_BACKTEST_SOURCE,
         }
 
     try:
@@ -673,6 +731,20 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
     asset = _normalize_asset(asset)
     meta = ASSETS[asset]
 
+    if asset != "DXY":
+        futures_data_gate = _futures_backtest_source_contract()
+        if not futures_data_gate.get("ok"):
+            return {
+                "schema": "cygnus.vibe.asset_research.native.v1",
+                "asset": asset,
+                "status": "BLOCKED_FUTURES_BACKTEST_SOURCE",
+                "data_gate": futures_data_gate,
+                "mode": "RESEARCH_ONLY",
+                "live": False,
+                "shell_tools": False,
+                "broker_execution": False,
+            }
+
     provider = _provider_snapshot()
     if not (
         provider.get("provider", "").lower().replace("_", "-") == "openai-codex"
@@ -715,6 +787,7 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
                     "tv_category": meta["tv_category"],
                     "tv_policy": codex_policy_text(),
                     "research_timeframes": ",".join(validate_timeframes(("5m", "15m", "1h", "4h"))),
+                    "backtest_source": FUTURES_BACKTEST_SOURCE,
                 },
                 "wait_seconds": 0,
                 "start_only": True,
