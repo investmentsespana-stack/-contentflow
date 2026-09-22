@@ -6,6 +6,11 @@ on:
     paths:
       - '.github/workflows/recover-sqx-vibe-local.yml'
       - 'trading_super_strategy/vibe_trading/apply_upstream_vibe_run_dir_fix.py'
+      - 'trading_super_strategy/vibe_trading/apply_vibe_futures_grounding_fix.py'
+      - 'trading_super_strategy/vibe_trading/asset_research.py'
+      - 'trading_super_strategy/vibe_trading/vibe_full_preflight.py'
+      - 'trading_super_strategy/vibe_trading/tradingview_futures_guard.py'
+      - 'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml'
       - 'trading_super_strategy/sqx_bridge/app.py'
   workflow_dispatch:
 
@@ -69,13 +74,31 @@ jobs:
           & $python -m py_compile $bridgeSource
           if($LASTEXITCODE -ne 0){ throw 'BRIDGE_SOURCE_COMPILE_FAILED' }
 
+          # Synchronize the governed Cygnus Vibe control plane and corrected preset.
+          foreach($name in @('asset_research.py','tradingview_futures_guard.py','vibe_full_preflight.py')){
+            Copy-Item (Join-Path 'trading_super_strategy\vibe_trading' $name) (Join-Path $vibeRoot $name) -Force
+          }
+          $presetUser=Join-Path $HOME '.vibe-trading\swarm\presets'
+          $presetState=Join-Path $vibeRoot 'state\swarm\presets'
+          New-Item -ItemType Directory -Force $presetUser,$presetState | Out-Null
+          Copy-Item 'trading_super_strategy\vibe_trading\cygnus_futures_strategy_lab.yaml' (Join-Path $presetUser 'cygnus_futures_strategy_lab.yaml') -Force
+          Copy-Item 'trading_super_strategy\vibe_trading\cygnus_futures_strategy_lab.yaml' (Join-Path $presetState 'cygnus_futures_strategy_lab.yaml') -Force
+          & $python -m py_compile (Join-Path $vibeRoot 'asset_research.py') (Join-Path $vibeRoot 'tradingview_futures_guard.py') (Join-Path $vibeRoot 'vibe_full_preflight.py')
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_CONTROL_PLANE_COMPILE_FAILED' }
+
           # Apply HKUDS upstream commit e30a6427 to installed Vibe 0.1.15.
           & $python 'trading_super_strategy\vibe_trading\apply_upstream_vibe_run_dir_fix.py'
           if($LASTEXITCODE -ne 0){ throw 'VIBE_UPSTREAM_RUN_DIR_FIX_FAILED' }
           & $python 'trading_super_strategy\vibe_trading\apply_upstream_vibe_run_dir_fix.py' --check
           if($LASTEXITCODE -ne 0){ throw 'VIBE_UPSTREAM_RUN_DIR_FIX_CHECK_FAILED' }
 
-          # Restart Vibe so the patched worker module is loaded by fresh processes.
+          # Preserve canonical Yahoo continuous-futures symbols in swarm grounding.
+          & $python 'trading_super_strategy\vibe_trading\apply_vibe_futures_grounding_fix.py'
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_FUTURES_GROUNDING_FIX_FAILED' }
+          & $python 'trading_super_strategy\vibe_trading\apply_vibe_futures_grounding_fix.py' --check
+          if($LASTEXITCODE -ne 0){ throw 'VIBE_FUTURES_GROUNDING_FIX_CHECK_FAILED' }
+
+          # Restart Vibe so both patched modules and the corrected preset are loaded.
           $stop=Join-Path $vibeRoot 'Stop-VibeNative.ps1'
           $start=Join-Path $vibeRoot 'Start-VibeNative.ps1'
           if(-not (Test-Path $stop -PathType Leaf)){ throw "VIBE_STOP_SCRIPT_MISSING:$stop" }
@@ -93,6 +116,8 @@ jobs:
 
           Write-Host 'LOCAL_RECOVERY=PASS'
           Write-Host 'VIBE_UPSTREAM_RUN_DIR_FIX=PASS'
+          Write-Host 'VIBE_FUTURES_GROUNDING_FIX=PASS'
+          Write-Host 'VIBE_PRESET_CONTRACT=PASS'
           Write-Host 'BRIDGE_EXPECTED_VERSION=142-autonomy-v6.4.3-stack-control'
           Write-Host "BRIDGE_PID=$($proc.Id)"
           Write-Host 'SQX_PROCESS_TOUCHED=false'
