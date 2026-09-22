@@ -509,6 +509,85 @@ def _sqx_mcp_list_projects() -> dict[str, Any]:
     return _sqx_mcp_tool_call("list_projects", {})
 
 
+
+def _external_sqcli_project_processes(cfg: BridgeConfig, project: str) -> list[dict[str, Any]]:
+    """Find dedicated sqcli.exe processes running one exact project.
+
+    Build 142 commonly runs long projects as a separate sqcli.exe process with
+    a command line like:
+      sqcli.exe -project action=start "name=PROJECT WITH SPACES"
+    This is a safer source of truth than the embedded HTTP parser for names
+    containing spaces.
+    """
+    if os.name != "nt":
+        return []
+    safe_project = _sqx_http_value(project, "project", "external_sqcli_process")
+    exe = str(Path(cfg.sqcli_path).resolve())
+    ps = (
+        "$ErrorActionPreference='Stop';"
+        f"$exe={json.dumps(exe)};"
+        f"$project={json.dumps(safe_project)};"
+        "$rows=@(Get-CimInstance Win32_Process | Where-Object {"
+        "$_.Name -eq 'sqcli.exe' -and $_.ExecutablePath -eq $exe -and "
+        "$_.CommandLine -like ('*name='+$project+'*')"
+        "} | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine);"
+        "$rows | ConvertTo-Json -Depth 4 -Compress"
+    )
+    cp = subprocess.run(
+        ["powershell.exe","-NoLogo","-NoProfile","-ExecutionPolicy","Bypass","-Command",ps],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=60,
+        shell=False,
+    )
+    if cp.returncode != 0:
+        raise RuntimeError("SQX_PROCESS_DISCOVERY_FAILED:" + _decode(cp.stderr)[:1200])
+    raw = _decode(cp.stdout).strip()
+    if not raw:
+        return []
+    data = json.loads(raw)
+    if isinstance(data, dict):
+        data = [data]
+    return [x for x in data if isinstance(x, dict)] if isinstance(data, list) else []
+
+
+def _stop_external_sqcli_project(cfg: BridgeConfig, project: str) -> dict[str, Any] | None:
+    rows = _external_sqcli_project_processes(cfg, project)
+    if not rows:
+        return None
+    pids = sorted({int(x["ProcessId"]) for x in rows if x.get("ProcessId")})
+    if not pids:
+        return None
+    ps = (
+        "$ErrorActionPreference='Stop';"
+        "$pids=@(" + ",".join(str(x) for x in pids) + ");"
+        "foreach($pid in $pids){ Stop-Process -Id $pid -Force };"
+        "Start-Sleep -Seconds 2"
+    )
+    cp = subprocess.run(
+        ["powershell.exe","-NoLogo","-NoProfile","-ExecutionPolicy","Bypass","-Command",ps],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=60,
+        shell=False,
+    )
+    if cp.returncode != 0:
+        raise RuntimeError("SQX_PROCESS_STOP_FAILED:" + _decode(cp.stderr)[:1200])
+    remaining = _external_sqcli_project_processes(cfg, project)
+    if remaining:
+        raise RuntimeError(f"SQX_PROCESS_STOP_VERIFY_FAILED:{project}")
+    return {
+        "returncode": 0,
+        "stdout": f"Stopped dedicated sqcli process for project {project}; pids={pids}",
+        "stderr": "",
+        "transport": "sqcli_project_process",
+        "project": project,
+        "control_action": "stop",
+        "stopped_pids": pids,
+        "remaining_count": 0,
+    }
+
+
 def _sqx_http_project_control(action: str, project: str) -> dict[str, Any]:
     """Control an already-running SQX GUI instance.
 
@@ -1402,7 +1481,7 @@ def _stack_health(cfg: BridgeConfig) -> dict[str, Any]:
         "returncode": 0,
         "stdout": "STACK_HEALTH_CHECKED",
         "stderr": "",
-        "bridge_version": "142-autonomy-v6.4.2-stack-control",
+        "bridge_version": "142-autonomy-v6.4.3-stack-control",
         "strategyquant": {"http_alive": sqx_alive, "probe_excerpt": sqx_probe[:800]},
         "vibe": {
             "python_present": vibe_python,
@@ -1799,12 +1878,17 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
         if active and active.get("running"):
             result = runtime.stop_project(project)
         else:
-            live_instance, _ = _sqx_instance_alive()
-            if live_instance:
-                result = _sqx_http_project_control("stop", project)
-                extra.update({"transport": "sqx_http_api", "attached_existing_instance": True})
+            process_result = _stop_external_sqcli_project(cfg, project)
+            if process_result is not None:
+                result = process_result
+                extra.update({"transport": "sqcli_project_process", "attached_existing_instance": True})
             else:
-                result = runtime.stop_project(project)
+                live_instance, _ = _sqx_instance_alive()
+                if live_instance:
+                    result = _sqx_http_project_control("stop", project)
+                    extra.update({"transport": result.get("transport", "sqx_http_api"), "attached_existing_instance": True})
+                else:
+                    result = runtime.stop_project(project)
 
     elif name in {"pause_project", "resume_project"}:
         project = _project_from_payload(name, payload)
@@ -1987,7 +2071,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6.4.2-stack-control",
+            "bridge_version": "142-autonomy-v6.4.3-stack-control",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
