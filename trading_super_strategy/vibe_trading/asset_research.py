@@ -210,6 +210,123 @@ def _provider_snapshot() -> dict[str, Any]:
     }
 
 
+def _swarm_run_dir_contract() -> dict[str, Any]:
+    """Verify the installed Vibe swarm worker contains the upstream run_dir fix."""
+    import tempfile
+    from types import SimpleNamespace
+    import src.swarm.worker as worker
+
+    path = Path(worker.__file__).resolve()
+    text = path.read_text(encoding="utf-8")
+    vulnerable = 'args = {**tc.arguments, "run_dir": str(artifact_dir)}' in text
+    helper_present = "def _tool_arguments(" in text
+    fixed_dispatch = "args, run_dir_refusal = _tool_arguments(" in text
+    refusal_dispatch = "if run_dir_refusal is not None:" in text
+
+    probe_ok = False
+    escape_guard_ok = False
+    if helper_present:
+        workspace = Path(tempfile.mkdtemp(prefix="vibe-run-dir-contract-")) / "artifacts" / "backtester"
+        workspace.mkdir(parents=True, exist_ok=True)
+        declared = SimpleNamespace(parameters={"properties": {"run_dir": {"type": "string"}}})
+        args, refusal = worker._tool_arguments(declared, {"run_dir": "runs/probe"}, workspace)
+        probe_ok = (
+            refusal is None
+            and Path(args.get("run_dir", "")).resolve()
+            == (workspace.resolve() / "runs" / "probe").resolve()
+        )
+        _, escape_refusal = worker._tool_arguments(
+            declared, {"run_dir": "../../escape"}, workspace
+        )
+        escape_guard_ok = bool(escape_refusal)
+
+    return {
+        "ok": (
+            not vulnerable
+            and helper_present
+            and fixed_dispatch
+            and refusal_dispatch
+            and probe_ok
+            and escape_guard_ok
+        ),
+        "worker_path": str(path),
+        "upstream_fix_commit": "e30a6427ee79cae5cd06d7444671df23ddbba4fc",
+        "vulnerable_overwrite_present": vulnerable,
+        "helper_present": helper_present,
+        "fixed_dispatch": fixed_dispatch,
+        "refusal_dispatch": refusal_dispatch,
+        "relative_run_dir_probe": probe_ok,
+        "escape_guard_probe": escape_guard_ok,
+    }
+
+
+def _futures_preset_contract() -> dict[str, Any]:
+    """Ensure runtime variables live in task templates, where Vibe renders them."""
+    import yaml
+
+    candidates = [
+        Path.home() / ".vibe-trading" / "swarm" / "presets" / "cygnus_futures_strategy_lab.yaml",
+        STATE_ROOT / "swarm" / "presets" / "cygnus_futures_strategy_lab.yaml",
+    ]
+    path = next((p for p in candidates if p.is_file()), None)
+    if path is None:
+        return {"ok": False, "reason": "preset_not_found", "paths": [str(p) for p in candidates]}
+
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    placeholders = (
+        "{target}", "{market}", "{goal}", "{tv_symbol}",
+        "{tv_category}", "{tv_policy}", "{research_timeframes}",
+    )
+    bad_system_prompts: dict[str, list[str]] = {}
+    for agent in data.get("agents", []) or []:
+        prompt = str(agent.get("system_prompt") or "")
+        bad = [token for token in placeholders if token in prompt]
+        if bad:
+            bad_system_prompts[str(agent.get("id") or "unknown")] = bad
+
+    task_prompts = {
+        str(task.get("id") or ""): str(task.get("prompt_template") or "")
+        for task in (data.get("tasks", []) or [])
+    }
+    required_task_ids = {
+        "task-regime", "task-architecture", "task-backtests",
+        "task-robustness", "task-judge",
+    }
+    missing_tasks = sorted(required_task_ids - set(task_prompts))
+    missing_routing_vars = {
+        task_id: [
+            token for token in (
+                "{target}", "{tv_symbol}", "{tv_category}",
+                "{tv_policy}", "{research_timeframes}",
+            )
+            if token not in task_prompts.get(task_id, "")
+        ]
+        for task_id in sorted(required_task_ids)
+    }
+    missing_routing_vars = {
+        key: value for key, value in missing_routing_vars.items() if value
+    }
+    backtest_prompt = task_prompts.get("task-backtests", "")
+    relative_run_dir_contract = (
+        'runs/<candidate_id>' in backtest_prompt
+        and 'run_dir="runs/<candidate_id>"' in backtest_prompt
+    )
+
+    return {
+        "ok": (
+            not bad_system_prompts
+            and not missing_tasks
+            and not missing_routing_vars
+            and relative_run_dir_contract
+        ),
+        "preset_path": str(path),
+        "system_prompt_placeholders": bad_system_prompts,
+        "missing_tasks": missing_tasks,
+        "missing_routing_vars": missing_routing_vars,
+        "relative_run_dir_contract": relative_run_dir_contract,
+    }
+
+
 def _local_inventory() -> dict[str, Any]:
     from src.agent.skills import SkillsLoader
     from src.swarm.presets import inspect_preset, list_presets
@@ -408,6 +525,22 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
         }
     except Exception as exc:
         evidence["checks"]["provider"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    try:
+        evidence["checks"]["swarm_run_dir_contract"] = _swarm_run_dir_contract()
+    except Exception as exc:
+        evidence["checks"]["swarm_run_dir_contract"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    try:
+        evidence["checks"]["futures_preset_contract"] = _futures_preset_contract()
+    except Exception as exc:
+        evidence["checks"]["futures_preset_contract"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
     try:
         inventory = _local_inventory()
