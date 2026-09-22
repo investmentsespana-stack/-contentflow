@@ -327,6 +327,29 @@ def _futures_preset_contract() -> dict[str, Any]:
     }
 
 
+
+def _futures_grounding_contract() -> dict[str, Any]:
+    """Verify futures symbols survive swarm grounding without .US promotion."""
+    import src.swarm.grounding as grounding
+
+    observed = {
+        root: grounding.extract_symbols_from_user_vars({"target": f"{root}=F"})
+        for root in ("ES", "NQ", "GC", "CL")
+    }
+    expected = {root: [f"{root}=F"] for root in ("ES", "NQ", "GC", "CL")}
+    mixed = grounding.extract_symbols_from_user_vars(
+        {"target": "ES=F", "market": "E-mini S&P 500 futures, CME"}
+    )
+    ok = observed == expected and mixed and mixed[0] == "ES=F" and "ES.US" not in mixed
+    return {
+        "ok": bool(ok),
+        "expected": expected,
+        "observed": observed,
+        "mixed_es": mixed,
+        "grounding_path": str(Path(grounding.__file__).resolve()),
+    }
+
+
 def _local_inventory() -> dict[str, Any]:
     from src.agent.skills import SkillsLoader
     from src.swarm.presets import inspect_preset, list_presets
@@ -538,6 +561,14 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
         evidence["checks"]["futures_preset_contract"] = _futures_preset_contract()
     except Exception as exc:
         evidence["checks"]["futures_preset_contract"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    try:
+        evidence["checks"]["futures_grounding_contract"] = _futures_grounding_contract()
+    except Exception as exc:
+        evidence["checks"]["futures_grounding_contract"] = {
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
         }
