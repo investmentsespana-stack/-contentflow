@@ -32,6 +32,18 @@ jobs:
                       try: t=raw.decode('utf-8')
                       except: t=raw.decode('cp1252','replace')
                       texts.append((n,t))
+              import xml.etree.ElementTree as ET
+              cfg=z.read('config.xml').decode('utf-8','replace')
+              root=ET.fromstring(cfg)
+              print('TASKS_BEGIN')
+              for task in root.findall('.//Task'):
+                  print('TASK', task.attrib.get('type'), '|', task.attrib.get('name'), '|', task.attrib.get('title'), '|', task.attrib.get('taskXMLFile'))
+              print('TASKS_END')
+              print('RESOURCES_BEGIN')
+              for sym in root.findall('.//Resources/Symbols/Symbol'):
+                  info=sym.find('InstrumentInfo')
+                  print('RESOURCE', sym.attrib.get('name'), '| instrument=', (info.attrib.get('instrument') if info is not None else None), '| source=', sym.attrib.get('source'), '| cloneFrom=', sym.attrib.get('cloneFrom'))
+              print('RESOURCES_END')
               needles=['monte carlo','montecarlo','retest','builder','build strategies','walk forward','oos','slippage','databank','goto','go to task','loop','symbol','instrument','dxy','dukascopy','timeframe']
               for n,t in texts:
                   low=t.lower()
