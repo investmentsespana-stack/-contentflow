@@ -258,7 +258,20 @@ def _rows_for_symbol(payload: Any, symbol: str) -> int:
     if not isinstance(data, dict):
         return 0
     rows = data.get(symbol)
-    return len(rows) if isinstance(rows, list) else 0
+    if isinstance(rows, list):
+        return len(rows)
+    if isinstance(rows, dict):
+        points = rows.get("data")
+        if isinstance(points, list):
+            return len(points)
+        for key in ("returned", "rows"):
+            try:
+                value = int(rows.get(key) or 0)
+            except (TypeError, ValueError):
+                value = 0
+            if value > 0:
+                return value
+    return 0
 
 
 async def _native_agent_smoke(client: Client) -> dict[str, Any]:
