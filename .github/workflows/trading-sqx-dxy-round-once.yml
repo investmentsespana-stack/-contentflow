@@ -1,0 +1,165 @@
+name: StrategyQuant DXY Round One-Shot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trading-sqx-dxy-round-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: trading-sqx-dxy-round-once
+  cancel-in-progress: false
+
+jobs:
+  create-dxy-project:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Obtain GitHub OIDC token
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sqx-deploy-target');
+            core.setSecret(token);
+            core.setOutput('token', token);
+
+      - name: Resolve active VPS target securely
+        id: target
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -fsS -H "Authorization: Bearer $OIDC_TOKEN"             "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-deploy-target" > target.json
+          test "$(jq -r '.ok' target.json)" = "true"
+          test "$(jq -r '.device_name' target.json)" = "WIN-31RCI8K7JR2"
+          HOST="$(jq -r '.target_ip' target.json)"
+          test -n "$HOST"
+          echo "::add-mask::$HOST"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+
+      - name: Verify SSH target
+        id: ssh
+        shell: bash
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+          SSH_PRIVATE_KEY: ${{ secrets.HYPERSTACK_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          KEY=~/.ssh/cygnus_sqx_dxy
+          printf '%s' "$SSH_PRIVATE_KEY" > "$KEY"
+          chmod 600 "$KEY"
+          USER_OK=""
+          for USER in Administrator administrator; do
+            if ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "$USER@$HOST"               'powershell.exe -NoLogo -NoProfile -Command "$env:COMPUTERNAME"' > host.txt 2>&1; then
+              if grep -qi 'WIN-31RCI8K7JR2' host.txt; then USER_OK="$USER"; break; fi
+            fi
+          done
+          test -n "$USER_OK"
+          echo "user=$USER_OK" >> "$GITHUB_OUTPUT"
+
+      - name: Clone certified NQ CFX to DXY and verify
+        shell: bash
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+          USER: ${{ steps.ssh.outputs.user }}
+        run: |
+          set -euo pipefail
+          cat > dxy.ps1 <<'PS1'
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+          $sqx='C:\Users\Administrator\Downloads\SQX_142_win_20250327\sqcli.exe'
+          if(-not (Test-Path $sqx -PathType Leaf)){ throw "SQCLI_MISSING:$sqx" }
+
+          $cfgDir=Join-Path $env:APPDATA 'CygnusSQXBridge\configs'
+          $source=Get-ChildItem $cfgDir -Filter 'NQ_CFD_H1_-_Dukascopy__*.cfx' -File |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if(-not $source){ throw 'SOURCE_CFX_NOT_FOUND' }
+
+          $symbolText=(& $sqx '-symbol' 'action=list' 2>&1 | Out-String)
+          if($LASTEXITCODE -ne 0){ throw "SYMBOL_LIST_FAILED:$LASTEXITCODE" }
+          if($symbolText -notmatch '(?m)^DXY_M1_dukas,'){ throw 'DXY_SYMBOL_NOT_REGISTERED' }
+
+          $stamp=Get-Date -Format 'yyyyMMddHHmmss'
+          $root=Join-Path $env:TEMP "CygnusDxyRound-$stamp"
+          $extract=Join-Path $root 'extract'
+          New-Item -ItemType Directory -Force $extract | Out-Null
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($source.FullName,$extract)
+
+          $oldSymbol='NQ_M1_dukas'
+          $newSymbol='DXY_M1_dukas'
+          $oldInstrument='USATECH.IDX_dukascopy'
+          $newInstrument='DOLLAR.IDX_dukascopy'
+          $oldProject='NQ CFD H1 - Dukascopy'
+          $newProject='DXY CFD H1 - Dukascopy'
+          $symbolHits=0
+          $instrumentHits=0
+          $projectHits=0
+          $utf8=New-Object System.Text.UTF8Encoding($false)
+
+          $xmlFiles=Get-ChildItem $extract -Recurse -File -Filter '*.xml'
+          if(-not $xmlFiles){ throw 'CFX_XML_MISSING' }
+          foreach($file in $xmlFiles){
+            $text=[System.IO.File]::ReadAllText($file.FullName)
+            $symbolHits += ([regex]::Matches($text,[regex]::Escape($oldSymbol))).Count
+            $instrumentHits += ([regex]::Matches($text,[regex]::Escape($oldInstrument))).Count
+            $projectHits += ([regex]::Matches($text,[regex]::Escape($oldProject))).Count
+            $updated=$text.Replace($oldSymbol,$newSymbol).Replace($oldInstrument,$newInstrument).Replace($oldProject,$newProject)
+            if($updated -ne $text){ [System.IO.File]::WriteAllText($file.FullName,$updated,$utf8) }
+          }
+          if($symbolHits -lt 1){ throw 'SOURCE_CFX_HAS_NO_EXACT_NQ_SYMBOL_REFERENCE' }
+
+          $remaining=0
+          foreach($file in $xmlFiles){
+            $text=[System.IO.File]::ReadAllText($file.FullName)
+            $remaining += ([regex]::Matches($text,[regex]::Escape($oldSymbol))).Count
+          }
+          if($remaining -ne 0){ throw "OLD_SYMBOL_REMAINS:$remaining" }
+
+          $outDir=Join-Path $env:APPDATA 'CygnusSQXBridge\configs'
+          $zip=Join-Path $outDir "DXY_CFD_H1_-_Dukascopy__$stamp.zip"
+          $cfx=Join-Path $outDir "DXY_CFD_H1_-_Dukascopy__$stamp.cfx"
+          if(Test-Path $zip){Remove-Item $zip -Force}
+          if(Test-Path $cfx){Remove-Item $cfx -Force}
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($extract,$zip,[System.IO.Compression.CompressionLevel]::Optimal,$false)
+          Move-Item $zip $cfx -Force
+
+          $archive=[System.IO.Compression.ZipFile]::OpenRead($cfx)
+          try{
+            if(-not ($archive.Entries | Where-Object {$_.FullName -eq 'config.xml'})){ throw 'REPACKED_CFX_CONFIG_XML_MISSING' }
+          } finally { $archive.Dispose() }
+
+          $load=(& $sqx '-project' 'action=loadconfig' "name=$newProject" "file=$cfx" 2>&1 | Out-String)
+          if($LASTEXITCODE -ne 0){ throw "LOAD_DXY_PROJECT_FAILED:$LASTEXITCODE $load" }
+          if($load -notmatch 'Project loaded|All tasks completed'){ throw "LOAD_DXY_PROJECT_NOT_CONFIRMED $load" }
+
+          $projects=(& $sqx '-project' 'action=list' 2>&1 | Out-String)
+          if($LASTEXITCODE -ne 0){ throw "PROJECT_LIST_FAILED:$LASTEXITCODE" }
+          if($projects -notmatch '(?m)^DXY CFD H1 - Dukascopy\s*$'){ throw 'DXY_PROJECT_NOT_VISIBLE' }
+
+          Write-Output "DXY_PROJECT_CREATE=PASS"
+          Write-Output "PROJECT=$newProject"
+          Write-Output "SOURCE_CFX=$($source.Name)"
+          Write-Output "TARGET_CFX=$(Split-Path $cfx -Leaf)"
+          Write-Output "NQ_SYMBOL_HITS=$symbolHits"
+          Write-Output "INSTRUMENT_HITS=$instrumentHits"
+          Write-Output "PROJECT_NAME_HITS=$projectHits"
+          Write-Output "DXY_SYMBOL=DXY_M1_dukas"
+          Write-Output "DXY_INSTRUMENT=DOLLAR.IDX_dukascopy"
+          Write-Output "ORIGINAL_PROJECT_TOUCHED=false"
+          PS1
+
+          KEY=~/.ssh/cygnus_sqx_dxy
+          B64="$(iconv -f UTF-8 -t UTF-16LE dxy.ps1 | base64 -w0)"
+          ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$USER@$HOST"             "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $B64" | tee dxy-output.txt
+          grep -q 'DXY_PROJECT_CREATE=PASS' dxy-output.txt
+          grep -q 'ORIGINAL_PROJECT_TOUCHED=false' dxy-output.txt
