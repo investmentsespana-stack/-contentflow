@@ -1,0 +1,52 @@
+name: Probe SQX VPS Remote Access
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-sqx-vps-access.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe Windows VPS ports
+        shell: bash
+        env:
+          HOST: 62.113.200.117
+        run: |
+          set -u
+          for port in 22 5985 5986 3389; do
+            if timeout 4 bash -c "</dev/tcp/$HOST/$port" 2>/dev/null; then
+              echo "PORT_$port=OPEN"
+            else
+              echo "PORT_$port=CLOSED_OR_FILTERED"
+            fi
+          done
+      - name: Check deployment credential presence
+        shell: bash
+        env:
+          SQX_KEY: ${{ secrets.SQX_VPS_SSH_PRIVATE_KEY }}
+          VPS_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          WIN_KEY: ${{ secrets.WINDOWS_VPS_SSH_PRIVATE_KEY }}
+          SQX_PASS: ${{ secrets.SQX_VPS_PASSWORD }}
+          VPS_PASS: ${{ secrets.VPS_PASSWORD }}
+          WIN_PASS: ${{ secrets.WINDOWS_VPS_PASSWORD }}
+          SQX_USER: ${{ secrets.SQX_VPS_USER }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          WIN_USER: ${{ secrets.WINDOWS_VPS_USER }}
+        run: |
+          test -n "$SQX_KEY" && echo "SECRET_SQX_VPS_SSH_PRIVATE_KEY=PRESENT" || echo "SECRET_SQX_VPS_SSH_PRIVATE_KEY=ABSENT"
+          test -n "$VPS_KEY" && echo "SECRET_VPS_SSH_PRIVATE_KEY=PRESENT" || echo "SECRET_VPS_SSH_PRIVATE_KEY=ABSENT"
+          test -n "$WIN_KEY" && echo "SECRET_WINDOWS_VPS_SSH_PRIVATE_KEY=PRESENT" || echo "SECRET_WINDOWS_VPS_SSH_PRIVATE_KEY=ABSENT"
+          test -n "$SQX_PASS" && echo "SECRET_SQX_VPS_PASSWORD=PRESENT" || echo "SECRET_SQX_VPS_PASSWORD=ABSENT"
+          test -n "$VPS_PASS" && echo "SECRET_VPS_PASSWORD=PRESENT" || echo "SECRET_VPS_PASSWORD=ABSENT"
+          test -n "$WIN_PASS" && echo "SECRET_WINDOWS_VPS_PASSWORD=PRESENT" || echo "SECRET_WINDOWS_VPS_PASSWORD=ABSENT"
+          test -n "$SQX_USER" && echo "SECRET_SQX_VPS_USER=PRESENT" || echo "SECRET_SQX_VPS_USER=ABSENT"
+          test -n "$VPS_USER" && echo "SECRET_VPS_USER=PRESENT" || echo "SECRET_VPS_USER=ABSENT"
+          test -n "$WIN_USER" && echo "SECRET_WINDOWS_VPS_USER=PRESENT" || echo "SECRET_WINDOWS_VPS_USER=ABSENT"
