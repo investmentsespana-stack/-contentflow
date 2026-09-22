@@ -147,7 +147,7 @@ jobs:
           set -euo pipefail
           test -n "$WINDOWS_USER" || { echo "WINDOWS_VPS_USER secret is missing"; exit 20; }
           test -n "$WINDOWS_PASSWORD" || { echo "WINDOWS_VPS_PASSWORD secret is missing"; exit 21; }
-          python3 -m pip install --quiet pywinrm requests-ntlm
+          python3 -m pip install --quiet "pywinrm[credssp]" requests-ntlm
 
           cat > /tmp/deploy_winrm.py <<'PY'
           import json, os, sys, time
@@ -159,32 +159,45 @@ jobs:
           artifact_url=os.environ["ARTIFACT_URL"]
           endpoint=f"http://{host}:5985/wsman"
 
-          candidates=[user]
+          candidates=[]
+          def add(x):
+              if x and x not in candidates:
+                  candidates.append(x)
+          add(user)
           if "\\" not in user and "@" not in user:
-              candidates += [f".\\{user}", f"WIN-31RCI8K7JR2\\{user}"]
+              add(f".\\{user}")
+              add(f"WIN-31RCI8K7JR2\\{user}")
+          if "@" in user and "\\" not in user:
+              add(f"MicrosoftAccount\\{user}")
+          add("Administrator")
+          add(".\\Administrator")
+          add("WIN-31RCI8K7JR2\\Administrator")
 
           session=None
           chosen=None
           errors=[]
-          for candidate in candidates:
-              try:
-                  s=winrm.Session(
-                      endpoint,
-                      auth=(candidate,password),
-                      transport="ntlm",
-                      read_timeout_sec=180,
-                      operation_timeout_sec=120,
-                  )
-                  r=s.run_ps("$env:COMPUTERNAME")
-                  out=(r.std_out or b"").decode("utf-8","replace").strip()
-                  err=(r.std_err or b"").decode("utf-8","replace").strip()
-                  if r.status_code==0 and out.upper()=="WIN-31RCI8K7JR2":
-                      session=s
-                      chosen=candidate
-                      break
-                  errors.append(f"{candidate}:rc={r.status_code}:host={out}:err={err[:300]}")
-              except Exception as exc:
-                  errors.append(f"{candidate}:{type(exc).__name__}:{exc}")
+          for transport in ("ntlm","credssp"):
+              for candidate in candidates:
+                  try:
+                      s=winrm.Session(
+                          endpoint,
+                          auth=(candidate,password),
+                          transport=transport,
+                          read_timeout_sec=180,
+                          operation_timeout_sec=120,
+                      )
+                      r=s.run_ps("$env:COMPUTERNAME")
+                      out=(r.std_out or b"").decode("utf-8","replace").strip()
+                      err=(r.std_err or b"").decode("utf-8","replace").strip()
+                      if r.status_code==0 and out.upper()=="WIN-31RCI8K7JR2":
+                          session=s
+                          chosen=f"{transport}:{candidate}"
+                          break
+                      errors.append(f"{transport}:{candidate}:rc={r.status_code}:host={out}:err={err[:220]}")
+                  except Exception as exc:
+                      errors.append(f"{transport}:{candidate}:{type(exc).__name__}:{exc}")
+              if session is not None:
+                  break
 
           if session is None:
               print("WINRM_AUTH_FAILED")
