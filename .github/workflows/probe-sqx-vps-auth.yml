@@ -1,0 +1,121 @@
+name: Probe SQX VPS Authentication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-sqx-vps-auth.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Obtain target
+        id: oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sqx-deploy-target');
+            core.setSecret(token);
+            core.setOutput('token', token);
+
+      - name: Resolve exact VPS target
+        id: target
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          curl -fsS -H "Authorization: Bearer $OIDC_TOKEN"             "https://koqpyfvnprmirqviafzq.supabase.co/functions/v1/sqx-deploy-target" > target.json
+          test "$(jq -r '.device_name' target.json)" = "WIN-31RCI8K7JR2"
+          HOST="$(jq -r '.target_ip' target.json)"
+          echo "::add-mask::$HOST"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+
+      - name: Probe auth methods without changing VPS
+        shell: bash
+        env:
+          HOST: ${{ steps.target.outputs.host }}
+          WINDOWS_USER: ${{ secrets.WINDOWS_VPS_USER }}
+          WINDOWS_PASSWORD: ${{ secrets.WINDOWS_VPS_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$WINDOWS_PASSWORD"
+          python3 -m pip install --quiet pywinrm requests-ntlm requests-credssp impacket
+
+          python3 - <<'PY'
+          import os, socket, requests, winrm
+          from impacket.smbconnection import SMBConnection
+
+          host=os.environ["HOST"]
+          supplied=os.environ.get("WINDOWS_USER","").strip()
+          password=os.environ["WINDOWS_PASSWORD"]
+
+          for port in (135,445,5985,3389):
+              s=socket.socket(); s.settimeout(3)
+              rc=s.connect_ex((host,port)); s.close()
+              print(f"PORT_{port}_OPEN={str(rc==0).lower()}")
+
+          try:
+              r=requests.post(f"http://{host}:5985/wsman",timeout=5)
+              auth=r.headers.get("WWW-Authenticate","")
+              print("WINRM_WWW_AUTHENTICATE="+auth.replace(password,"***")[:500])
+          except Exception as exc:
+              print("WINRM_HEADER_PROBE_ERROR="+type(exc).__name__)
+
+          users=[]
+          for u in (supplied,"Administrator",r".\Administrator",r"WIN-31RCI8K7JR2\Administrator"):
+              if u and u not in users:
+                  users.append(u)
+
+          winrm_pass=False
+          for transport in ("ntlm","credssp"):
+              for u in users:
+                  try:
+                      s=winrm.Session(
+                          f"http://{host}:5985/wsman",
+                          auth=(u,password),
+                          transport=transport,
+                          read_timeout_sec=30,
+                          operation_timeout_sec=20,
+                      )
+                      rr=s.run_ps("$env:COMPUTERNAME")
+                      out=(rr.std_out or b"").decode("utf-8","replace").strip()
+                      if rr.status_code==0 and out.upper()=="WIN-31RCI8K7JR2":
+                          print(f"WINRM_{transport.upper()}_AUTH=PASS")
+                          winrm_pass=True
+                          break
+                  except Exception as exc:
+                      pass
+              if winrm_pass:
+                  break
+          if not winrm_pass:
+              print("WINRM_AUTH=FAIL")
+
+          smb_pass=False
+          for u in users:
+              base=u.split("\\")[-1]
+              domains=["", "WIN-31RCI8K7JR2"]
+              for domain in domains:
+                  try:
+                      smb=SMBConnection(host,host,timeout=8)
+                      smb.login(base,password,domain)
+                      shares=[x["shi1_netname"][:-1] for x in smb.listShares()]
+                      print("SMB_AUTH=PASS")
+                      print("SMB_ADMIN_SHARE="+str("ADMIN$" in shares).lower())
+                      smb.logoff()
+                      smb_pass=True
+                      break
+                  except Exception:
+                      pass
+              if smb_pass:
+                  break
+          if not smb_pass:
+              print("SMB_AUTH=FAIL")
+          PY
