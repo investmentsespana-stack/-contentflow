@@ -1,0 +1,92 @@
+name: Publish Cygnus Bridge V6.4 Bootstrap
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-cygnus-bridge-v64-bootstrap.yml'
+      - 'trading_super_strategy/sqx_bridge/Install-CygnusBridgeV64.ps1'
+      - 'trading_super_strategy/sqx_bridge/app.py'
+      - 'trading_super_strategy/sqx_bridge/test_live_http_telemetry.py'
+      - 'trading_super_strategy/sqx_bridge/test_startup_gate.py'
+      - 'trading_super_strategy/sqx_bridge/test_resource_repair.py'
+      - 'trading_super_strategy/sqx_bridge/test_vibe_nq6_bridge_gate.py'
+      - 'trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py'
+      - 'trading_super_strategy/vibe_trading/asset_research.py'
+      - 'trading_super_strategy/vibe_trading/tradingview_futures_guard.py'
+      - 'trading_super_strategy/vibe_trading/vibe_full_preflight.py'
+      - 'trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml'
+      - 'trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml'
+      - 'trading_super_strategy/vibe_trading/Start-VibeNative.ps1'
+      - 'trading_super_strategy/vibe_trading/Stop-VibeNative.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build and certify
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python -m pip install --upgrade pip
+          python -m pip install -r trading_super_strategy/sqx_bridge/requirements.txt pyinstaller
+          python -m py_compile trading_super_strategy/sqx_bridge/app.py
+          python trading_super_strategy/sqx_bridge/test_startup_gate.py
+          python trading_super_strategy/sqx_bridge/test_live_http_telemetry.py
+          python trading_super_strategy/sqx_bridge/test_resource_repair.py
+          python trading_super_strategy/sqx_bridge/test_vibe_nq6_bridge_gate.py
+          python trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py
+          python -m py_compile trading_super_strategy/vibe_trading/tradingview_futures_guard.py trading_super_strategy/vibe_trading/asset_research.py trading_super_strategy/vibe_trading/vibe_full_preflight.py
+
+          pyinstaller --noconfirm --clean --onefile --windowed --name CygnusSQXBridge --collect-all keyring trading_super_strategy/sqx_bridge/app.py
+
+          New-Item -ItemType Directory -Force package | Out-Null
+          Copy-Item dist/CygnusSQXBridge.exe package/CygnusSQXBridge.exe
+          Copy-Item trading_super_strategy/sqx_bridge/Install-CygnusBridgeV64.ps1 package/Install-CygnusBridgeV64.ps1
+          Copy-Item trading_super_strategy/vibe_trading/asset_research.py package/asset_research.py
+          Copy-Item trading_super_strategy/vibe_trading/tradingview_futures_guard.py package/tradingview_futures_guard.py
+          Copy-Item trading_super_strategy/vibe_trading/vibe_full_preflight.py package/vibe_full_preflight.py
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_native_smoke.yaml package/cygnus_native_smoke.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_futures_strategy_lab.yaml package/cygnus_futures_strategy_lab.yaml
+          Copy-Item trading_super_strategy/vibe_trading/cygnus_dxy_macro_lab.yaml package/cygnus_dxy_macro_lab.yaml
+          Copy-Item trading_super_strategy/vibe_trading/Start-VibeNative.ps1 package/Start-VibeNative.ps1
+          Copy-Item trading_super_strategy/vibe_trading/Stop-VibeNative.ps1 package/Stop-VibeNative.ps1
+
+          @{
+            bridge_version='142-autonomy-v6.4-stack-control'
+            git_sha='\${{ github.sha }}'
+            built_at_utc=(Get-Date).ToUniversalTime().ToString('o')
+            research_only=$true
+            broker_execution=$false
+            arbitrary_shell=$false
+          } | ConvertTo-Json | Set-Content -Encoding UTF8 package/manifest.json
+
+          Compress-Archive -Path package/* -DestinationPath CygnusBridgeV64.zip -Force
+          (Get-FileHash CygnusBridgeV64.zip -Algorithm SHA256).Hash.ToLower() | Set-Content -NoNewline CygnusBridgeV64.sha256
+
+      - name: Publish stable bootstrap release
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="cygnus-bridge-v6.4-bootstrap"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" CygnusBridgeV64.zip CygnusBridgeV64.sha256 --clobber
+          else
+            gh release create "$TAG" CygnusBridgeV64.zip CygnusBridgeV64.sha256 \
+              --title "Cygnus Bridge V6.4 Bootstrap" \
+              --notes "Certified research-only bridge bootstrap. No broker execution and no arbitrary shell."
+          fi
+          echo "BOOTSTRAP_RELEASE=PASS"
