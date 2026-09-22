@@ -125,11 +125,9 @@ def assert_provider_symbol(root: str, provider_symbol: str) -> str:
 
 def codex_policy_text() -> str:
     return (
-        "For NQ, ES, GC and CL use futures tools only. "
-        "Canonical continuous symbols are CME:NQ1!, CME:ES1!, COMEX:GC1!, NYMEX:CL1!. "
-        "Use futures_category_snapshot by category before analysis. "
-        "Never use coin_analysis, multi_timeframe_analysis, combined_analysis or "
-        "multi_agent_analysis for these futures until a futures-native TA path is verified. "
-        "Never fall back to KUCOIN/crypto. Never substitute GC with TVC:GOLD or CL with a spot/CFD proxy. "
-        "Required research timeframes: 5m, 15m, 1h, 4h. No trades."
+        "use futures-native tools only for the supplied target and canonical symbol. "
+        "use the futures category snapshot before analysis. "
+        "do not use crypto analysis routes as substitutes for futures research. "
+        "do not fall back to crypto, spot, index-cash, or cfd proxies. "
+        "use the supplied research timeframes and do not place trades."
     )
