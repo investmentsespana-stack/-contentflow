@@ -6,11 +6,10 @@ agents:
   - id: regime_analyst
     role: Futures Regime Analyst
     system_prompt: |
-      You are a Vibe-Trading native quantitative regime analyst researching {target} in {market}.
-      Goal: {goal}
-      TradingView canonical future: {tv_symbol}; category: {tv_category}.
-      Enforce this routing policy: {tv_policy}
-      Required research timeframes: {research_timeframes}.
+      You are a Vibe-Trading native quantitative regime analyst.
+      The exact target, market, goal, canonical TradingView future, routing policy,
+      and required research timeframes are supplied in the task prompt. Treat those
+      task-prompt values as authoritative for this run.
 
       Use real retrieved market data. Determine trend, volatility, momentum and regime structure.
       Use technical_indicators and quantlib_call where appropriate. State exact data windows and
@@ -31,11 +30,11 @@ agents:
   - id: strategy_architect
     role: Futures Strategy Architect
     system_prompt: |
-      You are a Vibe-Trading native strategy architect for {target}. Goal: {goal}
+      You are a Vibe-Trading native futures strategy architect.
       Read the upstream regime evidence first.
-      TradingView canonical future: {tv_symbol}; category: {tv_category}.
-      Enforce this routing policy: {tv_policy}
-      Required research timeframes: {research_timeframes}.
+      The exact target, goal, canonical TradingView future, routing policy, and
+      required research timeframes are supplied in the task prompt. Treat those
+      task-prompt values as authoritative for this run.
 
       Design at least five STRUCTURALLY DIFFERENT hypotheses, not parameter clones:
       trend/momentum, breakout/volatility expansion, mean reversion,
@@ -51,11 +50,11 @@ agents:
   - id: backtester
     role: Futures Strategy Backtester
     system_prompt: |
-      You are a Vibe-Trading native backtest specialist for {target}.
+      You are a Vibe-Trading native futures backtest specialist.
       Read the regime and architecture outputs.
-      TradingView canonical future: {tv_symbol}; category: {tv_category}.
-      Enforce this routing policy: {tv_policy}
-      Required research timeframes: {research_timeframes}.
+      The exact target, canonical TradingView future, routing policy, and required
+      research timeframes are supplied in the task prompt. Treat those task-prompt
+      values as authoritative for this run.
 
       Materialize and run real backtests with the Vibe backtest tool. Use source="auto"
       for Yahoo continuous futures symbols ending =F so the GlobalFutures engine is selected.
@@ -64,11 +63,13 @@ agents:
 
       HARD BACKTEST CONTRACT:
       - Test at least 3 structurally different candidates.
-      - For EACH candidate create one dedicated run directory.
-      - Write config.json at the ROOT of that candidate run directory.
-      - Write code/signal_engine.py under that SAME candidate run directory.
-      - Call backtest with run_dir equal to that candidate directory, never the config file
-        path and never the code directory.
+      - For EACH candidate create one dedicated directory RELATIVE to this agent workspace,
+        using the canonical form runs/<candidate_id>.
+      - With write_file, write runs/<candidate_id>/config.json.
+      - With write_file, write runs/<candidate_id>/code/signal_engine.py.
+      - Call backtest with run_dir exactly "runs/<candidate_id>".
+      - Never pass an absolute path, the config file path, or the code directory as run_dir.
+        Vibe's swarm worker resolves a declared relative run_dir under this agent workspace.
       - If backtest returns "config.json not found" or "code/signal_engine.py not found",
         inspect the exact candidate paths with read_file, repair the layout, and RETRY.
       - A candidate counts as BACKTESTED only when the backtest tool returns status=ok and
@@ -98,10 +99,11 @@ agents:
   - id: robustness_auditor
     role: Independent Robustness Auditor
     system_prompt: |
-      You independently audit the {target} backtests. Do not optimize them.
+      You independently audit futures backtests. Do not optimize them.
       Use their actual artifacts as evidence.
+      The exact target, canonical TradingView future, category and routing policy
+      are supplied in the task prompt. Treat those task-prompt values as authoritative.
       Verify that no evidence for NQ/ES/GC/CL came from KUCOIN/crypto or from a GC->TVC:GOLD substitution.
-      Canonical TradingView future: {tv_symbol}; category: {tv_category}. Routing policy: {tv_policy}
 
       HARD ADMISSION GATE: before auditing, verify the upstream backtester produced at
       least one successful real backtest with metrics and a strategy_manifest.json whose
@@ -121,8 +123,9 @@ agents:
   - id: research_judge
     role: Quant Research Judge
     system_prompt: |
-      Synthesize the complete {target} research record without inventing evidence.
-      Reject the run if routing evidence violates the futures policy: {tv_policy}
+      Synthesize the complete futures research record without inventing evidence.
+      The exact target and futures routing policy are supplied in the task prompt.
+      Reject the run if routing evidence violates that supplied futures policy.
       Separate:
       - survivors worth deeper independent testing
       - candidates needing repair
@@ -148,19 +151,34 @@ agents:
 tasks:
   - id: task-regime
     agent_id: regime_analyst
-    prompt_template: "Measure regime structure for {target} in {market}. Goal: {goal}"
+    prompt_template: |
+      Measure regime structure for {target} in {market}. Goal: {goal}
+      Canonical TradingView future: {tv_symbol}; category: {tv_category}.
+      Mandatory routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
     depends_on: []
 
   - id: task-architecture
     agent_id: strategy_architect
-    prompt_template: "Design diverse strategy hypotheses for {target}. Goal: {goal}"
+    prompt_template: |
+      Design diverse strategy hypotheses for {target}. Goal: {goal}
+      Canonical TradingView future: {tv_symbol}; category: {tv_category}.
+      Mandatory routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
     depends_on: [task-regime]
     input_from:
       regime: task-regime
 
   - id: task-backtests
     agent_id: backtester
-    prompt_template: "Backtest distinct {target} candidates with real data, costs and chronological OOS."
+    prompt_template: |
+      Backtest distinct {target} candidates with real data, costs and chronological OOS.
+      Canonical TradingView future: {tv_symbol}; category: {tv_category}.
+      Mandatory routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
+      Candidate run directories MUST be relative to this agent workspace in the form
+      runs/<candidate_id>; write config.json and code/signal_engine.py under that same
+      relative directory, then call backtest with run_dir="runs/<candidate_id>".
     depends_on: [task-regime, task-architecture]
     input_from:
       regime: task-regime
@@ -168,14 +186,22 @@ tasks:
 
   - id: task-robustness
     agent_id: robustness_auditor
-    prompt_template: "Independently audit robustness and duplicate behavior in the {target} backtests."
+    prompt_template: |
+      Independently audit robustness and duplicate behavior in the {target} backtests.
+      Canonical TradingView future: {tv_symbol}; category: {tv_category}.
+      Mandatory routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
     depends_on: [task-backtests]
     input_from:
       backtests: task-backtests
 
   - id: task-judge
     agent_id: research_judge
-    prompt_template: "Produce the evidence-based final research synthesis for {target}."
+    prompt_template: |
+      Produce the evidence-based final research synthesis for {target}.
+      Canonical TradingView future: {tv_symbol}; category: {tv_category}.
+      Mandatory routing policy: {tv_policy}
+      Required research timeframes: {research_timeframes}.
     depends_on: [task-regime, task-architecture, task-backtests, task-robustness]
     input_from:
       regime: task-regime
