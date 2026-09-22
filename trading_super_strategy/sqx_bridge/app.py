@@ -35,6 +35,8 @@ VIBE_ASSET_SCRIPT = VIBE_ROOT / "asset_research.py"
 VIBE_MCP_URL = "http://127.0.0.1:8900/mcp"
 SQX_HTTP_API = "http://127.0.0.1:5050/call"
 SQX_HTTP_TIMEOUT_SECONDS = 30.0
+SQX_MCP_PORTS = tuple(range(8080, 8091))
+SQX_MCP_PROTOCOL = "2025-06-18"
 VIBE_ALLOWED_ASSETS = {"NQ", "ES", "CL", "GC", "DXY"}
 VIBE_ASSET_ALIASES = {"DX": "DXY"}
 VIBE_ASSET_ACTIONS = {"start", "status", "result"}
@@ -297,15 +299,238 @@ def _sqx_http_call(command: str, timeout: float = SQX_HTTP_TIMEOUT_SECONDS) -> d
     }
 
 
+
+def _mcp_response_json(response: httpx.Response) -> dict[str, Any]:
+    text = response.text.strip()
+    if not text:
+        raise RuntimeError("SQX_MCP_EMPTY_RESPONSE")
+    content_type = (response.headers.get("content-type") or "").lower()
+    if "application/json" in content_type:
+        data = response.json()
+        if not isinstance(data, dict):
+            raise RuntimeError("SQX_MCP_INVALID_JSON")
+        return data
+    for line in text.splitlines():
+        if line.startswith("data:"):
+            payload = line[5:].strip()
+            if not payload:
+                continue
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(data, dict):
+                return data
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"SQX_MCP_UNPARSEABLE:{text[:500]}") from exc
+    if not isinstance(data, dict):
+        raise RuntimeError("SQX_MCP_INVALID_RESPONSE")
+    return data
+
+
+def _sqx_mcp_connect() -> tuple[httpx.Client, str, dict[str, str]]:
+    last_error: str | None = None
+    for port in SQX_MCP_PORTS:
+        endpoint = f"http://127.0.0.1:{port}/mcp"
+        client = httpx.Client(
+            timeout=httpx.Timeout(8.0, connect=0.5),
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Protocol-Version": SQX_MCP_PROTOCOL,
+            },
+        )
+        try:
+            response = client.post(
+                endpoint,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": SQX_MCP_PROTOCOL,
+                        "capabilities": {},
+                        "clientInfo": {
+                            "name": "CygnusSQXBridge",
+                            "version": "6.4.2",
+                        },
+                    },
+                },
+            )
+            response.raise_for_status()
+            payload = _mcp_response_json(response)
+            if payload.get("error"):
+                raise RuntimeError(f"initialize:{payload['error']}")
+            result = payload.get("result")
+            if not isinstance(result, dict):
+                raise RuntimeError("initialize:no_result")
+            protocol = str(result.get("protocolVersion") or SQX_MCP_PROTOCOL)
+            headers = {"MCP-Protocol-Version": protocol}
+            session_id = response.headers.get("mcp-session-id")
+            if session_id:
+                headers["Mcp-Session-Id"] = session_id
+            try:
+                client.post(
+                    endpoint,
+                    headers=headers,
+                    json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+                )
+            except Exception:
+                pass
+            return client, endpoint, headers
+        except Exception as exc:
+            last_error = f"{endpoint}:{type(exc).__name__}:{exc}"
+            client.close()
+    raise RuntimeError(f"SQX_BUILTIN_MCP_UNAVAILABLE:{last_error or 'no_endpoint'}")
+
+
+def _sqx_mcp_tools(client: httpx.Client, endpoint: str, headers: dict[str, str]) -> list[dict[str, Any]]:
+    response = client.post(
+        endpoint,
+        headers=headers,
+        json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+    )
+    response.raise_for_status()
+    payload = _mcp_response_json(response)
+    if payload.get("error"):
+        raise RuntimeError(f"SQX_MCP_TOOLS_ERROR:{payload['error']}")
+    result = payload.get("result") or {}
+    tools = result.get("tools") if isinstance(result, dict) else None
+    if not isinstance(tools, list):
+        raise RuntimeError("SQX_MCP_TOOLS_MISSING")
+    return [x for x in tools if isinstance(x, dict)]
+
+
+def _sqx_mcp_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    client, endpoint, headers = _sqx_mcp_connect()
+    try:
+        tools = _sqx_mcp_tools(client, endpoint, headers)
+        tool = next((x for x in tools if x.get("name") == tool_name), None)
+        if tool is None:
+            raise RuntimeError(f"SQX_MCP_TOOL_MISSING:{tool_name}")
+        response = client.post(
+            endpoint,
+            headers=headers,
+            json={
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": tool_name, "arguments": arguments},
+            },
+        )
+        response.raise_for_status()
+        payload = _mcp_response_json(response)
+        if payload.get("error"):
+            raise RuntimeError(f"SQX_MCP_CALL_ERROR:{tool_name}:{payload['error']}")
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError(f"SQX_MCP_RESULT_MISSING:{tool_name}")
+        if result.get("isError") is True:
+            raise RuntimeError(
+                f"SQX_MCP_TOOL_FAILED:{tool_name}:{json.dumps(result, ensure_ascii=False)[:1600]}"
+            )
+        return {
+            "returncode": 0,
+            "stdout": json.dumps(result, ensure_ascii=False, default=str),
+            "stderr": "",
+            "transport": "sqx_builtin_mcp",
+            "mcp_endpoint": endpoint,
+            "mcp_tool": tool_name,
+            "mcp_result": result,
+            "mcp_tool_schema": tool.get("inputSchema") or {},
+        }
+    finally:
+        client.close()
+
+
+def _sqx_mcp_project_control(action: str, project: str) -> dict[str, Any]:
+    tool_name = {"start": "run_project", "stop": "stop_project"}.get(action)
+    if not tool_name:
+        raise RuntimeError(f"SQX_MCP_PROJECT_ACTION_UNSUPPORTED:{action}")
+
+    client, endpoint, headers = _sqx_mcp_connect()
+    try:
+        tools = _sqx_mcp_tools(client, endpoint, headers)
+        tool = next((x for x in tools if x.get("name") == tool_name), None)
+        if tool is None:
+            raise RuntimeError(f"SQX_MCP_TOOL_MISSING:{tool_name}")
+        schema = tool.get("inputSchema") or {}
+        props = schema.get("properties") if isinstance(schema, dict) else {}
+        if not isinstance(props, dict):
+            props = {}
+        key = next((k for k in ("project_name", "project", "name") if k in props), None)
+        if key is None:
+            required = schema.get("required") if isinstance(schema, dict) else None
+            if isinstance(required, list) and len(required) == 1 and isinstance(required[0], str):
+                key = required[0]
+        if key is None:
+            key = "project"
+
+        response = client.post(
+            endpoint,
+            headers=headers,
+            json={
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": tool_name, "arguments": {key: project}},
+            },
+        )
+        response.raise_for_status()
+        payload = _mcp_response_json(response)
+        if payload.get("error"):
+            raise RuntimeError(f"SQX_MCP_CALL_ERROR:{tool_name}:{payload['error']}")
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError(f"SQX_MCP_RESULT_MISSING:{tool_name}")
+        if result.get("isError") is True:
+            raise RuntimeError(
+                f"SQX_MCP_TOOL_FAILED:{tool_name}:{json.dumps(result, ensure_ascii=False)[:1600]}"
+            )
+        return {
+            "returncode": 0,
+            "stdout": json.dumps(result, ensure_ascii=False, default=str),
+            "stderr": "",
+            "transport": "sqx_builtin_mcp",
+            "mcp_endpoint": endpoint,
+            "mcp_tool": tool_name,
+            "project": project,
+            "control_action": action,
+            "mcp_argument_key": key,
+            "mcp_result": result,
+        }
+    finally:
+        client.close()
+
+
+def _sqx_mcp_list_projects() -> dict[str, Any]:
+    return _sqx_mcp_tool_call("list_projects", {})
+
+
 def _sqx_http_project_control(action: str, project: str) -> dict[str, Any]:
-    """Control the already-running SQX GUI instance through its loopback HTTP API."""
+    """Control an already-running SQX GUI instance.
+
+    Prefer StrategyQuant's built-in MCP server for project names with spaces.
+    Fall back to the legacy loopback CLI HTTP endpoint for pause/resume or when
+    MCP is unavailable.
+    """
     action = str(action or "").strip().lower()
     if action not in {"start", "stop", "pause", "resume"}:
         raise RuntimeError(f"SQX_HTTP_CONTROL_ACTION_BLOCKED:{action}")
     safe_project = _sqx_http_value(project, "project", f"http_{action}_project")
+
+    mcp_error: str | None = None
+    if action in {"start", "stop"}:
+        try:
+            return _sqx_mcp_project_control(action, safe_project)
+        except Exception as exc:
+            mcp_error = f"{type(exc).__name__}:{exc}"
+
     result = _sqx_http_call(f"-project action={action} name='{safe_project}'")
-    text = "\n".join(x for x in (result.get("stdout", ""), result.get("stderr", "")) if x)
-    lowered = text.lower()
+    text_out = "\n".join(x for x in (result.get("stdout", ""), result.get("stderr", "")) if x)
+    lowered = text_out.lower()
     failure_tokens = (
         "cannot start project",
         "cannot stop project",
@@ -316,9 +541,12 @@ def _sqx_http_project_control(action: str, project: str) -> dict[str, Any]:
         "error:",
     )
     if any(token in lowered for token in failure_tokens):
-        raise RuntimeError(f"SQX_HTTP_CONTROL_FAILED:{action}:{text[:1200]}")
+        suffix = f" | MCP={mcp_error}" if mcp_error else ""
+        raise RuntimeError(f"SQX_HTTP_CONTROL_FAILED:{action}:{text_out[:1200]}{suffix}")
     result["control_action"] = action
     result["project"] = project
+    if mcp_error:
+        result["mcp_fallback_error"] = mcp_error
     return result
 
 
@@ -1174,7 +1402,7 @@ def _stack_health(cfg: BridgeConfig) -> dict[str, Any]:
         "returncode": 0,
         "stdout": "STACK_HEALTH_CHECKED",
         "stderr": "",
-        "bridge_version": "142-autonomy-v6.4.1-stack-control",
+        "bridge_version": "142-autonomy-v6.4.2-stack-control",
         "strategyquant": {"http_alive": sqx_alive, "probe_excerpt": sqx_probe[:800]},
         "vibe": {
             "python_present": vibe_python,
@@ -1347,11 +1575,18 @@ def sqx_call(cfg: BridgeConfig, runtime: SqCliRuntime, name: str, payload: dict[
             safe_project = _sqx_http_value(project, "project", name)
             live_instance, _ = _sqx_instance_alive()
             if live_instance:
-                result = _sqx_http_call(f"-project action=status name='{safe_project}'")
-                extra["transport"] = "sqx_http_api"
-                extra["attached_existing_instance"] = True
-                extra["status_metrics"] = _parse_sqx_status_metrics(result.get("stdout", ""))
-                extra["telemetry_source"] = "sqx_http_api"
+                try:
+                    result = _sqx_mcp_list_projects()
+                    extra["transport"] = "sqx_builtin_mcp"
+                    extra["attached_existing_instance"] = True
+                    extra["telemetry_source"] = "sqx_builtin_mcp"
+                except Exception as mcp_exc:
+                    result = _sqx_http_call(f"-project action=status name='{safe_project}'")
+                    extra["transport"] = "sqx_http_api"
+                    extra["attached_existing_instance"] = True
+                    extra["status_metrics"] = _parse_sqx_status_metrics(result.get("stdout", ""))
+                    extra["telemetry_source"] = "sqx_http_api"
+                    extra["sqx_mcp_error"] = str(mcp_exc)
                 try:
                     extra["file_evidence"] = _project_file_status(cfg, project)
                 except Exception as file_exc:
@@ -1752,7 +1987,7 @@ class BridgeWorker(threading.Thread):
         health = {
             "hostname": socket.gethostname(),
             "transport": "sqcli_process",
-            "bridge_version": "142-autonomy-v6.4.1-stack-control",
+            "bridge_version": "142-autonomy-v6.4.2-stack-control",
             "sqcli_path": self.cfg.sqcli_path,
             "sqx_cli_ok": sqx_ok,
             "capabilities": sorted(ALLOWLIST),
