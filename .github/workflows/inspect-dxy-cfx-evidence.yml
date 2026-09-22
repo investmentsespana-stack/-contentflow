@@ -44,6 +44,20 @@ jobs:
                   info=sym.find('InstrumentInfo')
                   print('RESOURCE', sym.attrib.get('name'), '| instrument=', (info.attrib.get('instrument') if info is not None else None), '| source=', sym.attrib.get('source'), '| cloneFrom=', sym.attrib.get('cloneFrom'))
               print('RESOURCES_END')
+              print('CHART_SYMBOLS_BEGIN')
+              seen=set()
+              for n,t in texts:
+                  if not n.endswith('.xml'): continue
+                  try:
+                      rr=ET.fromstring(t)
+                  except Exception:
+                      continue
+                  for ch in rr.findall('.//Chart'):
+                      key=(n,ch.attrib.get('symbol'),ch.attrib.get('timeframe'))
+                      if key not in seen:
+                          seen.add(key)
+                          print('CHART', n, '|', ch.attrib.get('symbol'), '|', ch.attrib.get('timeframe'))
+              print('CHART_SYMBOLS_END')
               needles=['monte carlo','montecarlo','retest','builder','build strategies','walk forward','oos','slippage','databank','goto','go to task','loop','symbol','instrument','dxy','dukascopy','timeframe']
               for n,t in texts:
                   low=t.lower()
