@@ -65,7 +65,7 @@ jobs:
 
           @{
             bridge_version='142-autonomy-v6.4-stack-control'
-            git_sha='\${{ github.sha }}'
+            git_sha='${{ github.sha }}'
             built_at_utc=(Get-Date).ToUniversalTime().ToString('o')
             research_only=$true
             broker_execution=$false
@@ -78,7 +78,7 @@ jobs:
       - name: Publish stable bootstrap release
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           TAG="cygnus-bridge-v6.4-bootstrap"
