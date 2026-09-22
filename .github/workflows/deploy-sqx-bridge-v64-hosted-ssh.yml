@@ -8,6 +8,7 @@ on:
       - 'trading_super_strategy/sqx_bridge/app.py'
       - 'trading_super_strategy/sqx_bridge/test_live_http_telemetry.py'
       - 'trading_super_strategy/sqx_bridge/test_startup_gate.py'
+      - 'trading_super_strategy/sqx_bridge/test_custom_project_inspection.py'
       - 'trading_super_strategy/vibe_trading/asset_research.py'
       - 'trading_super_strategy/vibe_trading/tradingview_futures_guard.py'
       - 'trading_super_strategy/vibe_trading/vibe_full_preflight.py'
@@ -41,6 +42,7 @@ jobs:
           python -m py_compile trading_super_strategy/sqx_bridge/app.py
           python trading_super_strategy/sqx_bridge/test_startup_gate.py
           python trading_super_strategy/sqx_bridge/test_live_http_telemetry.py
+          python trading_super_strategy/sqx_bridge/test_custom_project_inspection.py
           python trading_super_strategy/sqx_bridge/test_vibe_asset_bridge_gate.py
           pyinstaller --noconfirm --clean --onefile --windowed --name CygnusSQXBridge --collect-all keyring trading_super_strategy/sqx_bridge/app.py
 
