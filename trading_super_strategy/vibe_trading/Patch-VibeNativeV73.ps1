@@ -12,6 +12,7 @@ $required=@(
   "asset_research.py",
   "tradingview_futures_guard.py",
   "apply_vibe_futures_data_route_fix.py",
+  "apply_vibe_upstream_artifact_handoff_fix.py",
   "Start-VibeNative.ps1",
   "Stop-VibeNative.ps1",
   "Authorize-VibeCodex.ps1",
@@ -30,6 +31,8 @@ Copy-Item (Join-Path $pkg "asset_research.py") "$Root\asset_research.py" -Force
 Copy-Item (Join-Path $pkg "tradingview_futures_guard.py") "$Root\tradingview_futures_guard.py" -Force
 & $python (Join-Path $pkg "apply_vibe_futures_data_route_fix.py")
 if($LASTEXITCODE -ne 0){ throw "VIBE_FUTURES_DATA_ROUTE_PATCH_FAILED" }
+& $python (Join-Path $pkg "apply_vibe_upstream_artifact_handoff_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_UPSTREAM_ARTIFACT_HANDOFF_PATCH_FAILED" }
 Copy-Item (Join-Path $pkg "Start-VibeNative.ps1") "$Root\Start-VibeNative.ps1" -Force
 Copy-Item (Join-Path $pkg "Stop-VibeNative.ps1") "$Root\Stop-VibeNative.ps1" -Force
 Copy-Item (Join-Path $pkg "Authorize-VibeCodex.ps1") "$Root\Authorize-VibeCodex.ps1" -Force
