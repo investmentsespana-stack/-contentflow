@@ -49,7 +49,7 @@ No se admite un robot a PORTFOLIO_FIT sin serie temporal suficiente.
 Un candidato se rechaza si:
 - no está aprobado individualmente para research/demo;
 - excede el límite de concentración por mercado;
-- su correlación absoluta máxima con un miembro existente supera el umbral;
+- su correlación positiva con un miembro existente supera el umbral; la correlación negativa no se rechaza por sí sola;
 - su solapamiento de drawdown con un miembro existente supera el umbral;
 - empeora el drawdown agregado más allá de la tolerancia sin compensación de diversificación;
 - duplica mercado + familia + timeframe con comportamiento casi idéntico.
@@ -60,7 +60,7 @@ Por robot y por cartera:
 - retorno neto;
 - profit factor;
 - max drawdown;
-- correlación de retornos;
+- correlación de retornos, distinguiendo correlación positiva redundante de correlación negativa diversificadora;
 - correlación de pérdidas;
 - solapamiento de drawdown;
 - contribución marginal al drawdown;
