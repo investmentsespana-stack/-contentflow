@@ -121,6 +121,61 @@ if marker not in text:
         raise SystemExit("VIBE_UPSTREAM_HANDOFF_STAGE_ANCHOR_NOT_FOUND")
     text = text.replace(old, new, 1)
 
+
+# Downstream workers only have read_file; they cannot enumerate an arbitrary
+# workspace directory. Publish an index beside every staged upstream tree so
+# auditors/judges can discover dynamic candidate paths deterministically.
+index_marker = "vibe.upstream_artifact_index.v1"
+if index_marker not in text:
+    if "import json\n" not in text:
+        text = text.replace("import logging\n", "import json\nimport logging\n", 1)
+
+    old_summary = '''                            + f"\\n\\n[Upstream artifacts staged at upstream/{context_key}/]"
+'''
+    new_summary = '''                            + f"\\n\\n[Upstream artifacts staged at upstream/{context_key}/. "
+                              f"Read upstream/{context_key}/artifact_index.json first, then open exact files listed there.]"
+'''
+    if old_summary in text:
+        text = text.replace(old_summary, new_summary, 1)
+
+    old_stage = '''                if target_dir.exists():
+                    shutil.rmtree(target_dir)
+                shutil.copytree(source_dir, target_dir)
+
+            result = run_worker(
+'''
+    new_stage = '''                if target_dir.exists():
+                    shutil.rmtree(target_dir)
+                shutil.copytree(source_dir, target_dir)
+
+                # read_file has no directory-enumeration primitive. Publish a
+                # deterministic file index so downstream auditors can discover
+                # candidate manifests and evidence without guessing paths.
+                staged_files = sorted(
+                    path.relative_to(target_dir).as_posix()
+                    for path in target_dir.rglob("*")
+                    if path.is_file()
+                )
+                (target_dir / "artifact_index.json").write_text(
+                    json.dumps(
+                        {
+                            "schema": "vibe.upstream_artifact_index.v1",
+                            "context_key": context_key,
+                            "file_count": len(staged_files),
+                            "files": staged_files,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+
+            result = run_worker(
+'''
+    if old_stage not in text:
+        raise SystemExit("VIBE_UPSTREAM_ARTIFACT_INDEX_STAGE_ANCHOR_NOT_FOUND")
+    text = text.replace(old_stage, new_stage, 1)
+
 if text != original:
     backup = path.with_suffix(path.suffix + ".before-upstream-artifact-handoff.bak")
     if not backup.exists():
@@ -133,6 +188,8 @@ required = [
     "upstream_artifact_dirs=upstream_artifact_dirs",
     'upstream_root = current_artifact_dir / "upstream"',
     "shutil.copytree(source_dir, target_dir)",
+    'artifact_index.json',
+    'vibe.upstream_artifact_index.v1',
     marker,
 ]
 current = path.read_text(encoding="utf-8")
