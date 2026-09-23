@@ -13,6 +13,7 @@ $required=@(
   "tradingview_futures_guard.py",
   "apply_vibe_futures_data_route_fix.py",
   "Start-VibeNative.ps1",
+  "Stop-VibeNative.ps1",
   "Authorize-VibeCodex.ps1",
   "Vibe-Codex-DeviceAuth.py",
   "vibe_full_preflight.py",
@@ -30,6 +31,7 @@ Copy-Item (Join-Path $pkg "tradingview_futures_guard.py") "$Root\tradingview_fut
 & $python (Join-Path $pkg "apply_vibe_futures_data_route_fix.py")
 if($LASTEXITCODE -ne 0){ throw "VIBE_FUTURES_DATA_ROUTE_PATCH_FAILED" }
 Copy-Item (Join-Path $pkg "Start-VibeNative.ps1") "$Root\Start-VibeNative.ps1" -Force
+Copy-Item (Join-Path $pkg "Stop-VibeNative.ps1") "$Root\Stop-VibeNative.ps1" -Force
 Copy-Item (Join-Path $pkg "Authorize-VibeCodex.ps1") "$Root\Authorize-VibeCodex.ps1" -Force
 Copy-Item (Join-Path $pkg "Vibe-Codex-DeviceAuth.py") "$Root\Vibe-Codex-DeviceAuth.py" -Force
 Copy-Item (Join-Path $pkg "vibe_full_preflight.py") "$Root\vibe_full_preflight.py" -Force
