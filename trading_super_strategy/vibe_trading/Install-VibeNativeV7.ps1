@@ -11,6 +11,7 @@ if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python"
 $required=@(
   "asset_research.py",
   "tradingview_futures_guard.py",
+  "apply_vibe_futures_data_route_fix.py",
   "vibe_full_preflight.py",
   "cygnus_native_smoke.yaml",
   "cygnus_futures_strategy_lab.yaml",
@@ -89,6 +90,8 @@ Step "Installing native runner, presets and health tooling..."
 New-Item -ItemType Directory -Force -Path "$Root\evidence","$Root\logs","$Root\data","$Root\state\swarm\presets" | Out-Null
 Copy-Item (Join-Path $pkg "asset_research.py") "$Root\asset_research.py" -Force
 Copy-Item (Join-Path $pkg "tradingview_futures_guard.py") "$Root\tradingview_futures_guard.py" -Force
+& $python (Join-Path $pkg "apply_vibe_futures_data_route_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_FUTURES_DATA_ROUTE_PATCH_FAILED" }
 Copy-Item (Join-Path $pkg "vibe_full_preflight.py") "$Root\vibe_full_preflight.py" -Force
 foreach($preset in @("cygnus_native_smoke.yaml","cygnus_futures_strategy_lab.yaml","cygnus_dxy_macro_lab.yaml")){
   Copy-Item (Join-Path $pkg $preset) "$Root\state\swarm\presets\$preset" -Force
