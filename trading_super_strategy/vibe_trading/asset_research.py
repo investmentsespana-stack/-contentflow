@@ -25,7 +25,7 @@ from tradingview_futures_guard import (
     resolve_route,
     validate_timeframes,
 )
-from canonical_market_data import (
+from canonical_local_data_bridge import (
     compact_contract,
     ensure_contract,
     verify_contract,
@@ -50,10 +50,9 @@ os.environ["CYGNUS_RESEARCH_ONLY"] = "1"
 os.environ["VIBE_TRADING_DATA_CACHE"] = "1"
 os.environ["VIBE_TRADING_DATA_CACHE_ROOT"] = str(ROOT / "data" / "loader-cache")
 
-# Yahoo-style continuous futures (=F) are served correctly by Vibe's Yahoo loader,
-# but Vibe 0.1.15's generic futures auto chain does not include Yahoo for backtests.
-# Pin the backtest source explicitly and fail closed if a live data probe cannot serve it.
-FUTURES_BACKTEST_SOURCE = "yahoo"
+# Network Yahoo is ingestion-only. Swarm agents/backtests consume the verified
+# frozen aliases through Vibe's official local Data Bridge.
+FUTURES_BACKTEST_SOURCE = "local"
 
 ASSETS: dict[str, dict[str, str]] = {
     "CL": {
@@ -450,7 +449,7 @@ def _futures_grounding_status() -> dict[str, Any]:
 
 
 def _futures_backtest_source_contract(asset: str = "ES") -> dict[str, Any]:
-    """Verify the frozen Cygnus Yahoo dataset through Vibe's real backtest loader."""
+    """Verify every frozen Cygnus alias through Vibe's real local backtest loader."""
     from backtest.runner import fetch_data_map
 
     asset = _normalize_asset(asset)
@@ -467,32 +466,31 @@ def _futures_backtest_source_contract(asset: str = "ES") -> dict[str, Any]:
         }
 
     manifest = contract_state["manifest"]
-    symbol = manifest["symbol"]
     probes: dict[str, Any] = {}
     for interval, meta in manifest["timeframes"].items():
+        alias = str(meta["symbol"])
         try:
             fetched = fetch_data_map({
-                "codes": [symbol],
+                "codes": [alias],
                 "source": FUTURES_BACKTEST_SOURCE,
                 "start_date": meta["start_date"],
                 "end_date": meta["end_date"],
                 "interval": interval,
             })
-            frame = fetched.data_map.get(symbol)
+            frame = fetched.data_map.get(alias)
             rows = int(len(frame)) if frame is not None else 0
             effective = [str(x) for x in fetched.effective_sources]
             expected_rows = int(meta["rows"])
             probes[interval] = {
-                "ok": (
-                    rows == expected_rows
-                    and FUTURES_BACKTEST_SOURCE in effective
-                ),
+                "ok": rows == expected_rows and FUTURES_BACKTEST_SOURCE in effective,
+                "symbol": alias,
                 "rows": rows,
                 "expected_rows": expected_rows,
                 "effective_sources": effective,
                 "start_date": meta["start_date"],
                 "end_date": meta["end_date"],
                 "sha256": meta["sha256"],
+                "snapshot_ready": bool(meta.get("research_snapshot")),
             }
         except Exception as exc:
             probes[interval] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -501,15 +499,14 @@ def _futures_backtest_source_contract(asset: str = "ES") -> dict[str, Any]:
         "ok": all(bool(v.get("ok")) for v in probes.values()),
         "asset": asset,
         "source": FUTURES_BACKTEST_SOURCE,
-        "symbol": symbol,
+        "symbol": manifest["target"],
         "settled_end": manifest["settled_end"],
         "probes": probes,
         "invariant": (
-            "Every swarm worker and backtest must use the exact frozen Yahoo "
-            "window/checksum contract; no fresh per-agent market-data window."
+            "Swarm agents/backtests consume only exact frozen local aliases; "
+            "network Yahoo is ingestion-only outside the swarm."
         ),
     }
-
 
 def _llm_smoke() -> dict[str, Any]:
     from src.providers.chat import ChatLLM
