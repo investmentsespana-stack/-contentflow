@@ -97,3 +97,55 @@ Individual robustness remains diagnostic, but portfolio robustness is evaluated 
 ## Kill criteria
 
 If broad, diverse StrategyQuant campaigns repeatedly fail independent external validation across regimes, stop tuning weights/thresholds and redesign the strategy families/data/context layer. The objective is generalization, not fitting the historical sample.
+
+## HELIOS-style portfolio validation and demo gate (v1)
+
+This project adopts the portfolio-first validation pattern from the HELIOS H1 reference as an operating discipline: the finished research product is a **portfolio of multiple robots**, not one headline strategy.
+
+### Canonical pipeline
+
+`StrategyQuant Custom Project -> generation -> reserved OOS -> other markets/timeframes -> slippage -> Monte Carlo -> Final -> Vibe/AI survivor review -> EA export -> MT5 DEMO`.
+
+The stages are sequential hard gates. A strong in-sample backtest never skips later stages.
+
+### Portfolio construction after SQX Final
+
+- Build portfolios from multiple frozen survivor robots; do not promote a single robot as the finished product.
+- Preserve diversification across asset, direction, family, timeframe/session and trade timing where evidence permits.
+- Measure each robot's contribution to portfolio net result, drawdown and trade count.
+- Recalculate portfolio net result, profit factor, drawdown and trade count independently from the exported trade/equity series.
+- Report concentration explicitly. A portfolio whose result is economically dependent on one robot remains research-only until that dependence is understood and pre-registered.
+- Vibe/AI may analyze, classify and compare survivors, but it may not invent missing backtest evidence or rescue a failed SQX/OOS/robustness gate.
+
+### Reserved OOS requirement
+
+After StrategyQuant discovery, require a period that was not used to generate, optimize, rank or choose the robots. Portfolio-level OOS must be reported separately from development results. No retuning is allowed after inspecting the reserved OOS; a failed design returns to a new research cycle.
+
+### MT5 demo validation
+
+Before any live-money discussion, freeze the selected robots and run them in demo for a minimum of **30 calendar days without parameter changes**.
+
+Canonical terminal allocation:
+
+- `MT5-DEMO-01` -> Portfolio A
+- `MT5-DEMO-02` -> Portfolio B
+- `MT5-DEMO-03` -> Portfolio C / future validated portfolio
+
+During the frozen demo month compare SQX model versus MT5 demo at both robot and portfolio level:
+
+- expected versus observed trade count and timing;
+- net P/L, profit factor, win rate and max drawdown;
+- spread/slippage/fill differences;
+- missed/duplicate orders;
+- symbol/timeframe mapping;
+- Expert/Journal/runtime errors;
+- contribution and concentration by robot.
+
+The HELIOS reference's simulated-to-real PF compression (1.73 in simulation versus an expected 1.25-1.40 range in real) is treated as a **stress expectation, not a guaranteed target or hard promotion threshold**. The purpose of the demo month is to detect execution/model drift while the system is frozen.
+
+Demo failure criteria include operational errors, missing robots, duplicate/missed execution, wrong symbol mapping, or behavior materially inconsistent with the frozen model. A small losing month alone is not an automatic failure.
+
+### Promotion rule
+
+Only a portfolio that has passed the full SQX robustness chain, independent portfolio verification, reserved OOS, Vibe/AI evidence review, EA export verification, and the frozen MT5 demo period can be considered for a later live-money authorization. Live money remains OFF by default.
+
