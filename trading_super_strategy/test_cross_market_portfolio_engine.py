@@ -22,7 +22,7 @@ def test_rejects_highly_correlated_duplicate():
     gold_clone = s("gold_clone", "XAUUSD", "breakout", [2, -2, 2, -2, 2, -2, 2, -2])
     d = assess_addition([gold_a], gold_clone, max_pairwise_corr=0.65)
     assert not d.accepted
-    assert d.reason == "correlation_gate"
+    assert d.reason == "positive_correlation_gate"
 
 
 def test_accepts_different_market_with_offsetting_path():
