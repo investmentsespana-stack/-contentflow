@@ -176,6 +176,191 @@ if index_marker not in text:
         raise SystemExit("VIBE_UPSTREAM_ARTIFACT_INDEX_STAGE_ANCHOR_NOT_FOUND")
     text = text.replace(old_stage, new_stage, 1)
 
+
+# Publish a compact evidence bundle so downstream auditors do not need dozens of
+# read_file calls or rely on partial/truncated context.
+bundle_marker = "vibe.upstream_evidence_bundle.v1"
+if bundle_marker not in text:
+    if "import csv\n" not in text:
+        text = text.replace("import json\n", "import csv\nimport json\n", 1)
+
+    helper_anchor = "logger = logging.getLogger(__name__)\\n\\n"
+    helper = r'''
+def _read_json_if_exists(path: Path) -> dict:
+    try:
+        if path.is_file():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+    return {}
+
+
+def _read_first_csv_row(path: Path) -> dict:
+    try:
+        if not path.is_file():
+            return {}
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            row = next(reader, None)
+            return dict(row or {})
+    except Exception:
+        return {}
+
+
+def _compact_validation(path: Path) -> dict:
+    data = _read_json_if_exists(path)
+    if not data:
+        return {}
+    bootstrap = data.get("bootstrap") if isinstance(data.get("bootstrap"), dict) else {}
+    walk = data.get("walk_forward") if isinstance(data.get("walk_forward"), dict) else {}
+    return {
+        "bootstrap": {
+            key: bootstrap.get(key)
+            for key in (
+                "observed_sharpe", "ci_lower", "ci_upper", "median_sharpe",
+                "prob_positive", "confidence", "n_bootstrap",
+            )
+            if key in bootstrap
+        },
+        "walk_forward": {
+            key: walk.get(key)
+            for key in (
+                "n_windows", "windows", "profitable_windows", "consistency_rate",
+                "return_mean", "return_std", "sharpe_mean", "sharpe_std",
+            )
+            if key in walk
+        },
+    }
+
+
+def _write_upstream_evidence_bundle(context_key: str, target_dir: Path) -> Path:
+    file_paths = sorted(
+        path.relative_to(target_dir).as_posix()
+        for path in target_dir.rglob("*")
+        if path.is_file() and path.name != "evidence_bundle.json"
+    )
+    payload: dict = {
+        "schema": "vibe.upstream_evidence_bundle.v1",
+        "context_key": context_key,
+        "file_count": len(file_paths),
+        "candidate_count": 0,
+        "sqx_ready_count": 0,
+        "candidates": [],
+    }
+
+    runs_dir = target_dir / "runs"
+    if runs_dir.is_dir():
+        candidates = []
+        for run_dir in sorted(path for path in runs_dir.iterdir() if path.is_dir()):
+            manifest = _read_json_if_exists(run_dir / "strategy_manifest.json")
+            metrics = _read_first_csv_row(run_dir / "artifacts" / "metrics.csv")
+            validation = _compact_validation(run_dir / "artifacts" / "validation.json")
+            config = _read_json_if_exists(run_dir / "config.json")
+            status = str(
+                manifest.get("status")
+                or ("MANIFEST_MISSING" if not manifest else "UNKNOWN")
+            )
+            metric_subset = {
+                key: metrics.get(key)
+                for key in (
+                    "total_return", "annual_return", "max_drawdown", "sharpe",
+                    "sortino", "win_rate", "profit_loss_ratio", "profit_factor",
+                    "trade_count", "benchmark_return", "excess_return",
+                )
+                if key in metrics
+            }
+            candidates.append({
+                "candidate_id": str(manifest.get("candidate_id") or run_dir.name),
+                "status": status,
+                "manifest_present": bool(manifest),
+                "metrics_present": bool(metrics),
+                "validation_present": bool(validation),
+                "target": manifest.get("target"),
+                "timeframe": manifest.get("timeframe"),
+                "direction": manifest.get("direction"),
+                "evaluated_window": manifest.get("evaluated_window"),
+                "routing": {
+                    "manifest_data_source": manifest.get("data_source"),
+                    "config_source": config.get("source"),
+                    "config_codes": config.get("codes"),
+                    "config_interval": config.get("interval"),
+                    "config_start_date": config.get("start_date"),
+                    "config_end_date": config.get("end_date"),
+                },
+                "manifest_metrics": {
+                    key: manifest.get(key)
+                    for key in ("trade_count", "return", "Sharpe", "max_drawdown")
+                    if key in manifest
+                },
+                "engine_metrics": metric_subset,
+                "validation": validation,
+                "files": {
+                    "manifest": f"runs/{run_dir.name}/strategy_manifest.json"
+                    if (run_dir / "strategy_manifest.json").is_file() else None,
+                    "metrics": f"runs/{run_dir.name}/artifacts/metrics.csv"
+                    if (run_dir / "artifacts" / "metrics.csv").is_file() else None,
+                    "validation": f"runs/{run_dir.name}/artifacts/validation.json"
+                    if (run_dir / "artifacts" / "validation.json").is_file() else None,
+                    "trades": f"runs/{run_dir.name}/artifacts/trades.csv"
+                    if (run_dir / "artifacts" / "trades.csv").is_file() else None,
+                    "equity": f"runs/{run_dir.name}/artifacts/equity.csv"
+                    if (run_dir / "artifacts" / "equity.csv").is_file() else None,
+                },
+            })
+        payload["candidates"] = candidates
+        payload["candidate_count"] = len(candidates)
+        payload["sqx_ready_count"] = sum(
+            1 for candidate in candidates if candidate.get("status") == "SQX_READY"
+        )
+    else:
+        for name in ("summary.md", "report.md"):
+            report_path = target_dir / name
+            if report_path.is_file():
+                try:
+                    payload[name.replace(".", "_")] = report_path.read_text(
+                        encoding="utf-8"
+                    )[:3000]
+                except Exception:
+                    pass
+
+    bundle_path = target_dir / "evidence_bundle.json"
+    bundle_path.write_text(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str),
+        encoding="utf-8",
+    )
+    return bundle_path
+
+
+'''
+    if helper_anchor not in text:
+        raise SystemExit("VIBE_EVIDENCE_BUNDLE_HELPER_ANCHOR_NOT_FOUND")
+    text = text.replace(helper_anchor, helper_anchor + helper, 1)
+
+    old_summary = '''                              f"Read upstream/{context_key}/artifact_index.json first, then open exact files listed there.]"
+'''
+    new_summary = '''                              f"Read upstream/{context_key}/evidence_bundle.json FIRST for the compact verified digest. "
+                              f"Use upstream/{context_key}/artifact_index.json only when additional exact files are needed.]"
+'''
+    if old_summary in text:
+        text = text.replace(old_summary, new_summary, 1)
+
+    stage_anchor = '''                    encoding="utf-8",
+                )
+
+            result = run_worker(
+'''
+    stage_replacement = '''                    encoding="utf-8",
+                )
+                _write_upstream_evidence_bundle(context_key, target_dir)
+
+            result = run_worker(
+'''
+    if stage_anchor not in text:
+        raise SystemExit("VIBE_EVIDENCE_BUNDLE_STAGE_ANCHOR_NOT_FOUND")
+    text = text.replace(stage_anchor, stage_replacement, 1)
+
+
 if text != original:
     backup = path.with_suffix(path.suffix + ".before-upstream-artifact-handoff.bak")
     if not backup.exists():
@@ -190,6 +375,8 @@ required = [
     "shutil.copytree(source_dir, target_dir)",
     'artifact_index.json',
     'vibe.upstream_artifact_index.v1',
+    'evidence_bundle.json',
+    'vibe.upstream_evidence_bundle.v1',
     marker,
 ]
 current = path.read_text(encoding="utf-8")
