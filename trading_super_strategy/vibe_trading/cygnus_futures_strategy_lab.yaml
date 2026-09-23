@@ -1,3 +1,5 @@
+[Reading 271 lines from start (total: 271 lines, 0 remaining)]
+
 name: cygnus_futures_strategy_lab
 title: "Cygnus Futures Strategy Lab"
 description: "Native Vibe multi-agent futures strategy discovery: regime evidence -> diverse hypotheses -> real backtests -> robustness audit -> independent synthesis."
@@ -171,6 +173,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: []
 
   - id: task-architecture
@@ -180,6 +185,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: [task-regime]
     input_from:
       regime: task-regime
@@ -191,6 +199,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
       Mandatory backtest data source: {backtest_source}. Every candidate config.json must set
       "source": "{backtest_source}" and preserve the exact {target} symbol.
       Candidate run directories MUST be relative to this agent workspace in the form
@@ -208,6 +219,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: [task-backtests]
     input_from:
       backtests: task-backtests
@@ -219,6 +233,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: [task-regime, task-architecture, task-backtests, task-robustness]
     input_from:
       regime: task-regime
@@ -251,3 +268,8 @@ variables:
   - name: backtest_source
     description: "Pinned backtest source for Yahoo continuous futures (=F); must be yahoo"
     required: true
+  - name: data_contract
+    description: "Frozen canonical Yahoo dataset contract with exact per-timeframe windows, row counts and SHA256 checksums"
+    required: true
+
+[executed on device: WIN-31RCI8K7JR2 (dfb74cc6-deae-45bc-8c9d-634f7d1202b2)]
