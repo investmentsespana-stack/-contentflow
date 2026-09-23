@@ -10,6 +10,9 @@ if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python"
 
 $required=@(
   "asset_research.py",
+  "canonical_market_data.py",
+  "apply_vibe_upstream_artifact_handoff_fix.py",
+  "apply_vibe_canonical_grounding_isolation_fix.py",
   "tradingview_futures_guard.py",
   "vibe_full_preflight.py",
   "cygnus_native_smoke.yaml",
@@ -88,6 +91,7 @@ if(-not (Test-Path $canonicalToken) -and (Test-Path $defaultToken)){
 Step "Installing native runner, presets and health tooling..."
 New-Item -ItemType Directory -Force -Path "$Root\evidence","$Root\logs","$Root\data","$Root\state\swarm\presets" | Out-Null
 Copy-Item (Join-Path $pkg "asset_research.py") "$Root\asset_research.py" -Force
+Copy-Item (Join-Path $pkg "canonical_market_data.py") "$Root\canonical_market_data.py" -Force
 Copy-Item (Join-Path $pkg "tradingview_futures_guard.py") "$Root\tradingview_futures_guard.py" -Force
 Copy-Item (Join-Path $pkg "vibe_full_preflight.py") "$Root\vibe_full_preflight.py" -Force
 foreach($preset in @("cygnus_native_smoke.yaml","cygnus_futures_strategy_lab.yaml","cygnus_dxy_macro_lab.yaml")){
@@ -98,7 +102,13 @@ foreach($script in @("Start-VibeNative.ps1","Stop-VibeNative.ps1","Vibe-Guardian
 }
 Copy-Item (Join-Path $pkg "AUTHORIZE_VIBE_CODEX.cmd") "$Root\AUTHORIZE_VIBE_CODEX.cmd" -Force
 
-& $python -m py_compile "$Root\tradingview_futures_guard.py" "$Root\asset_research.py" "$Root\vibe_full_preflight.py"
+Step "Applying Cygnus Vibe runtime hardening..."
+& $python (Join-Path $pkg "apply_vibe_upstream_artifact_handoff_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_UPSTREAM_ARTIFACT_HANDOFF_PATCH_FAILED" }
+& $python (Join-Path $pkg "apply_vibe_canonical_grounding_isolation_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_CANONICAL_GROUNDING_PATCH_FAILED" }
+
+& $python -m py_compile "$Root\tradingview_futures_guard.py" "$Root\asset_research.py" "$Root\canonical_market_data.py" "$Root\vibe_full_preflight.py"
 if($LASTEXITCODE -ne 0){ throw "VIBE_NATIVE_PY_COMPILE_FAILED" }
 
 Step "Restarting Vibe API/MCP only so canonical config is loaded..."
