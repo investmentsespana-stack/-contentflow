@@ -10,6 +10,9 @@ if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python"
 
 $required=@(
   "asset_research.py",
+  "canonical_market_data.py",
+  "apply_vibe_upstream_artifact_handoff_fix.py",
+  "apply_vibe_canonical_grounding_isolation_fix.py",
   "tradingview_futures_guard.py",
   "Start-VibeNative.ps1",
   "Authorize-VibeCodex.ps1",
@@ -25,6 +28,7 @@ foreach($name in $required){
 
 Step "Installing supported ChatGPT Codex model and preset-discovery repair..."
 Copy-Item (Join-Path $pkg "asset_research.py") "$Root\asset_research.py" -Force
+Copy-Item (Join-Path $pkg "canonical_market_data.py") "$Root\canonical_market_data.py" -Force
 Copy-Item (Join-Path $pkg "tradingview_futures_guard.py") "$Root\tradingview_futures_guard.py" -Force
 Copy-Item (Join-Path $pkg "Start-VibeNative.ps1") "$Root\Start-VibeNative.ps1" -Force
 Copy-Item (Join-Path $pkg "Authorize-VibeCodex.ps1") "$Root\Authorize-VibeCodex.ps1" -Force
@@ -42,7 +46,13 @@ foreach($preset in @("cygnus_native_smoke.yaml","cygnus_futures_strategy_lab.yam
   Copy-Item (Join-Path $pkg $preset) (Join-Path $statePresetDir $preset) -Force
 }
 
-& $python -m py_compile "$Root\tradingview_futures_guard.py" "$Root\asset_research.py" "$Root\Vibe-Codex-DeviceAuth.py" "$Root\vibe_full_preflight.py"
+Step "Applying Cygnus Vibe runtime hardening..."
+& $python (Join-Path $pkg "apply_vibe_upstream_artifact_handoff_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_UPSTREAM_ARTIFACT_HANDOFF_PATCH_FAILED" }
+& $python (Join-Path $pkg "apply_vibe_canonical_grounding_isolation_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_CANONICAL_GROUNDING_PATCH_FAILED" }
+
+& $python -m py_compile "$Root\tradingview_futures_guard.py" "$Root\asset_research.py" "$Root\canonical_market_data.py" "$Root\Vibe-Codex-DeviceAuth.py" "$Root\vibe_full_preflight.py"
 if($LASTEXITCODE -ne 0){ throw "VIBE_V73_COMPILE_FAILED" }
 
 $env:VIBE_TRADING_HOME = "$Root\state"
