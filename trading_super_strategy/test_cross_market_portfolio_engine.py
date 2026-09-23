@@ -1,4 +1,4 @@
-from cross_market_portfolio_engine import (
+from trading_super_strategy.cross_market_portfolio_engine import (
     StrategySeries,
     assess_addition,
     build_portfolio,
