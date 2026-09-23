@@ -39,7 +39,7 @@ class AdditionDecision:
     strategy_id: str
     accepted: bool
     reason: str
-    max_abs_correlation: float
+    max_positive_correlation: float
     max_drawdown_overlap: float
     portfolio_max_drawdown: float
 
@@ -149,10 +149,10 @@ def assess_addition(
     max_overlap = 0.0
     for member in current:
         x = _aligned(member, dates)
-        max_corr = max(max_corr, abs(_corr(c, x)))
+        max_corr = max(max_corr, _corr(c, x))
         max_overlap = max(max_overlap, drawdown_overlap(c, x))
     if max_corr > max_pairwise_corr:
-        return AdditionDecision(candidate.strategy_id, False, "correlation_gate", max_corr, max_overlap, 0.0)
+        return AdditionDecision(candidate.strategy_id, False, "positive_correlation_gate", max_corr, max_overlap, 0.0)
     if max_overlap > max_dd_overlap:
         return AdditionDecision(candidate.strategy_id, False, "drawdown_overlap_gate", max_corr, max_overlap, 0.0)
 
