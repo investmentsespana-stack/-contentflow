@@ -1,4 +1,4 @@
-[Reading 271 lines from start (total: 271 lines, 0 remaining)]
+[Reading 276 lines from start (total: 276 lines, 0 remaining)]
 
 name: cygnus_futures_strategy_lab
 title: "Cygnus Futures Strategy Lab"
@@ -111,10 +111,13 @@ agents:
 
       UPSTREAM EVIDENCE HANDOFF:
       The runtime stages the backtester workspace inside your own workspace at
-      upstream/backtests/. Before declaring evidence missing, inspect that directory with
-      read_file and read each candidate's strategy_manifest.json plus artifacts/metrics.csv,
-      artifacts/trades.csv and artifacts/equity.csv when present. The upstream textual
-      summary is not a substitute for these staged files.
+      upstream/backtests/. FIRST read upstream/backtests/artifact_index.json.
+      That index is the authoritative inventory of staged files. For every path matching
+      runs/*/strategy_manifest.json, read that exact manifest and then read the matching
+      runs/*/artifacts/metrics.csv, runs/*/artifacts/trades.csv and
+      runs/*/artifacts/equity.csv when listed. Do NOT look for strategy_manifest.json at
+      the upstream/backtests root. Do not declare evidence missing until the artifact
+      index has been read. The upstream textual summary is not a substitute for these files.
 
       HARD ADMISSION GATE: before auditing, verify the upstream backtester produced at
       least one successful real backtest with metrics and a strategy_manifest.json whose
@@ -144,10 +147,12 @@ agents:
       - blocked or missing tests
 
       UPSTREAM EVIDENCE HANDOFF:
-      The runtime stages upstream workspaces inside your own workspace. In particular,
-      inspect upstream/backtests/ for candidate manifests and backtest artifacts and
-      upstream/robustness/ for the independent audit before declaring evidence missing.
-      Use read_file on the staged files; do not rely only on upstream summaries.
+      The runtime stages upstream workspaces inside your own workspace. FIRST read
+      upstream/backtests/artifact_index.json and upstream/robustness/artifact_index.json.
+      Use those indexes to discover exact candidate manifests, metrics, trades, equity and
+      audit files. Candidate manifests live under runs/<candidate_id>/strategy_manifest.json,
+      not at the upstream root. Do not declare evidence missing until both indexes were
+      inspected. Use read_file on the staged files; do not rely only on upstream summaries.
 
       COMPLETION GATE:
       - A run is NOT a successful strategy-discovery run merely because all agents returned.
