@@ -13,9 +13,11 @@ agents:
       and required research timeframes are supplied in the task prompt. Treat those
       task-prompt values as authoritative for this run.
 
-      Use real retrieved market data. Determine trend, volatility, momentum and regime structure.
-      Use technical_indicators and quantlib_call where appropriate. State exact data windows and
-      provenance. Never invent unavailable values. Research only; no broker or live actions.
+      Use the research_snapshot embedded in data_contract as the authoritative deterministic
+      analysis layer. It is computed from the COMPLETE checksum-verified frozen local OHLCV file,
+      so do not pull thousands of raw bars through the agent context and do not call network data.
+      Determine trend, volatility, momentum and regime structure from snapshot metrics, quantiles
+      and recent bars. State exact windows, aliases, row counts and checksums. Research only.
 
       Required deliverable:
       - data provenance and window
@@ -23,7 +25,7 @@ agents:
       - at least 3 historical regime definitions
       - regime transition evidence
       - measurable implications for strategy design
-    tools: [get_market_data, technical_indicators, quantlib_call, load_skill, read_file, write_file]
+    tools: [quantlib_call, load_skill, read_file, write_file]
     skills: [technical-basic, volatility, global-macro]
     max_iterations: 35
     timeout_seconds: 1800
@@ -38,12 +40,14 @@ agents:
       required research timeframes are supplied in the task prompt. Treat those
       task-prompt values as authoritative for this run.
 
-      Design at least five STRUCTURALLY DIFFERENT hypotheses, not parameter clones:
-      trend/momentum, breakout/volatility expansion, mean reversion,
+      Use the research_snapshot embedded in data_contract plus the upstream regime report.
+      Do not refetch raw market data: the snapshot was deterministically computed from the full
+      frozen checksum-verified files. Design at least five STRUCTURALLY DIFFERENT hypotheses,
+      not parameter clones: trend/momentum, breakout/volatility expansion, mean reversion,
       regime-conditioned, and seasonal/time-based when data supports it.
       Every hypothesis must specify entries, exits, risk/stop logic, parameters,
       economic rationale and expected failure regime. Ban lookahead and leakage.
-    tools: [load_skill, read_file, write_file, get_market_data, technical_indicators]
+    tools: [load_skill, read_file, write_file]
     skills: [strategy-generate, technical-basic, seasonal]
     max_iterations: 35
     timeout_seconds: 1800
@@ -58,10 +62,11 @@ agents:
       research timeframes are supplied in the task prompt. Treat those task-prompt
       values as authoritative for this run.
 
-      Materialize and run real backtests with the Vibe backtest tool. For Yahoo continuous
-      futures symbols ending =F, config.json MUST use source="yahoo". Never use source="auto",
-      "akshare", or "tushare" for these candidates. Vibe 0.1.15 can route =F correctly through
-      Yahoo, while its generic futures auto backtest chain does not include Yahoo.
+      Materialize and run real backtests with the Vibe backtest tool. The supplied =F
+      symbol is the economic identity, NOT the backtest data key. Use ONLY the frozen
+      canonical local alias declared for the candidate timeframe in data_contract.
+      Every config.json MUST use source="local" and codes=[<exact canonical alias>].
+      Never fetch Yahoo/auto/akshare/tushare from inside the swarm.
       Preserve an explicit evaluation window and warmup separation. Include realistic
       commission/slippage assumptions and chronological OOS validation.
 
@@ -94,7 +99,7 @@ agents:
       exact rules, config/code artifact paths, evaluated date window, trade count,
       return, Sharpe, max drawdown, OOS behavior, direction, cost assumptions,
       and strategy_manifest.json path.
-    tools: [read_file, write_file, edit_file, load_skill, get_market_data, backtest]
+    tools: [read_file, write_file, edit_file, load_skill, backtest]
     skills: [strategy-generate, technical-basic, backtest-diagnose]
     max_iterations: 50
     timeout_seconds: 2400
@@ -128,7 +133,7 @@ agents:
       regime dependence and similarity among candidates. Use quantlib_call for
       finance math instead of shell commands. Reject near-clones and state every
       robustness test that could not be performed.
-    tools: [read_file, write_file, get_market_data, technical_indicators, quantlib_call, load_skill]
+    tools: [read_file, write_file, quantlib_call, load_skill]
     skills: [volatility, risk-analysis, backtest-diagnose]
     max_iterations: 40
     timeout_seconds: 1800
@@ -271,7 +276,7 @@ variables:
     description: "Mandatory multitimeframe research set: 5m,15m,1h,4h"
     required: true
   - name: backtest_source
-    description: "Pinned backtest source for Yahoo continuous futures (=F); must be yahoo"
+    description: "Pinned frozen Data Bridge source; must be local"
     required: true
   - name: data_contract
     description: "Frozen canonical Yahoo dataset contract with exact per-timeframe windows, row counts and SHA256 checksums"
