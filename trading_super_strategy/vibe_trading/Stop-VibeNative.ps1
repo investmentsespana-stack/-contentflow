@@ -11,8 +11,9 @@ if(Test-Path "$Root\runtime.json"){
 }
 
 Get-CimInstance Win32_Process | Where-Object {
-  $_.ExecutablePath -like "$Root\.venv\Scripts\*" -and
-  ($_.CommandLine -match "vibe-trading" -or $_.CommandLine -match "mcp_server" -or $_.CommandLine -match "api_server")
+  $_.CommandLine -and
+  $_.CommandLine -like "*$Root*" -and
+  ($_.CommandLine -match "vibe-trading\.exe" -or $_.CommandLine -match "vibe-trading-mcp\.exe" -or $_.CommandLine -match "mcp_server" -or $_.CommandLine -match "api_server")
 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
 Remove-Item "$Root\runtime.json" -Force -ErrorAction SilentlyContinue
