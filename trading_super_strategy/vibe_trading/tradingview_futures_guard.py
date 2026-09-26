@@ -126,6 +126,11 @@ def assert_provider_symbol(root: str, provider_symbol: str) -> str:
 def codex_policy_text() -> str:
     return (
         "use futures-native tools only for the supplied target and canonical symbol. "
+        "for Yahoo continuous futures symbols ending =F, get_market_data MUST use source=yahoo. "
+        "never use source=auto, akshare, or tushare for these futures. "
+        "get_market_data responses may be capped/truncated for context safety; truncated=true is NOT evidence of bad or discontinuous backtest data. "
+        "when continuity is required, narrow the date window and request max_rows=0 only for that bounded window. "
+        "the backtest tool reads its own full loader frame and must remain source=yahoo. "
         "use the futures category snapshot before analysis. "
         "do not use crypto analysis routes as substitutes for futures research. "
         "do not fall back to crypto, spot, index-cash, or cfd proxies. "

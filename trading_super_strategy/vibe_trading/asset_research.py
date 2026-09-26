@@ -1,3 +1,5 @@
+[Reading 976 lines from start (total: 976 lines, 0 remaining)]
+
 from __future__ import annotations
 
 import argparse
@@ -23,6 +25,11 @@ from tradingview_futures_guard import (
     resolve_route,
     validate_timeframes,
 )
+from canonical_local_data_bridge import (
+    compact_contract,
+    ensure_contract,
+    verify_contract,
+)
 
 ROOT = Path(r"C:\Cygnus\VibeTrading")
 STATE_ROOT = ROOT / "state"
@@ -40,11 +47,12 @@ os.environ["LANGCHAIN_PROVIDER"] = "openai-codex"
 os.environ["LANGCHAIN_MODEL_NAME"] = "openai-codex/gpt-5.6-terra"
 os.environ["VIBE_TRADING_ENABLE_SHELL_TOOLS"] = "0"
 os.environ["CYGNUS_RESEARCH_ONLY"] = "1"
+os.environ["VIBE_TRADING_DATA_CACHE"] = "1"
+os.environ["VIBE_TRADING_DATA_CACHE_ROOT"] = str(ROOT / "data" / "loader-cache")
 
-# Yahoo-style continuous futures (=F) are served correctly by Vibe's Yahoo loader,
-# but Vibe 0.1.15's generic futures auto chain does not include Yahoo for backtests.
-# Pin the backtest source explicitly and fail closed if a live data probe cannot serve it.
-FUTURES_BACKTEST_SOURCE = "yahoo"
+# Network Yahoo is ingestion-only. Swarm agents/backtests consume the verified
+# frozen aliases through Vibe's official local Data Bridge.
+FUTURES_BACKTEST_SOURCE = "local"
 
 ASSETS: dict[str, dict[str, str]] = {
     "CL": {
@@ -280,7 +288,7 @@ def _futures_preset_contract() -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     placeholders = (
         "{target}", "{market}", "{goal}", "{tv_symbol}",
-        "{tv_category}", "{tv_policy}", "{research_timeframes}", "{backtest_source}",
+        "{tv_category}", "{tv_policy}", "{research_timeframes}", "{backtest_source}", "{data_contract}",
     )
     bad_system_prompts: dict[str, list[str]] = {}
     for agent in data.get("agents", []) or []:
@@ -302,7 +310,7 @@ def _futures_preset_contract() -> dict[str, Any]:
         task_id: [
             token for token in (
                 "{target}", "{tv_symbol}", "{tv_category}",
-                "{tv_policy}", "{research_timeframes}",
+                "{tv_policy}", "{research_timeframes}", "{data_contract}",
             )
             if token not in task_prompts.get(task_id, "")
         ]
@@ -440,43 +448,65 @@ def _futures_grounding_status() -> dict[str, Any]:
     }
 
 
-def _futures_backtest_source_contract() -> dict[str, Any]:
-    """Prove the exact backtest loader used for Yahoo continuous futures works."""
-    from datetime import datetime, timedelta, timezone
+def _futures_backtest_source_contract(asset: str = "ES") -> dict[str, Any]:
+    """Verify every frozen Cygnus alias through Vibe's real local backtest loader."""
     from backtest.runner import fetch_data_map
 
-    today = datetime.now(timezone.utc).date()
-    start_date = (today - timedelta(days=7)).isoformat()
-    end_date = (today + timedelta(days=1)).isoformat()
+    asset = _normalize_asset(asset)
+    if asset == "DXY":
+        return {"ok": True, "asset": asset, "reason": "not_futures_contract"}
+
+    contract_state = ensure_contract(asset)
+    if not contract_state.get("ok"):
+        return {
+            "ok": False,
+            "asset": asset,
+            "reason": "canonical_contract_unavailable",
+            "contract": contract_state,
+        }
+
+    manifest = contract_state["manifest"]
     probes: dict[str, Any] = {}
-    for interval in ("5m", "15m", "1H", "4H"):
+    for interval, meta in manifest["timeframes"].items():
+        alias = str(meta["symbol"])
         try:
             fetched = fetch_data_map({
-                "codes": ["ES=F"],
+                "codes": [alias],
                 "source": FUTURES_BACKTEST_SOURCE,
-                "start_date": start_date,
-                "end_date": end_date,
+                "start_date": meta["start_date"],
+                "end_date": meta["end_date"],
                 "interval": interval,
             })
-            frame = fetched.data_map.get("ES=F")
+            frame = fetched.data_map.get(alias)
             rows = int(len(frame)) if frame is not None else 0
             effective = [str(x) for x in fetched.effective_sources]
+            expected_rows = int(meta["rows"])
             probes[interval] = {
-                "ok": rows > 0 and FUTURES_BACKTEST_SOURCE in effective,
+                "ok": rows == expected_rows and FUTURES_BACKTEST_SOURCE in effective,
+                "symbol": alias,
                 "rows": rows,
+                "expected_rows": expected_rows,
                 "effective_sources": effective,
+                "start_date": meta["start_date"],
+                "end_date": meta["end_date"],
+                "sha256": meta["sha256"],
+                "snapshot_ready": bool(meta.get("research_snapshot")),
             }
         except Exception as exc:
             probes[interval] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
     return {
         "ok": all(bool(v.get("ok")) for v in probes.values()),
+        "asset": asset,
         "source": FUTURES_BACKTEST_SOURCE,
-        "symbol": "ES=F",
-        "window": {"start": start_date, "end": end_date},
+        "symbol": manifest["target"],
+        "settled_end": manifest["settled_end"],
         "probes": probes,
-        "invariant": "Yahoo continuous futures backtests must use source=yahoo, never auto/akshare.",
+        "invariant": (
+            "Swarm agents/backtests consume only exact frozen local aliases; "
+            "network Yahoo is ingestion-only outside the swarm."
+        ),
     }
-
 
 def _llm_smoke() -> dict[str, Any]:
     from src.providers.chat import ChatLLM
@@ -512,6 +542,20 @@ def _rows_for_symbol(payload: Any, symbol: str) -> int:
             if value > 0:
                 return value
     return 0
+
+
+def _source_for_symbol(payload: Any, symbol: str) -> str | None:
+    data = _json_layers(payload)
+    if not isinstance(data, dict):
+        return None
+    provenance = data.get("_provenance")
+    if not isinstance(provenance, dict):
+        return None
+    item = provenance.get(symbol)
+    if not isinstance(item, dict):
+        return None
+    source = item.get("source")
+    return str(source).strip().lower() if source else None
 
 
 async def _native_agent_smoke(client: Client) -> dict[str, Any]:
@@ -584,6 +628,18 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
             "source": FUTURES_BACKTEST_SOURCE,
+        }
+
+    try:
+        canonical = {asset: verify_contract(asset) for asset in ("ES", "NQ", "GC", "CL")}
+        evidence["checks"]["canonical_market_data"] = {
+            "ok": all(bool(item.get("ok")) for item in canonical.values()),
+            "assets": canonical,
+        }
+    except Exception as exc:
+        evidence["checks"]["canonical_market_data"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
         }
 
     try:
@@ -694,6 +750,18 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
                     "max_rows": 20,
                 },
             )
+            blocked_non_yahoo = await _call(
+                client,
+                "get_market_data",
+                {
+                    "codes": ["ES=F"],
+                    "start_date": "2026-09-15",
+                    "end_date": "2026-09-20",
+                    "source": "akshare",
+                    "interval": "1H",
+                    "max_rows": 20,
+                },
+            )
             dxy_data = await _call(
                 client,
                 "get_market_data",
@@ -710,11 +778,23 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
                 symbol: _rows_for_symbol(futures_data.get("result"), symbol)
                 for symbol in ("CL=F", "ES=F", "NQ=F", "GC=F")
             }
+            futures_sources = {
+                symbol: _source_for_symbol(futures_data.get("result"), symbol)
+                for symbol in ("CL=F", "ES=F", "NQ=F", "GC=F")
+            }
             rows["DX-Y.NYB"] = _rows_for_symbol(dxy_data.get("result"), "DX-Y.NYB")
+            blocked_blob = json.dumps(blocked_non_yahoo, ensure_ascii=False, default=str)
             evidence["checks"]["market_data"] = {
-                "ok": all(v > 0 for v in rows.values()),
+                "ok": (
+                    all(v > 0 for v in rows.values())
+                    and all(v == "yahoo" for v in futures_sources.values())
+                    and "CYGNUS_FUTURES_SOURCE_MUST_BE_YAHOO" in blocked_blob
+                ),
                 "rows": rows,
+                "futures_sources": futures_sources,
+                "non_yahoo_blocked": "CYGNUS_FUTURES_SOURCE_MUST_BE_YAHOO" in blocked_blob,
                 "futures_call": futures_data,
+                "blocked_non_yahoo_call": blocked_non_yahoo,
                 "dxy_call": dxy_data,
             }
 
@@ -732,7 +812,7 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
     meta = ASSETS[asset]
 
     if asset != "DXY":
-        futures_data_gate = _futures_backtest_source_contract()
+        futures_data_gate = _futures_backtest_source_contract(asset)
         if not futures_data_gate.get("ok"):
             return {
                 "schema": "cygnus.vibe.asset_research.native.v1",
@@ -788,6 +868,7 @@ async def start(asset: str, mcp_url: str) -> dict[str, Any]:
                     "tv_policy": codex_policy_text(),
                     "research_timeframes": ",".join(validate_timeframes(("5m", "15m", "1h", "4h"))),
                     "backtest_source": FUTURES_BACKTEST_SOURCE,
+                    "data_contract": compact_contract(asset),
                 },
                 "wait_seconds": 0,
                 "start_only": True,
@@ -892,3 +973,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+[executed on device: WIN-31RCI8K7JR2 (dfb74cc6-deae-45bc-8c9d-634f7d1202b2)]
