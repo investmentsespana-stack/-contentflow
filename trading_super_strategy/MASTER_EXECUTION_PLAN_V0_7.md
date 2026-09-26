@@ -219,3 +219,22 @@ IDEA -> GENERATED -> FAST_BACKTEST -> FILTERED -> VALIDATION -> OOS -> WALK_FORW
 ## Regla de seguridad
 
 Si DATA_UNSAFE, incertidumbre excesiva, veto macro o ausencia de coalición robusta con EV positivo: NO TRADE.
+
+
+## 9. Cross-Market Robot Portfolio Fit — obligatorio
+
+Después de la robustez individual y antes de QA/MT5 DEMO, cada robot candidato entra al módulo `cross_market_portfolio_engine.py`.
+
+Objetivo: combinar robots robustos de mercados/familias distintas, no acumular estrategias redundantes. Se miden correlación de retornos, solapamiento de drawdowns, concentración por mercado, drawdown agregado y leave-one-out.
+
+Reglas v1:
+- universo dinámico; actualmente XAUUSD, NQ, ES/SP500, DJ y DXY, con petróleo al incorporarse;
+- máximo inicial configurable de robots por mercado;
+- hard gate por correlación y solapamiento de drawdown;
+- pesos únicamente EQUAL o MARKET_BALANCED;
+- prohibido optimizar pesos por retorno histórico en v1;
+- si un nuevo robot no diversifica, se rechaza aunque sea rentable individualmente;
+- el tamaño objetivo de 10 robots no es obligatorio: calidad/diversificación prevalecen sobre cantidad;
+- salida solo RESEARCH/DEMO; LIVE=false.
+
+La especificación canónica está en `CROSS_MARKET_PORTFOLIO_SPEC_V1.md`.
