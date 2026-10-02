@@ -1,3 +1,5 @@
+[Reading 24 lines from start (total: 24 lines, 0 remaining)]
+
 param([string]$Root = "C:\Cygnus\VibeTrading")
 $ErrorActionPreference = "SilentlyContinue"
 $start = "$Root\Start-VibeNative.ps1"
@@ -12,10 +14,15 @@ function PortOpen([int]$Port){
 }
 
 while($true){
-  if(-not (PortOpen 8899) -or -not (PortOpen 8900)){
-    try {
-      powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $start | Out-Null
-    } catch {}
+  $maintenance = "$Root\state\maintenance.stop"
+  if(-not (Test-Path $maintenance)){
+    if(-not (PortOpen 8899) -or -not (PortOpen 8900)){
+      try {
+        powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $start | Out-Null
+      } catch {}
+    }
   }
   Start-Sleep -Seconds 60
 }
+
+[executed on device: WIN-31RCI8K7JR2 (dfb74cc6-deae-45bc-8c9d-634f7d1202b2)]

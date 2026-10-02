@@ -6,6 +6,7 @@ from tradingview_futures_guard import (
     REQUIRED_TIMEFRAMES,
     assert_provider_symbol,
     build_snapshot_plan,
+    codex_policy_text,
     resolve_route,
     validate_futures_tool,
     validate_timeframes,
@@ -68,6 +69,14 @@ class TradingViewFuturesGuardTests(unittest.TestCase):
         self.assertEqual(validate_timeframes(REQUIRED_TIMEFRAMES), REQUIRED_TIMEFRAMES)
         with self.assertRaisesRegex(ValueError, "FUTURES_TIMEFRAME_SET_INVALID"):
             validate_timeframes(("5m", "15m", "1h"))
+
+
+    def test_policy_pins_yahoo_and_handles_truncation_safely(self):
+        policy = codex_policy_text()
+        self.assertIn("source=yahoo", policy)
+        self.assertIn("truncated=true is NOT evidence", policy)
+        self.assertIn("max_rows=0", policy)
+        self.assertIn("backtest tool reads its own full loader frame", policy)
 
     def test_snapshot_plan_covers_all_categories_and_no_trade_mode(self):
         plan = build_snapshot_plan()
