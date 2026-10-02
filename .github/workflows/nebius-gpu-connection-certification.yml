@@ -1,0 +1,27 @@
+name: nebius-gpu-connection-certification
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nebius-gpu-contentflow.yml'
+      - '.github/workflows/nebius-gpu-connection-certification.yml'
+      - 'ops/nebius/**'
+      - 'tests/nebius-gpu-connection-contract.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Certify Nebius GPU connection contract
+        run: node --test tests/nebius-gpu-connection-contract.test.mjs
+      - name: Validate preflight shell syntax
+        run: bash -n ops/nebius/contentflow-gpu-preflight.sh
