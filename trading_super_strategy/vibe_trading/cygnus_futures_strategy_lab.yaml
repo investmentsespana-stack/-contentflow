@@ -1,3 +1,5 @@
+[Reading 276 lines from start (total: 276 lines, 0 remaining)]
+
 name: cygnus_futures_strategy_lab
 title: "Cygnus Futures Strategy Lab"
 description: "Native Vibe multi-agent futures strategy discovery: regime evidence -> diverse hypotheses -> real backtests -> robustness audit -> independent synthesis."
@@ -11,9 +13,11 @@ agents:
       and required research timeframes are supplied in the task prompt. Treat those
       task-prompt values as authoritative for this run.
 
-      Use real retrieved market data. Determine trend, volatility, momentum and regime structure.
-      Use technical_indicators and quantlib_call where appropriate. State exact data windows and
-      provenance. Never invent unavailable values. Research only; no broker or live actions.
+      Use the research_snapshot embedded in data_contract as the authoritative deterministic
+      analysis layer. It is computed from the COMPLETE checksum-verified frozen local OHLCV file,
+      so do not pull thousands of raw bars through the agent context and do not call network data.
+      Determine trend, volatility, momentum and regime structure from snapshot metrics, quantiles
+      and recent bars. State exact windows, aliases, row counts and checksums. Research only.
 
       Required deliverable:
       - data provenance and window
@@ -21,7 +25,7 @@ agents:
       - at least 3 historical regime definitions
       - regime transition evidence
       - measurable implications for strategy design
-    tools: [get_market_data, technical_indicators, quantlib_call, load_skill, read_file, write_file]
+    tools: [quantlib_call, load_skill, read_file, write_file]
     skills: [technical-basic, volatility, global-macro]
     max_iterations: 35
     timeout_seconds: 1800
@@ -36,12 +40,14 @@ agents:
       required research timeframes are supplied in the task prompt. Treat those
       task-prompt values as authoritative for this run.
 
-      Design at least five STRUCTURALLY DIFFERENT hypotheses, not parameter clones:
-      trend/momentum, breakout/volatility expansion, mean reversion,
+      Use the research_snapshot embedded in data_contract plus the upstream regime report.
+      Do not refetch raw market data: the snapshot was deterministically computed from the full
+      frozen checksum-verified files. Design at least five STRUCTURALLY DIFFERENT hypotheses,
+      not parameter clones: trend/momentum, breakout/volatility expansion, mean reversion,
       regime-conditioned, and seasonal/time-based when data supports it.
       Every hypothesis must specify entries, exits, risk/stop logic, parameters,
       economic rationale and expected failure regime. Ban lookahead and leakage.
-    tools: [load_skill, read_file, write_file, get_market_data, technical_indicators]
+    tools: [load_skill, read_file, write_file]
     skills: [strategy-generate, technical-basic, seasonal]
     max_iterations: 35
     timeout_seconds: 1800
@@ -56,10 +62,11 @@ agents:
       research timeframes are supplied in the task prompt. Treat those task-prompt
       values as authoritative for this run.
 
-      Materialize and run real backtests with the Vibe backtest tool. For Yahoo continuous
-      futures symbols ending =F, config.json MUST use source="yahoo". Never use source="auto",
-      "akshare", or "tushare" for these candidates. Vibe 0.1.15 can route =F correctly through
-      Yahoo, while its generic futures auto backtest chain does not include Yahoo.
+      Materialize and run real backtests with the Vibe backtest tool. The supplied =F
+      symbol is the economic identity, NOT the backtest data key. Use ONLY the frozen
+      canonical local alias declared for the candidate timeframe in data_contract.
+      Every config.json MUST use source="local" and codes=[<exact canonical alias>].
+      Never fetch Yahoo/auto/akshare/tushare from inside the swarm.
       Preserve an explicit evaluation window and warmup separation. Include realistic
       commission/slippage assumptions and chronological OOS validation.
 
@@ -92,7 +99,7 @@ agents:
       exact rules, config/code artifact paths, evaluated date window, trade count,
       return, Sharpe, max drawdown, OOS behavior, direction, cost assumptions,
       and strategy_manifest.json path.
-    tools: [read_file, write_file, edit_file, load_skill, get_market_data, backtest]
+    tools: [read_file, write_file, edit_file, load_skill, backtest]
     skills: [strategy-generate, technical-basic, backtest-diagnose]
     max_iterations: 50
     timeout_seconds: 2400
@@ -107,6 +114,16 @@ agents:
       are supplied in the task prompt. Treat those task-prompt values as authoritative.
       Verify that no evidence for NQ/ES/GC/CL came from KUCOIN/crypto or from a GC->TVC:GOLD substitution.
 
+      UPSTREAM EVIDENCE HANDOFF:
+      The runtime stages the backtester workspace inside your own workspace at
+      upstream/backtests/. FIRST read upstream/backtests/artifact_index.json.
+      That index is the authoritative inventory of staged files. For every path matching
+      runs/*/strategy_manifest.json, read that exact manifest and then read the matching
+      runs/*/artifacts/metrics.csv, runs/*/artifacts/trades.csv and
+      runs/*/artifacts/equity.csv when listed. Do NOT look for strategy_manifest.json at
+      the upstream/backtests root. Do not declare evidence missing until the artifact
+      index has been read. The upstream textual summary is not a substitute for these files.
+
       HARD ADMISSION GATE: before auditing, verify the upstream backtester produced at
       least one successful real backtest with metrics and a strategy_manifest.json whose
       status is SQX_READY. If not, output BACKTEST_GATE_FAILED and do not certify survivors.
@@ -116,7 +133,7 @@ agents:
       regime dependence and similarity among candidates. Use quantlib_call for
       finance math instead of shell commands. Reject near-clones and state every
       robustness test that could not be performed.
-    tools: [read_file, write_file, get_market_data, technical_indicators, quantlib_call, load_skill]
+    tools: [read_file, write_file, quantlib_call, load_skill]
     skills: [volatility, risk-analysis, backtest-diagnose]
     max_iterations: 40
     timeout_seconds: 1800
@@ -133,6 +150,14 @@ agents:
       - candidates needing repair
       - rejected candidates
       - blocked or missing tests
+
+      UPSTREAM EVIDENCE HANDOFF:
+      The runtime stages upstream workspaces inside your own workspace. FIRST read
+      upstream/backtests/artifact_index.json and upstream/robustness/artifact_index.json.
+      Use those indexes to discover exact candidate manifests, metrics, trades, equity and
+      audit files. Candidate manifests live under runs/<candidate_id>/strategy_manifest.json,
+      not at the upstream root. Do not declare evidence missing until both indexes were
+      inspected. Use read_file on the staged files; do not rely only on upstream summaries.
 
       COMPLETION GATE:
       - A run is NOT a successful strategy-discovery run merely because all agents returned.
@@ -158,6 +183,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: []
 
   - id: task-architecture
@@ -167,6 +195,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: [task-regime]
     input_from:
       regime: task-regime
@@ -178,6 +209,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
       Mandatory backtest data source: {backtest_source}. Every candidate config.json must set
       "source": "{backtest_source}" and preserve the exact {target} symbol.
       Candidate run directories MUST be relative to this agent workspace in the form
@@ -195,6 +229,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: [task-backtests]
     input_from:
       backtests: task-backtests
@@ -206,6 +243,9 @@ tasks:
       Canonical TradingView future: {tv_symbol}; category: {tv_category}.
       Mandatory routing policy: {tv_policy}
       Required research timeframes: {research_timeframes}.
+      Canonical frozen data contract: {data_contract}
+      Use ONLY the exact symbol/source/date window declared there for each timeframe.
+      Do not request a broader or different Yahoo window for evidence used by this run.
     depends_on: [task-regime, task-architecture, task-backtests, task-robustness]
     input_from:
       regime: task-regime
@@ -236,5 +276,10 @@ variables:
     description: "Mandatory multitimeframe research set: 5m,15m,1h,4h"
     required: true
   - name: backtest_source
-    description: "Pinned backtest source for Yahoo continuous futures (=F); must be yahoo"
+    description: "Pinned frozen Data Bridge source; must be local"
     required: true
+  - name: data_contract
+    description: "Frozen canonical Yahoo dataset contract with exact per-timeframe windows, row counts and SHA256 checksums"
+    required: true
+
+[executed on device: WIN-31RCI8K7JR2 (dfb74cc6-deae-45bc-8c9d-634f7d1202b2)]
