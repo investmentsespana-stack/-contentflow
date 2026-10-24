@@ -513,6 +513,19 @@ def _rows_for_symbol(payload: Any, symbol: str) -> int:
                 return value
     return 0
 
+def _source_for_symbol(payload: Any, symbol: str) -> str | None:
+    data = _json_layers(payload)
+    if not isinstance(data, dict):
+        return None
+    provenance = data.get("_provenance")
+    if not isinstance(provenance, dict):
+        return None
+    item = provenance.get(symbol)
+    if not isinstance(item, dict):
+        return None
+    source = item.get("source")
+    return str(source).strip().lower() if source else None
+
 
 async def _native_agent_smoke(client: Client) -> dict[str, Any]:
     start = await _call(
@@ -694,6 +707,18 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
                     "max_rows": 20,
                 },
             )
+            blocked_non_yahoo = await _call(
+                client,
+                "get_market_data",
+                {
+                    "codes": ["ES=F"],
+                    "start_date": "2026-09-15",
+                    "end_date": "2026-09-20",
+                    "source": "akshare",
+                    "interval": "1H",
+                    "max_rows": 20,
+                },
+            )
             dxy_data = await _call(
                 client,
                 "get_market_data",
@@ -710,11 +735,23 @@ async def full_health(mcp_url: str) -> dict[str, Any]:
                 symbol: _rows_for_symbol(futures_data.get("result"), symbol)
                 for symbol in ("CL=F", "ES=F", "NQ=F", "GC=F")
             }
+            futures_sources = {
+                symbol: _source_for_symbol(futures_data.get("result"), symbol)
+                for symbol in ("CL=F", "ES=F", "NQ=F", "GC=F")
+            }
             rows["DX-Y.NYB"] = _rows_for_symbol(dxy_data.get("result"), "DX-Y.NYB")
+            blocked_blob = json.dumps(blocked_non_yahoo, ensure_ascii=False, default=str)
             evidence["checks"]["market_data"] = {
-                "ok": all(v > 0 for v in rows.values()),
+                "ok": (
+                    all(v > 0 for v in rows.values())
+                    and all(v == "yahoo" for v in futures_sources.values())
+                    and "CYGNUS_FUTURES_SOURCE_MUST_BE_YAHOO" in blocked_blob
+                ),
                 "rows": rows,
+                "futures_sources": futures_sources,
+                "non_yahoo_blocked": "CYGNUS_FUTURES_SOURCE_MUST_BE_YAHOO" in blocked_blob,
                 "futures_call": futures_data,
+                "blocked_non_yahoo_call": blocked_non_yahoo,
                 "dxy_call": dxy_data,
             }
 
