@@ -10,7 +10,11 @@ if(-not (Test-Path $python -PathType Leaf)){ throw "VIBE_PYTHON_MISSING:$python"
 
 $required=@(
   "asset_research.py",
+  "canonical_market_data.py",
+  "canonical_local_data_bridge.py",
   "tradingview_futures_guard.py",
+  "apply_vibe_futures_data_route_fix.py",
+  "apply_vibe_upstream_artifact_handoff_fix.py",
   "vibe_full_preflight.py",
   "cygnus_native_smoke.yaml",
   "cygnus_futures_strategy_lab.yaml",
@@ -53,6 +57,8 @@ Set-DotEnvValue $envFile "LANGCHAIN_TEMPERATURE" "0"
 Set-DotEnvValue $envFile "TIMEOUT_SECONDS" "180"
 Set-DotEnvValue $envFile "MAX_RETRIES" "3"
 Set-DotEnvValue $envFile "VIBE_TRADING_ENABLE_SHELL_TOOLS" "0"
+Set-DotEnvValue $envFile "VIBE_TRADING_DATA_CACHE" "1"
+Set-DotEnvValue $envFile "VIBE_TRADING_DATA_CACHE_ROOT" "$Root\data\loader-cache"
 Set-DotEnvValue $envFile "VIBE_TRADING_API_URL" "http://127.0.0.1:8899"
 
 # Vibe's dotenv lookup is ~/.vibe-trading/.env -> package agent/.env -> CWD/.env.
@@ -67,6 +73,8 @@ $rootEnv = Join-Path $Root ".env"
   "TIMEOUT_SECONDS=180",
   "MAX_RETRIES=3",
   "VIBE_TRADING_ENABLE_SHELL_TOOLS=0",
+  "VIBE_TRADING_DATA_CACHE=1",
+  "VIBE_TRADING_DATA_CACHE_ROOT=$Root\data\loader-cache",
   "VIBE_TRADING_API_URL=http://127.0.0.1:8899"
 ) | Set-Content -Encoding UTF8 $rootEnv
 
@@ -88,7 +96,13 @@ if(-not (Test-Path $canonicalToken) -and (Test-Path $defaultToken)){
 Step "Installing native runner, presets and health tooling..."
 New-Item -ItemType Directory -Force -Path "$Root\evidence","$Root\logs","$Root\data","$Root\state\swarm\presets" | Out-Null
 Copy-Item (Join-Path $pkg "asset_research.py") "$Root\asset_research.py" -Force
+Copy-Item (Join-Path $pkg "canonical_market_data.py") "$Root\canonical_market_data.py" -Force
+Copy-Item (Join-Path $pkg "canonical_local_data_bridge.py") "$Root\canonical_local_data_bridge.py" -Force
 Copy-Item (Join-Path $pkg "tradingview_futures_guard.py") "$Root\tradingview_futures_guard.py" -Force
+& $python (Join-Path $pkg "apply_vibe_futures_data_route_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_FUTURES_DATA_ROUTE_PATCH_FAILED" }
+& $python (Join-Path $pkg "apply_vibe_upstream_artifact_handoff_fix.py")
+if($LASTEXITCODE -ne 0){ throw "VIBE_UPSTREAM_ARTIFACT_HANDOFF_PATCH_FAILED" }
 Copy-Item (Join-Path $pkg "vibe_full_preflight.py") "$Root\vibe_full_preflight.py" -Force
 foreach($preset in @("cygnus_native_smoke.yaml","cygnus_futures_strategy_lab.yaml","cygnus_dxy_macro_lab.yaml")){
   Copy-Item (Join-Path $pkg $preset) "$Root\state\swarm\presets\$preset" -Force
@@ -98,7 +112,7 @@ foreach($script in @("Start-VibeNative.ps1","Stop-VibeNative.ps1","Vibe-Guardian
 }
 Copy-Item (Join-Path $pkg "AUTHORIZE_VIBE_CODEX.cmd") "$Root\AUTHORIZE_VIBE_CODEX.cmd" -Force
 
-& $python -m py_compile "$Root\tradingview_futures_guard.py" "$Root\asset_research.py" "$Root\vibe_full_preflight.py"
+& $python -m py_compile "$Root\tradingview_futures_guard.py" "$Root\canonical_market_data.py" "$Root\canonical_local_data_bridge.py" "$Root\asset_research.py" "$Root\vibe_full_preflight.py"
 if($LASTEXITCODE -ne 0){ throw "VIBE_NATIVE_PY_COMPILE_FAILED" }
 
 Step "Restarting Vibe API/MCP only so canonical config is loaded..."
@@ -123,6 +137,12 @@ Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoLogo","-NoProfile",
 $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
 if($task.State -eq "Disabled"){ throw "VIBE_GUARDIAN_TASK_DISABLED" }
 Write-Host "VIBE_BOOT_GUARDIAN=REGISTERED"
+
+Step "Building/verifying canonical frozen futures datasets..."
+& $python "$Root\canonical_market_data.py" --asset ALL
+if($LASTEXITCODE -ne 0){ throw "VIBE_CANONICAL_DATA_BUILD_FAILED" }
+& $python "$Root\canonical_local_data_bridge.py" --asset ALL
+if($LASTEXITCODE -ne 0){ throw "VIBE_LOCAL_DATA_BRIDGE_BUILD_FAILED" }
 
 Step "Running full native Vibe preflight..."
 & $python "$Root\vibe_full_preflight.py"

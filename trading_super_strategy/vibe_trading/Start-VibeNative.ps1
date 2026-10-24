@@ -1,8 +1,29 @@
+[Reading 87 lines from start (total: 87 lines, 0 remaining)]
+
 param(
   [string]$Root = "C:\Cygnus\VibeTrading"
 )
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+$stateDir = "$Root\state"
+$maintenance = "$stateDir\maintenance.stop"
+$startLock = "$stateDir\start.lock"
+New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+Remove-Item $maintenance -Force -ErrorAction SilentlyContinue
+
+if(Test-Path $startLock){
+  $age = (Get-Date) - (Get-Item $startLock).LastWriteTime
+  if($age.TotalMinutes -gt 5){ Remove-Item $startLock -Recurse -Force -ErrorAction SilentlyContinue }
+}
+try {
+  New-Item -ItemType Directory -Path $startLock -ErrorAction Stop | Out-Null
+} catch {
+  Write-Host "VIBE_START_ALREADY_IN_PROGRESS"
+  exit 0
+}
+
+try {
 
 $env:VIBE_TRADING_HOME = "$Root\state"
 $env:LANGCHAIN_PROVIDER = "openai-codex"
@@ -11,6 +32,8 @@ $env:VIBE_TRADING_ALLOWED_FILE_ROOTS = "$Root\data;$Root\evidence;$Root\state"
 $env:VIBE_TRADING_ALLOWED_RUN_ROOTS = "$Root\state\runs;$Root\data"
 $env:VIBE_TRADING_ENABLE_SHELL_TOOLS = "0"
 $env:CYGNUS_RESEARCH_ONLY = "1"
+$env:VIBE_TRADING_DATA_CACHE = "1"
+$env:VIBE_TRADING_DATA_CACHE_ROOT = "$Root\data\loader-cache"
 $env:VIBE_TRADING_API_URL = "http://127.0.0.1:8899"
 
 $api = "$Root\.venv\Scripts\vibe-trading.exe"
@@ -60,3 +83,9 @@ Write-Host "MCP=http://127.0.0.1:8900/mcp"
 Write-Host "RESEARCH_ONLY=true"
 Write-Host "LIVE=false"
 Write-Host "SHELL_TOOLS=false"
+
+} finally {
+  Remove-Item $startLock -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+[executed on device: WIN-31RCI8K7JR2 (dfb74cc6-deae-45bc-8c9d-634f7d1202b2)]
