@@ -1,0 +1,22 @@
+name: Trading Cross-Market Portfolio Fit
+
+on:
+  pull_request:
+    paths:
+      - 'trading_super_strategy/cross_market_portfolio_engine.py'
+      - 'trading_super_strategy/test_cross_market_portfolio_engine.py'
+      - 'trading_super_strategy/CROSS_MARKET_PORTFOLIO_SPEC_V1.md'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install numpy pytest
+      - run: python -m pytest -q trading_super_strategy/test_cross_market_portfolio_engine.py
